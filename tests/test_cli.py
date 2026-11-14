@@ -494,6 +494,10 @@ class TestTicketCommands:
         (clone / "y.txt").write_text("y\n")
         git(clone, "add", "y.txt")
         git(clone, "commit", "-m", "Already shipped (#88)")
+        # Mainline is the shared ref (CON-76), so shipped work has to be on
+        # it. The tracking ref is moved rather than pushed: the fixture's
+        # origin has `main` checked out and git refuses a push into that.
+        git(clone, "update-ref", "refs/remotes/origin/main", "HEAD")
 
         main(["--workspace", ws, "repo", "add", str(clone), "--name", "s"])
         capsys.readouterr()

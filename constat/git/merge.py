@@ -30,7 +30,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal, Sequence
 
@@ -81,6 +81,15 @@ class MergeResult:
     outcome: Outcome
     detail: str
     merge_commit: str | None = None
+    refreshed: bool | None = None
+    """Whether the registered repository's remote-tracking ref was updated to
+    see this merge (CON-76).
+
+    None when no merge landed, so there was nothing to catch up with. False
+    means the push succeeded and the refresh did not: the merge is on the
+    remote and this clone does not know it yet, which makes the ticket read as
+    unlanded until something fetches. A distinct state rather than an error —
+    the landing worked."""
 
     @property
     def landed(self) -> bool:
@@ -247,7 +256,7 @@ def merge_ticket_branch(
 
     scratch = Path(tempfile.mkdtemp(prefix="constat-merge-"))
     try:
-        return _merge_in_clone(
+        result = _merge_in_clone(
             scratch / "clone",
             url=url,
             alias=alias,
@@ -259,6 +268,26 @@ def merge_ticket_branch(
         )
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
+
+    if not result.landed:
+        # Nothing reached the remote, so there is nothing for this clone to
+        # catch up with. `refreshed` stays None: "not applicable" and "tried
+        # and failed" are different, and a reader must be able to tell them
+        # apart (CON-76).
+        return result
+
+    refreshed = refresh_remote_ref(repo, target_branch, remote)
+    if refreshed:
+        return replace(result, refreshed=True)
+    return replace(
+        result,
+        refreshed=False,
+        detail=(
+            f"{result.detail}, but this clone's `{remote}/{target_branch}` "
+            "could not be updated — until something fetches, the ticket will "
+            "still read as not yet landed here"
+        ),
+    )
 
 
 def _merge_in_clone(
@@ -351,6 +380,34 @@ def _merge_in_clone(
         )
 
     return result(LANDED, f"merged {branch} into {target_branch} and pushed to {url}", head)
+
+
+def refresh_remote_ref(
+    repo: Repository, branch: str, remote: str = "origin"
+) -> bool:
+    """Update the registered repository's view of `<remote>/<branch>`.
+
+    Called only after Constat's own push, and only for the branch it pushed
+    to. The staleness being closed here is the staleness Constat caused: the
+    merge was made in a throwaway clone, so the repository someone actually
+    works in never learned of it, and a shipped ticket then reads `pending`
+    (CON-76).
+
+    **This writes to `.git` and nothing else.** It updates one remote-tracking
+    ref. It does not touch the working tree, does not move a local branch, and
+    is emphatically not `git pull` — pulling into a repository that may hold
+    uncommitted work, sit on another branch, or be mid-rebase is the thing
+    this module exists to avoid.
+
+    Returns False rather than raising. A failed refresh leaves a correct merge
+    and a stale clone, which is a disclosure problem and not a landing
+    failure; the caller reports it and the next fetch fixes it anyway.
+    """
+    fetched = _run(
+        ["fetch", "--quiet", remote, f"refs/heads/{branch}:refs/remotes/{remote}/{branch}"],
+        cwd=repo.root,
+    )
+    return fetched.returncode == 0
 
 
 def _conflicted_paths(clone: Path) -> tuple[str, ...]:

@@ -104,12 +104,21 @@ class TestGathering:
     ):
         clone = make_quiet_subject(tmp_path, "shipped")
         commit_file(clone, "done.py", "x\n", "Already shipped (#500)")
+        # Mainline is the shared ref (CON-76), so shipped work has to be on
+        # it: a commit sitting on a local `main` that nobody else has is not
+        # shipped, and this test is about `landed` meaning "already in
+        # mainline". The tracking ref is moved rather than pushed because the
+        # fixture's origin is a non-bare clone with `main` checked out, which
+        # git refuses to push into.
+        git(clone, "update-ref", "refs/remotes/origin/main", "HEAD")
 
         Registry(workspace).add(str(clone), alias="shipped")
         TicketStore(workspace).add("500")
 
         body = gather(workspace, "500").body
-        assert "Already in `main`" in body
+        # `origin/main`, not `main`: the document names the ref the comparison
+        # used, so a reader checking the claim looks at the right one (CON-76).
+        assert "Already in `origin/main`" in body
         assert "not the same as finding nothing" in body
 
     def test_an_unknown_ticket_is_refused(self, workspace: Workspace):

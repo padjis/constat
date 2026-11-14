@@ -5,11 +5,13 @@ reimplementing Git (D-002), and is strictly read-only (PRODUCT_SPEC.md rule 7).
 """
 
 from .adapter import (
+    MainlineRef,
     Repository,
     Revision,
     discover_repository,
     local_branches,
     resolve_default_branch,
+    resolve_mainline,
     resolve_revision,
     root_commits,
 )
@@ -25,6 +27,7 @@ from .diff import (
 
 __all__ = [
     "ChangeSummary",
+    "MainlineRef",
     "ChangeType",
     "FileChange",
     "Repository",
@@ -36,6 +39,7 @@ __all__ = [
     "resolve_default_branch",
     "root_commits",
     "find_merge_base",
+    "resolve_mainline",
     "resolve_revision",
     "summarise_state",
 ]

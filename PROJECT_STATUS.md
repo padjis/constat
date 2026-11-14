@@ -2,10 +2,10 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session:** CON-73 closed (D-065, D-067) — a reading can say that evidence *repairs* a
-rule rather than establishing one; schema 10. CON-74 closed before it (D-066), CON-70 before that
-(D-064), CON-69 (D-062) and CON-64 (D-063) earlier. All four came out of reading tickets 615 and
-628 through the MCP loop.
+**Current session (2026-11-15):** CON-76 closed (D-068) — mainline is the shared ref, and drift
+from it is disclosed in both directions. CON-73 (D-065, D-067), CON-74 (D-066), CON-70 (D-064),
+CON-69 (D-062) and CON-64 (D-063) closed on 2026-11-14. Every one of them came out of reading
+tickets 615 and 628 through the MCP loop rather than out of reading the code.
 
 ---
 
@@ -389,16 +389,15 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-76 — a landed ticket does not keep reading as pending.** The other half of CON-69, and the
-reason it is first: with `merge_on_accept` on, every landed ticket widens the gap between the
-registered repository and its remote by one merge commit, and nothing in Constat ever fetches. While
-the gap is open, D-031's statuses misreport — 628 has shipped and still reads `pending`. Constat
-degrades its own evidence a little each time the feature is used, which was not true before CON-69,
-because until then it only ever read.
+**CON-75 — Constat's own merge commit is not evidence.** Small, and the last loose end from landing
+628: the payload carried Constat's own merge commit beside the real fix, so 14 changed files were
+reported for 7 real ones and a commit Constat authored was presented as the team's implementation
+evidence. Identify it by a `Constat-Landed:` trailer it writes — not by its subject, which is text
+anyone could write — and state the exclusion rather than performing it silently.
 
-Then **CON-75 — Constat's own merge commit is not evidence.** Cheaper, and found in the same
-re-read: 14 changed files reported for 7 real ones, with a commit Constat authored presented as the
-team's implementation evidence.
+One open question to answer first, noted on the ticket: whether a merge commit should contribute
+evidence **at all**. A human merging the same branch through a GitLab MR double-counts identically
+and carries no trailer to filter on.
 
 ~~Re-read ticket 628, now that a repair is sayable~~ **done 2026-11-14.** It worked: three
 proposals became one, relation `repairs`, and the concurrency clause is gone from the statement.
@@ -431,6 +430,53 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-76 — done when: *a landed ticket does not keep reading as pending* ✅
+
+`D-068` records the decision. The other half of CON-69: landing a ticket left the registered
+repository behind its own remote, and a shipped ticket kept reading `pending`.
+
+**What changed.**
+
+- `constat/git/adapter.py` — `resolve_mainline` and `MainlineRef`. Prefers
+  `<remote>/<default-branch>`, verifies it exists, falls back to the local branch explicitly and
+  says so. Counts drift **both ways** in one `rev-list --left-right --count`.
+- `constat/operations.py` — gathering measures against the resolved ref, carries it on
+  `RepositoryFindings`, and the document names it in both the "measured against" line and the
+  status line.
+- `constat/git/merge.py` — `refresh_remote_ref` updates that one ref in the registered repository
+  after Constat's own push. `.git` refs only; never the working tree, never a local branch, and
+  emphatically not `git pull`. `MergeResult.refreshed` is True, False, or None for "nothing landed".
+
+**The `ahead` count exists because two tests failed.** Both committed "already shipped" work to a
+local `main` and never pushed it, so under the new rule it read as not yet landed — correct about
+the shared mainline, and surprising to whoever committed it. The answer was disclosure, not
+softening the rule: the document now says how many local commits are not on the shared ref and that
+work in them reads as unlanded. Those two tests were corrected to push their "shipped" work, which
+is what shipped means.
+
+**Verified on the live workspace.** 628 had shipped and read `pending`; it now reads:
+
+```
+Measured against `origin/main` (the local `main` is 2 behind).
+This clone has not caught up with `origin/main`. Work already merged there can
+still appear below as not yet landed.
+Already in `origin/main` (2 commit(s)).
+```
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_mainline_staleness.py` → **17 passed** (new file). **Whole
+suite run, twice** — this changes the comparison ref for every gather, so a subset would not have
+been honest. First run: **3 failed, 948 passed**; after the fixes above: **954 passed in 129s**,
+exit 0.
+
+The three failures were worth having. Two were the semantic shift described above; the third was a
+migration test that rewinds a workspace by version number and had to drop schema 10's column as
+well — it now asserts `SCHEMA_VERSION` rather than a literal, so the next migration will not have
+to edit it.
 
 ---
 

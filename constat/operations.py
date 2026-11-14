@@ -44,7 +44,14 @@ from .publish import PublishedRef, Target
 from .publish.targets.git_pages import detect as git_pages_detect
 from .errors import PayloadRefused, ReferenceMatchedNothing, RepositoryError
 from .evidence import DEFAULT_LIMITS, EvidenceBundle, ExcerptLimits, collect_evidence
-from .git.adapter import Repository, Revision, discover_repository, resolve_revision
+from .git.adapter import (
+    MainlineRef,
+    Repository,
+    Revision,
+    discover_repository,
+    resolve_mainline,
+    resolve_revision,
+)
 from .git.diff import compare_revisions
 from .models import RegisteredRepository
 from .store import READER_MCP, Settings
@@ -80,6 +87,13 @@ class RepositoryFindings:
     match: TicketMatch
     commits: tuple[CommitEvidence, ...] = ()
     error: str | None = None
+    mainline: MainlineRef | None = None
+    """Which ref the work was measured against, and how stale it is (CON-76).
+
+    None only when the repository could not be read, because then nothing was
+    measured. Carried rather than re-derived at render time: the document must
+    report the ref the comparison actually used, not the one it would resolve
+    to now."""
 
     @property
     def contributed(self) -> bool:
@@ -143,12 +157,16 @@ def _collect_repository(
             error=str(exc),
         )
 
-    match = find_ticket_commits(repo, reference, entry.default_branch, entry.alias)
+    # Mainline is the remote-tracking ref where there is one (CON-76). The
+    # local branch is one checkout's last pull, and measuring against it makes
+    # a shipped ticket read as pending.
+    mainline = resolve_mainline(repo, entry.default_branch)
+    match = find_ticket_commits(repo, reference, mainline.ref, entry.alias)
     if match.status is not TicketStatus.PENDING:
         # Landed and not-found both contribute no evidence, but they are
         # different answers and the document must say which (D-031).
         return RepositoryFindings(
-            repository=entry, status=match.status, match=match
+            repository=entry, status=match.status, match=match, mainline=mainline
         )
 
     collected = []
@@ -176,6 +194,7 @@ def _collect_repository(
         status=match.status,
         match=match,
         commits=tuple(collected),
+        mainline=mainline,
     )
 
 
@@ -518,7 +537,31 @@ def render(
         entry = finding.repository
         lines.append(f"### {entry.alias}")
         lines.append("")
-        lines.append(f"Measured against `{entry.default_branch}`.")
+        measured = (
+            finding.mainline.describe()
+            if finding.mainline is not None
+            else f"`{entry.default_branch}`"
+        )
+        lines.append(f"Measured against {measured}.")
+        if finding.mainline is not None and finding.mainline.has_unpushed:
+            lines.append("")
+            lines.append(
+                f"{finding.mainline.ahead} commit(s) on this clone's "
+                f"`{finding.mainline.branch}` are not on "
+                f"`{finding.mainline.ref}`. Mainline is the shared ref, so "
+                "work that exists only locally reads below as not yet landed."
+            )
+        if finding.mainline is not None and finding.mainline.is_stale:
+            # Stated rather than silently absorbed. Nothing Constat can write
+            # closes this gap — only a fetch does, and fetching is not its
+            # business on a gather — so the document says how old the picture
+            # is (CON-76, and CON-38's posture for caches).
+            lines.append("")
+            lines.append(
+                f"This clone has not caught up with `{finding.mainline.ref}`. "
+                "Work already merged there can still appear below as not yet "
+                "landed."
+            )
         lines.append("")
 
         if finding.error:
@@ -527,7 +570,10 @@ def render(
 
         if finding.status is TicketStatus.LANDED:
             lines += [
-                f"Already in `{entry.default_branch}` "
+                # The ref the comparison used, not the branch name: saying
+                # "already in `main`" under "measured against `origin/main`"
+                # invites the reader to check the wrong ref (CON-76).
+                f"Already in `{finding.mainline.ref if finding.mainline else entry.default_branch}` "
                 f"({finding.match.commit_count} commit(s)). Outside the window "
                 "Constat documents, so no evidence was gathered here — which is "
                 "not the same as finding nothing.",

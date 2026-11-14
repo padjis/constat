@@ -273,6 +273,126 @@ def resolve_default_branch(repo: Repository, remote: str = "origin") -> str:
     )
 
 
+@dataclass(frozen=True)
+class MainlineRef:
+    """Which ref a ticket's work is measured against, and how current it is.
+
+    Mainline used to be the default branch *name*, which resolves to one
+    checkout's local branch. That is not what "mainline" means: it is one
+    person's last pull, and after Constat lands a merge of its own (D-062) the
+    registered clone is behind by that merge and never learns of it. A ticket
+    that has shipped then keeps reading `pending`, which is D-031's status
+    misreporting the one thing it exists to say (CON-76).
+
+    So `origin/<branch>` is preferred — it is what everyone else pulls — and
+    `behind` says how far the local branch trails it, because a number is the
+    only honest way to disclose staleness that no write can fix.
+    """
+
+    ref: str
+    """The ref to compare against. `origin/main` normally, `main` when there
+    is no remote-tracking ref to use."""
+
+    branch: str
+    """The default branch's name, for display."""
+
+    from_remote: bool
+    """False means the local branch is being used and the picture of mainline
+    is only as current as this clone. Reported, never silently accepted."""
+
+    behind: int = 0
+    """Commits `ref` has that the local branch does not. Zero when they agree,
+    and when there is no local branch to compare."""
+
+    ahead: int = 0
+    """Commits the local branch has that `ref` does not — work committed to
+    this clone's mainline and never pushed.
+
+    Disclosed for the opposite reason to `behind`, and it is the easier one to
+    be caught out by: measuring against the shared ref means unpushed work on
+    the local branch reads as *not yet landed*, which is true of the mainline
+    everyone pulls and surprising to whoever committed it. Saying the number
+    is how the document explains itself rather than looking wrong."""
+
+    @property
+    def is_stale(self) -> bool:
+        return self.behind > 0
+
+    @property
+    def has_unpushed(self) -> bool:
+        return self.ahead > 0
+
+    def describe(self) -> str:
+        if not self.from_remote:
+            return (
+                f"`{self.branch}` (local: no `{self.branch}` on any remote is "
+                "tracked here, so mainline is only as current as this clone)"
+            )
+        drift = []
+        if self.is_stale:
+            drift.append(f"the local `{self.branch}` is {self.behind} behind")
+        if self.has_unpushed:
+            drift.append(f"{self.ahead} local commit(s) are not on it")
+        if drift:
+            return f"`{self.ref}` ({'; '.join(drift)})"
+        return f"`{self.ref}`"
+
+
+def resolve_mainline(
+    repo: Repository, default_branch: str, remote: str = "origin"
+) -> MainlineRef:
+    """What to measure a ticket's work against, resolved rather than assumed.
+
+    Prefers `<remote>/<branch>` and falls back to the local branch only when
+    that ref does not exist — a repository with no remote, a bare mirror, or a
+    default branch named explicitly at registration that the remote does not
+    carry. The fallback is recorded in `from_remote` so the document can say
+    the picture is local, rather than presenting it as mainline.
+
+    Read-only, like everything else in this module: it resolves refs the clone
+    already has and never fetches. Refreshing a ref is a write and lives in
+    `merge.py`.
+    """
+    remote_ref = f"{remote}/{default_branch}"
+    on_remote = run_git(
+        ["rev-parse", "--verify", "--quiet", f"refs/remotes/{remote_ref}^{{commit}}"],
+        cwd=repo.root,
+    )
+    if on_remote.returncode != 0:
+        return MainlineRef(
+            ref=default_branch, branch=default_branch, from_remote=False
+        )
+
+    local = run_git(
+        ["rev-parse", "--verify", "--quiet", f"refs/heads/{default_branch}^{{commit}}"],
+        cwd=repo.root,
+    )
+    behind = ahead = 0
+    if local.returncode == 0:
+        counted = run_git(
+            [
+                "rev-list",
+                "--left-right",
+                "--count",
+                f"refs/heads/{default_branch}...refs/remotes/{remote_ref}",
+            ],
+            cwd=repo.root,
+        )
+        parts = counted.stdout.split()
+        if counted.returncode == 0 and len(parts) == 2 and all(p.isdigit() for p in parts):
+            # --left-right counts both sides in one pass: left is the local
+            # branch, right is the remote ref.
+            ahead, behind = int(parts[0]), int(parts[1])
+
+    return MainlineRef(
+        ref=remote_ref,
+        branch=default_branch,
+        from_remote=True,
+        behind=behind,
+        ahead=ahead,
+    )
+
+
 def resolve_revision(repo: Repository, symbolic: str) -> Revision:
     """Resolve a symbolic revision to a commit SHA within `repo`.
 

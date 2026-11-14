@@ -8,6 +8,53 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-068 · 2026-11-15 · Mainline is the shared ref, and drift from it is disclosed
+
+**Decision.** A ticket's work is measured against `<remote>/<default-branch>` — the ref everyone
+pulls — not against the local branch of whichever clone is registered. Where no remote-tracking ref
+exists the local branch is used and the document says the picture is only as current as that clone.
+Drift is counted in both directions and disclosed: commits the shared ref has that the clone lacks,
+and commits the clone has that were never pushed. After Constat's own push it refreshes that one
+remote-tracking ref in the registered repository. It never runs `git pull` anywhere.
+
+**Context.** CON-69 let `rule accept` land a ticket's branch, and CON-76 is the half that was
+missing. The merge is made in a throwaway clone and pushed, so the repository someone actually works
+in never learns of it: `237feed`'s local `main` sat two commits behind `origin/main` immediately
+after landing 628. Measured against the local branch, a ticket that had shipped kept reading
+`pending` — D-031's status misreporting the one thing it exists to say. The drift is cumulative and
+self-inflicted: one merge per landed ticket, and nothing in Constat fetched.
+
+**Why not a pull.** Pulling writes to a working tree that may hold uncommitted work, sit on another
+branch, or be mid-rebase. That is the reason CON-69 merges in a clone, and it does not stop being
+the reason here. The refresh updates one ref under `.git` and touches nothing else.
+
+**What this changes in meaning.** "Landed" now means *in the mainline the team shares*, not *in this
+clone's branch*. Work committed to a local `main` and never pushed therefore reads as not yet
+landed, which is true and surprising — two existing tests asserted the old reading and were
+corrected. The surprise is answered by disclosure rather than by softening the rule: the document
+states how many local commits are not on the shared ref and that work in them reads as unlanded.
+
+**Consequences.**
+
+- **`resolve_mainline` resolves, never assumes.** It verifies the remote-tracking ref exists and
+  falls back explicitly, in the posture `resolve_default_branch` set for D-028. A local-only
+  repository is valid and is reported as such, not presented as mainline.
+- **The ref is carried on the finding, not re-derived at render time.** A document must report the
+  ref the comparison actually used, including the status line: "already in `origin/main`" rather
+  than "already in `main`", so a reader checking the claim looks at the right ref.
+- **Disclosure is a signal, not boilerplate.** A clone in step with its remote says nothing beyond
+  naming the ref. Only real drift prints.
+- **A failed refresh is not a failed landing.** The merge is on the remote either way;
+  `MergeResult.refreshed` is False and the detail says the ticket will read as unlanded here until
+  something fetches. `None` means nothing landed, so there was nothing to catch up with — "not
+  applicable" and "tried and failed" are different states.
+- **Staleness no write can fix stays CON-38's job.** A repository someone else pushed to is stale
+  the moment they push, and only saying how old the picture is addresses that.
+
+**Status.** accepted.
+
+---
+
 ## D-067 · 2026-11-14 · A repair states its rule rather than naming one
 
 **Decision.** A reading whose `relation` is `repairs` must not carry `revises`. It states the rule
