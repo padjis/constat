@@ -46,6 +46,11 @@ FENCE = re.compile(r"^\s*```(?:json)?\s*(?P<body>.*?)\s*```\s*$", re.DOTALL)
 pragmatism, not laxity: the content inside still has to parse, and anything
 that is not JSON is still refused."""
 
+RELATIONS = ("establishes", "revises", "repairs")
+"""How a reading may stand to the catalogue (D-065). Kept here beside the
+parse that enforces it: SQLite cannot add a CHECK to an existing column, so a
+migrated workspace relies on this gate exactly as a fresh one does."""
+
 MAX_NAME = 120
 MAX_STATEMENT = 600
 """Bounds on generated text. An unbounded statement would let a model write a
@@ -248,6 +253,18 @@ def parse(text: str, payload: ProviderPayload) -> ParseResult:
             rejections.append(Rejection(label, "duplicate name in one reply"))
             continue
 
+        relation = raw.get("relation")
+        relation = relation.strip().lower() if isinstance(relation, str) else None
+        if relation is not None and relation not in RELATIONS:
+            rejections.append(
+                Rejection(
+                    label,
+                    f"'relation' is {relation!r}, not one of "
+                    f"{', '.join(RELATIONS)} (D-065)",
+                )
+            )
+            continue
+
         revises = raw.get("revises")
         if revises is not None:
             if not isinstance(revises, int) or isinstance(revises, bool):
@@ -283,6 +300,31 @@ def parse(text: str, payload: ProviderPayload) -> ParseResult:
             )
             continue
 
+        # A relation and an id have to agree. `revises` without an id names
+        # nothing; `repairs` with one claims a relationship this ticket cannot
+        # express yet (CON-73's boundary), and silently dropping either half
+        # would store a reading that says something the reader did not.
+        if relation == "revises" and revises is None:
+            rejections.append(
+                Rejection(label, "'relation' is 'revises' but no rule id was named")
+            )
+            continue
+        if relation == "repairs" and revises is not None:
+            rejections.append(
+                Rejection(
+                    label,
+                    "a repair states the rule it repairs rather than naming an "
+                    "id: drop 'revises', or use 'revises' if the rule's "
+                    "statement is changing (D-065)",
+                )
+            )
+            continue
+        if relation is None:
+            # Inferred from the id, which is what the two relations meant
+            # before there was a field for them. Not a default: it is the same
+            # fact the reply already stated, read a second way.
+            relation = "revises" if revises is not None else "establishes"
+
         anchors = _anchors(raw.get("anchors"), paths, aliases)
         if not anchors:
             # Deliberately fatal for the proposal. An unanchored rule can
@@ -301,6 +343,7 @@ def parse(text: str, payload: ProviderPayload) -> ParseResult:
                 behaviours=behaviours,
                 anchors=anchors,
                 revises_rule_id=revises,
+                relation=relation,
             )
         )
 

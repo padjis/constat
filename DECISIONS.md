@@ -8,6 +8,40 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-067 · 2026-11-14 · A repair states its rule rather than naming one
+
+**Decision.** A reading whose `relation` is `repairs` must not carry `revises`. It states the rule
+it repairs, in full, and is refused if it names a catalogue id instead. `revises` keeps its one
+meaning: the rule's statement is changing.
+
+**Context.** CON-73 implemented D-065 and ran into a question D-065 did not settle. A repair of a
+rule *already in the catalogue* has nowhere sensible to land: accepting it would baseline a second
+version with an identical statement, which makes `rule history` a log of conformance events wearing
+the shape of rule versions. Those are different things, and D-029's split exists so that a version
+means "the rule said this".
+
+**Why narrow rather than solve.** The valuable case D-065 names is the rule nobody wrote down —
+"your catalogue is missing this, and production was breaking it" — and that case needs no id,
+because there is nothing to point at. Supporting the other case properly means a conformance record
+of its own, against the rule, which is a bigger design than this ticket. Refusing it keeps the
+mechanism honest and the question open, rather than answering it by accident with a duplicate
+version.
+
+**Consequences.**
+
+- **A repair of a known rule is still reportable, through the existing path.** The reading states
+  the rule; CON-70's anchor overlap then warns that it matches rule N, and the reviewer collapses
+  the two. Less direct than an id, and it loses nothing a person cannot see.
+- **The refusal is explicit, not a silent drop.** A reading that sends both halves is told which to
+  remove. Discarding one half would store a claim the reader did not make.
+- **What is deferred is named.** A conformance record against an accepted rule — "the code was
+  found violating this on date D, and repaired" — is the thing to build if the narrow form proves
+  too narrow.
+
+**Status.** accepted.
+
+---
+
 ## D-066 · 2026-11-14 · A rule statement is purely business, always
 
 **Decision.** A rule's statement and its behaviours contain nothing technical: no class, method or

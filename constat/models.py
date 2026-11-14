@@ -172,6 +172,21 @@ class RuleProposal(Frozen):
     not a key: a human accepting the reading accepts the claim with it, and a
     wrong one is rejectable rather than a corrupted identity. None means the
     reading claims to be new."""
+    relation: Literal["establishes", "revises", "repairs"] = "establishes"
+    """How this reading stands to the catalogue (D-065).
+
+    `establishes` — the evidence creates business knowledge that was not there.
+    `revises` — it changes a rule already accepted; `revises_rule_id` names it.
+    `repairs` — the rule was already true and the code was violating it. A bug
+    fix is this case, and before CON-73 a reading had to pretend it was an
+    establishment, which is how a repaired defect turned into invented business
+    knowledge.
+
+    A repair is still a proposal of the rule, because the valuable case is the
+    rule nobody wrote down: "your catalogue is missing this, and production was
+    breaking it". What makes it a repair is the claim *about the code*, which
+    is why it lives here beside the statement and never inside it — product
+    rule 3 keeps implementation evidence distinguishable from the rule."""
     provenance: Literal[ProvenanceType.AI_INTERPRETATION] = (
         ProvenanceType.AI_INTERPRETATION
     )

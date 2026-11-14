@@ -363,6 +363,15 @@ def _render_catalogue(view: CatalogueView) -> list[str]:
                 if item.revises_rule_id is not None
                 else ""
             )
+            if item.is_repair:
+                # Distinct from a revision and from a new rule (D-065). The
+                # business audience reading this needs to know the difference
+                # between "we now do this" and "we always said we did this,
+                # and had stopped".
+                revises = (
+                    ", a rule the product already held and the code was "
+                    "violating"
+                )
             # A GitHub task list, because this document also has to work as a
             # pull-request body. Ticking one is inert today; reading ticks back
             # is CON-58, and it is the *unverified* channel when it lands.

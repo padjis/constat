@@ -2,9 +2,10 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session:** CON-74 closed (D-066) — a rule statement is purely business, always. Raised
-by reading ticket 628, which also produced D-065 and CON-73 (a repair reaches the queue). CON-70
-closed before it (D-064), CON-69 before that (D-062), CON-64 before that (D-063).
+**Current session:** CON-73 closed (D-065, D-067) — a reading can say that evidence *repairs* a
+rule rather than establishing one; schema 10. CON-74 closed before it (D-066), CON-70 before that
+(D-064), CON-69 (D-062) and CON-64 (D-063) earlier. All four came out of reading tickets 615 and
+628 through the MCP loop.
 
 ---
 
@@ -388,11 +389,12 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-73 — a reading can say that evidence repairs a rule.** `D-065` settled the design question
-that blocked it: a repair reaches the review queue as the rule it repairs, marked as repaired, with
-the violation carried as provenance beside the statement rather than inside it. What remains is
-schema 10 for the relation, guidance naming the three relations a reading can claim, and a document
-rendering that shows a repair as distinct from a new rule.
+**Re-read ticket 628, now that a repair is sayable.** Not a code task, and the shortest way to find
+out whether CON-73 and CON-74 did what they were built for: 628's three proposals were rejected,
+the guidance now says a bug fix is almost always a repair, and the honest reading should come back
+as one repair — "a new user's first launch works" — or as nothing. Either answer is informative.
+Two of the three findings that produced this work came from running the loop rather than reading
+the code.
 
 Then **CON-58 — read decisions back, with their channel and verification.** CON-70 and CON-74 are
 closed; CON-71 (what grounding means when a rule is attested by evidence it is not anchored to) and
@@ -420,6 +422,61 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-73 — done when: *a reading can say that evidence repairs a rule* ✅
+
+`D-065` settled the design before this started; `D-067` records the one question it left open and
+how this narrows it. A reading now stands in one of three relations to the catalogue:
+`establishes`, `revises`, `repairs`.
+
+**Why it exists.** Ticket 628 was a bug fix. The product always intended a first launch to work, the
+code failed to honour it for ~3% of new installs, and the commit made it conform. There was no new
+business knowledge in it — and no way to say that, so the reading manufactured three rules out of a
+repair. A repair is now sayable.
+
+**What changed.**
+
+- `constat/store/schema.py` — schema **10**. `rule_proposal.relation`, with a CHECK for workspaces
+  created at 10. The migration is one ALTER and **no back-fill**: `rule_proposal` is append-only by
+  trigger, and dropping that trigger to write a column into historical readings would be editing
+  what a reviewer was shown, performed by the code that forbids it.
+- `constat/store/proposals.py` — `_relation_of` derives the relation for pre-10 rows. Sound rather
+  than a guess: before the column existed the only two relations *were* establishes and revises,
+  and `revises_rule_id` already says which. A migrated reading can therefore never read as a
+  repair, which is correct — nothing could claim one before there was a way to.
+- `constat/models.py` — `RuleProposal.relation`, defaulting to `establishes`, so silence is the
+  weaker claim.
+- `constat/ai/parsing.py` — the relation and the id must agree. `revises` with no id names nothing;
+  `repairs` with an id claims something D-067 refuses. Both are refused with a reason rather than
+  half-dropped.
+- `constat/ai/guidance.py`, `constat/mcp.py` — a `RELATIONS` block on both prompt paths, saying a
+  bug fix is almost always a repair, and that the repair belongs in `relation` and never in the
+  statement (product rule 3).
+- `constat/cli.py`, `constat/operations.py` — the queue and the document each render a repair
+  distinctly. A business reader has to be able to tell "we now do this" from "we always said we did
+  this, and had stopped".
+
+**No column on `rule_version`.** A version already points at the reading it was baselined from, and
+the relation is reachable through it. Adding one would duplicate provenance that is already stored.
+
+**Verified on a copy of the live workspace.** Opened at schema 9, migrated to 10 on open; the five
+stored readings keep `relation` NULL in the table and read back as `establishes`. The live
+workspace is untouched and will migrate on its next command.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_rule_relations.py` → **22 passed** (new file). The files
+this change reaches — parsing, workspace, proposal storage, acceptance, submit, runs, document
+rendering, mcp, cli, models, and the two new files from CON-70 and CON-74 — → **446 passed in 63s**.
+Whole suite not re-run.
+
+The migration is tested as carefully as the feature: the workspace is built forwards and wound back
+to 9 by dropping the column, rather than hand-writing schema 9 DDL, which would test the
+transcription instead of the migration. Four assertions carry it — the version advances, the old
+row's column is NULL *and* reads as `establishes`, an old revision derives as `revises`, and a
+migrated reading can never read as a repair.
 
 ---
 

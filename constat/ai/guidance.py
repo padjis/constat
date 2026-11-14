@@ -54,6 +54,24 @@ behaviour changed is for a reviewer to say. A proposal anchored to a path \
 nobody sent is discarded with a reason, so inventing one wastes the run.\
 """
 
+RELATIONS = """\
+Say how each rule stands to the catalogue, in `relation`:
+
+- `establishes` — the evidence creates business knowledge that was not there. \
+The default, and the right answer for genuinely new behaviour.
+- `revises` — it changes a rule already in the catalogue. Name that rule in \
+`revises`.
+- `repairs` — the rule was already true and the code was failing to honour \
+it. **A bug fix is almost always this.** Still state the rule, because the \
+case worth reporting is the rule nobody wrote down: the catalogue is missing \
+it and the product was breaking it. Do not name an id; a repair states its \
+rule rather than pointing at one.
+
+Keep the repair out of the statement itself. "A new user's first launch \
+works" is the rule; that it used to fail for some users is why you are \
+proposing it, and belongs in `relation`, not in the sentence.\
+"""
+
 REVISION = """\
 You are shown the rules already in the catalogue. If what you identify is a \
 revision of one of them, name its id in `revises` rather than proposing it \
@@ -80,6 +98,7 @@ REPLY_SHAPE = """\
             "behaviours": ["What the system does"],
             "anchors": [{"path_glob": "path/from/the/evidence.py",
                          "repository_alias": "alias"}],
+            "relation": "establishes",
             "revises": 3}]}\
 """
 
@@ -89,10 +108,11 @@ def for_system_prompt() -> str:
     return (
         "You are reading the evidence for one software ticket and identifying "
         "the business rules it touches.\n\n"
-        f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{REVISION}\n\n{PENDING}\n\n"
+        f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{RELATIONS}\n\n{REVISION}\n\n{PENDING}\n\n"
         f"{NOTHING_IS_ACCEPTED}\n\n"
         "Reply with JSON and nothing else, in exactly this shape:\n\n"
         f"{REPLY_SHAPE}\n\n"
-        '`revises` is optional; omit it for a new rule. Return {"rules": []} '
+        '`relation` defaults to `establishes`; `revises` is required only for a '
+        'revision and must be absent for a repair. Return {"rules": []} '
         "if the evidence supports none."
     )

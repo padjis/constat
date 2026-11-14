@@ -57,6 +57,21 @@ class StoredRuleProposal:
         return self.revises_rule_id is not None
 
     @property
+    def relation(self) -> str:
+        """How this reading stands to the catalogue (D-065)."""
+        return self.proposal.relation
+
+    @property
+    def is_repair(self) -> bool:
+        """The rule was already true and the code was violating it.
+
+        Worth its own property because every display site has to say it. A
+        repair rendered like an establishment tells a reviewer the opposite of
+        what the reading claims: that this is new business knowledge, rather
+        than knowledge the product already had and was failing to honour."""
+        return self.proposal.relation == "repairs"
+
+    @property
     def attribution(self) -> str:
         """Who *read* the evidence, and how firmly that is known (D-057).
 
@@ -92,6 +107,24 @@ class StoredRuleProposal:
         return f"`{self.proposal.name}` — {state}"
 
 
+def _relation_of(row: sqlite3.Row) -> str:
+    """How a stored reading stands to the catalogue (D-065).
+
+    NULL means the reading predates schema 10, and its relation is derived
+    rather than guessed: before the column existed the only two relations
+    *were* establishes and revises, and `revises_rule_id` already says which.
+    Deriving on read keeps historical readings byte-identical — they are
+    append-only because editing one rewrites what a reviewer was shown.
+
+    A pre-schema-10 reading can therefore never read as `repairs`, which is
+    correct: nothing could claim a repair before there was a way to say it.
+    """
+    stored = row["relation"] if "relation" in row.keys() else None
+    if stored:
+        return str(stored)
+    return "revises" if row["revises_rule_id"] is not None else "establishes"
+
+
 class RuleProposals:
     """Reading and writing rule proposals. Append-only by construction."""
 
@@ -122,13 +155,15 @@ class RuleProposals:
         with self._workspace.transaction() as ws:
             cursor = ws.execute(
                 "INSERT INTO rule_proposal "
-                "(run_id, name, statement, revises_rule_id, provider, model, "
-                " model_attested, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "(run_id, name, statement, revises_rule_id, relation, provider, "
+                " model, model_attested, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     run_id,
                     proposal.name,
                     proposal.statement,
                     revises_rule_id,
+                    proposal.relation,
                     provider,
                     model,
                     int(model_attested),
@@ -342,6 +377,8 @@ class RuleProposals:
                 statement=row["statement"],
                 behaviours=behaviours,
                 anchors=anchors,
+                revises_rule_id=row["revises_rule_id"],
+                relation=_relation_of(row),
             ),
             provider=row["provider"],
             model=row["model"],

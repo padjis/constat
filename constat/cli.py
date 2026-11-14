@@ -582,6 +582,14 @@ def _report_proposals(proposals, reference: str, include_decided: bool) -> int:
             print(f"      {item.decision} by {item.decided_by_description}")
         if item.claims_to_revise:
             print(f"      claims to revise rule {item.revises_rule_id}")
+        if item.is_repair:
+            # Said explicitly rather than left to the statement. A repair
+            # accepted as though it were new business knowledge loses the only
+            # thing that made it worth reporting: that the product already
+            # believed this and the code was not honouring it (D-065).
+            print("      claims to REPAIR a rule the code was violating")
+            print("      — accepting it writes down knowledge the product")
+            print("      already had, rather than adding something new")
     return EXIT_OK
 
 

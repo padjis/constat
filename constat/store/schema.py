@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -148,11 +148,26 @@ CREATE TABLE rule_proposal (
     name            TEXT    NOT NULL,
     statement       TEXT    NOT NULL,
     revises_rule_id INTEGER REFERENCES rule(id),
+    relation        TEXT    CHECK (relation IN ('establishes', 'revises', 'repairs')),
     provider        TEXT    NOT NULL,
     model           TEXT,
     model_attested  INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT    NOT NULL
 );
+-- `relation` says how a reading stands to the catalogue (D-065): it
+-- `establishes` a rule, `revises` one, or `repairs` one that was already true
+-- and which the code was violating. A bug fix is the third case and had no way
+-- to be said before schema 10 — so readings manufactured new rules out of
+-- repairs, which is what CON-73 fixes.
+--
+-- Nullable, and NULL means "written before relations existed". Rows from
+-- schema 9 and earlier are left exactly as they were: the relation they would
+-- have carried is derivable (`revises_rule_id` set means a revision, unset
+-- means an establishment), and that derivation happens on read rather than by
+-- an UPDATE here. `rule_proposal` is append-only by trigger, and a migration
+-- that dropped the trigger to write a column into historical readings would be
+-- editing what a reviewer was shown — the exact loss the trigger exists to
+-- prevent, performed by the code that enforces it.
 
 CREATE TABLE rule_proposal_behaviour (
     id               INTEGER PRIMARY KEY,
@@ -548,5 +563,17 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
         " updated_at TEXT NOT NULL)",
         "INSERT INTO setting (key, value, updated_at)"
         " VALUES ('reader', 'provider', '1970-01-01T00:00:00+00:00')",
+    ),
+    # 9 -> 10: a reading says how it stands to the catalogue (D-065, CON-73).
+    #
+    # One ALTER and nothing else. No back-fill: existing readings keep NULL
+    # and their relation is derived on read, because `rule_proposal` is
+    # append-only by trigger and writing a column into a historical reading
+    # would edit what a reviewer was shown. SQLite's ADD COLUMN cannot carry a
+    # CHECK, so the constraint lives in the schema for new workspaces and in
+    # `parse` for every reading that arrives; a migrated workspace is validated
+    # by the same parse as a fresh one.
+    9: (
+        "ALTER TABLE rule_proposal ADD COLUMN relation TEXT",
     ),
 }
