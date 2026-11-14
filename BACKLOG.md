@@ -112,6 +112,8 @@ forces them.
 | CON-72 | The guidance says whether a rule may be conditional on a transient state | A reader is told whether "while the site is not approved" is a rule or a situation, so the question is answered once rather than per reading. | ⬜ — guidance-only change; no schema |
 | CON-74 | A rule statement is purely business | A statement or behaviour that leaks code is refused with the offending token named, and the guidance states the business-only test as one question. | ✅ D-066 — leakage is mechanical; business-ness is the guidance's job and the reviewer's |
 | CON-73 | A reading can say that evidence repairs a rule | A pure bug fix proposes the rule it repairs, marked as repaired rather than established, including a rule nobody had written down. | ✅ D-065, D-067 — schema 10; a repair states its rule rather than naming an id |
+| CON-75 | Constat's own merge commit is not evidence | A commit Constat made when landing a ticket is excluded from that ticket's evidence, identified by a `Constat-Landed:` trailer it writes rather than by its subject, and the document states that it was excluded. | ⬜ — found re-reading 628 on 2026-11-14: 14 files reported for 7 real ones |
+| CON-76 | A landed ticket does not keep reading as pending | Mainline is the remote-tracking ref, Constat refreshes that ref in the registered repository after its own push, and the document states how old each repository's picture of the remote is. | ⬜ **next** — the other half of CON-69: each landed ticket widens the gap by one merge commit, and D-031's statuses misreport while it is open |
 | CON-67 | A rule has a title and details, and details are tracked across versions | `rule history` shows which details were added, removed, edited or unchanged between versions. | ⬜ — needs CON-61, and a decision on detail identity |
 | CON-64 | An agent can open a ticket | The MCP workflow starts from the agent: `gather_evidence` on an unknown reference opens the ticket rather than failing. | ✅ D-063 — opens when the repositories recognise the reference; a reference matching nothing is still refused |
 | CON-62 | Gemini as a provider | `CONSTAT_AI_PROVIDER=gemini` proposes rules through the same `parse` and the same gates, as an optional extra. | ⬜ — CON-60 built the seam; this is a second `Provider` implementation |
@@ -136,6 +138,58 @@ forces them.
 | CON-43 | Rule maintenance | Evidence contradicting a baselined rule proposes an update to it rather than a duplicate. | ✅ D-053 — a revision baselines version N+1 of the same rule. The *finding* of candidates by anchor overlap is in place (`candidates_for`); having the interpretation pass populate `revises_rule_id` is CON-55 |
 | CON-44 | Per-rule review decisions | A reviewer accepts rule changes individually or rejects the implementation as inconclusive, with comments. | ✅ D-053 — `rule accept` / `reject` / `history` |
 | CON-30 | ~~Surface near-duplicate proposals~~ | — | ❌ **withdrawn.** The problem was an artefact of proposal-per-run; D-029's one-document-per-ticket model does not have it. |
+
+
+### CON-75 — Constat's own merge commit is not evidence
+
+Found by re-reading 628 after `merge_on_accept` landed its branch. The payload came back with two
+commits — the real fix and `9eda7b44 Merge feat/628-first-launch-device-race for 628`, which
+Constat wrote — so 14 changed files were reported for 7 real ones, and a commit Constat authored was
+presented as the team's implementation evidence (product rule 3).
+
+**Identify it by a trailer, not by its message.** The only signal today is `MERGE_SUBJECT`, and
+matching on that is a heuristic over text anyone could write: a human merge worded the same way
+would be silently dropped, and under-reporting evidence is worse than over-reporting it. Constat
+authors the commit, so it can mark it exactly — `Constat-Landed: <reference>` — and match on the
+trailer line.
+
+**State the exclusion.** Removing a commit silently breaks the pattern the rest of the product
+holds to: every repository is reported even when it contributed nothing, and a truncated diff says
+what it omitted. One line is enough — "1 commit excluded: made by Constat when landing this
+ticket."
+
+**Left as a note rather than a ticket:** whether a merge commit should contribute evidence *at
+all*. A human merging the same branch through a GitLab MR double-counts identically and carries no
+trailer to filter on. Worth answering before the narrow fix is generalised; 628 is the test case.
+
+### CON-76 — A landed ticket does not keep reading as pending
+
+The other half of CON-69. The merge is made in a throwaway clone and pushed, so the registered
+repository never learns of it: `237feed`'s local `main` sat 2 commits behind `origin/main`
+immediately after landing 628.
+
+This is **cumulative and self-inflicted**. One merge commit per landed ticket, and nothing in
+Constat ever fetches, so the gap only grows. Before CON-69 Constat could not cause drift at all,
+because it only ever read.
+
+**It is not cosmetic.** D-031's statuses carry the meaning: `pending` is "merged, not landed",
+`landed` is "already shipped". With mainline behind, a ticket that has shipped keeps reading
+`pending` and its evidence keeps being gathered as unlanded work — which is what 628 does now. The
+status misreports the one thing it exists to say.
+
+**Three parts, and no `git pull` in any of them.** Pulling writes to a working tree that may hold
+uncommitted work, sit on another branch, or be mid-rebase — the reason the merge happens in a clone
+to begin with.
+
+1. **Mainline is the remote-tracking ref.** `origin/<default-branch>` is what everyone else pulls;
+   local `main` is one checkout's opinion. D-028 already resolves the default branch from
+   `refs/remotes/origin/HEAD`.
+2. **Refresh that ref after Constat's own push.** Constat knows it just pushed, so
+   `git fetch origin <default-branch>` closes the gap it caused. Touches `.git` refs, never the
+   working tree, and only in the repository it pushed for.
+3. **Disclose the rest.** A repository someone else pushed to is stale and no write fixes that —
+   only saying how old the picture is. CON-38 is the same disclosure for remote caches and should
+   cover a local clone that has not fetched.
 
 ## Workspace model (D-027, D-028, D-029)
 

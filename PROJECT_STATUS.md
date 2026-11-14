@@ -389,12 +389,21 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**Re-read ticket 628, now that a repair is sayable.** Not a code task, and the shortest way to find
-out whether CON-73 and CON-74 did what they were built for: 628's three proposals were rejected,
-the guidance now says a bug fix is almost always a repair, and the honest reading should come back
-as one repair — "a new user's first launch works" — or as nothing. Either answer is informative.
-Two of the three findings that produced this work came from running the loop rather than reading
-the code.
+**CON-76 — a landed ticket does not keep reading as pending.** The other half of CON-69, and the
+reason it is first: with `merge_on_accept` on, every landed ticket widens the gap between the
+registered repository and its remote by one merge commit, and nothing in Constat ever fetches. While
+the gap is open, D-031's statuses misreport — 628 has shipped and still reads `pending`. Constat
+degrades its own evidence a little each time the feature is used, which was not true before CON-69,
+because until then it only ever read.
+
+Then **CON-75 — Constat's own merge commit is not evidence.** Cheaper, and found in the same
+re-read: 14 changed files reported for 7 real ones, with a commit Constat authored presented as the
+team's implementation evidence.
+
+~~Re-read ticket 628, now that a repair is sayable~~ **done 2026-11-14.** It worked: three
+proposals became one, relation `repairs`, and the concurrency clause is gone from the statement.
+Rule proposal 6 is in the queue, undecided. It also produced CON-75 and CON-76 — the third time in
+two days that running the loop found more than reading the code did.
 
 Then **CON-58 — read decisions back, with their channel and verification.** CON-70 and CON-74 are
 closed; CON-71 (what grounding means when a rule is attested by evidence it is not anchored to) and
