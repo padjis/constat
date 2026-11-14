@@ -204,6 +204,20 @@ class NotRegistered(WorkspaceError):
     """No repository in the workspace matches that alias."""
 
 
+class ReferenceMatchedNothing(NotRegistered):
+    """A reference offered as a ticket to open, which no repository knows.
+
+    Raised only on the path that is allowed to open a ticket for itself
+    (CON-64, D-063). Opening one anyway would turn a typo into a permanent
+    empty ticket the workspace then refuses to open again, so the refusal the
+    caller would otherwise have met has to survive in this narrower form.
+
+    A subclass of `NotRegistered` on purpose: the exit code and every existing
+    handler stay as they were, and the distinction is available to a caller
+    that wants it without being forced on one that does not.
+    """
+
+
 class RevisionNotFound(RepositoryError):
     """A revision could not be resolved to a commit in this repository."""
 

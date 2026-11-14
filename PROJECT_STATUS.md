@@ -1,8 +1,8 @@
 # Project status
 
-**Last updated:** 2026-11-12
+**Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session:** CON-58 — read decisions back (CON-09, CON-56, CON-57, CON-60/CON-42 closed)
+**Current session:** CON-64 closed (D-063). CON-65, CON-66, CON-68 closed before it; CON-67 raised.
 
 ---
 
@@ -50,6 +50,39 @@ constat ticket add 615        # no flag needed, ever
 `provider` is the default and keeps D-059's refusal; `mcp` turns it off because on that path
 having no provider is correct (D-045). `--no-provider` survives as a per-run override. The
 evidence path still needs no key.
+
+**The MCP loop is one command, and both paths now define a rule the same way** (CON-66). An MCP
+server cannot initiate anything, so the user starts the loop — and clients surface a prompt as a
+slash command:
+
+```
+/mcp__constat__document 615    gather, read, submit
+/mcp__constat__review 615      summarise what is waiting
+```
+
+**And that command now works on a clean workspace** (CON-64, D-063). `gather_evidence` opens a
+ticket it does not find, so nothing at the command line precedes the agent's first call. A
+reference matching no commits anywhere is still refused, with the repositories searched named.
+
+The more important half is `constat/ai/guidance.py`: the guidance on what a business rule *is* now
+lives once and is imported by both the Anthropic provider's `SYSTEM` and the `document` prompt. A
+rule proposed over MCP and the same rule proposed by a provider have to mean the same thing, or the
+catalogue becomes a record of which path happened to be configured. Neither prompt may instruct
+acceptance, and a test asserts it.
+
+**`--by` is optional, and the record says whether the name was stated or inferred** (D-061):
+
+```
+constat rule accept 1
+  accepted: rule 1 created, version 1 baselined
+  recorded as: Emmanuel Padjinou <e@…> (inferred from git config)
+```
+
+Not a trust level. `--by` is a free string nobody checks, so a typed name and a name from git config
+are equally unverified; what is recorded is the narrower, honest distinction — whether a person
+asserted this name or a machine supplied it. With no git identity at all it refuses rather than
+guessing. This does **not** soften D-055: an MCP `accept` tool is still unacceptable, because the
+objection there was never the name.
 
 CON-42 is closed by CON-60. The pieces arrived separately — the trust boundary at D-046, storage at
 CON-51, the submit path at CON-52, the MCP host at CON-50, and finally a provider that issues the
@@ -353,22 +386,251 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-57 — a publishing port and the default target.** The document is now worth publishing; the
-place to put it is not built.
+**Run one real ticket through the MCP loop on the live workspace, end to end, and read what comes
+back.** Not a code task, and the most valuable one available. The loop is now startable from the
+agent and the rule-writing guidance is shared between both paths (CON-66) — but **no model has ever
+read a real payload through it**, so whether `constat/ai/guidance.py` produces business statements
+or restated diffs is unknown. A flaw in it is now shared by both paths rather than confined to one.
+The decision not to bill API usage was taken on 2026-11-14: the MCP path validates the guidance at
+no API cost, and leaves the provider's transport untested.
 
-From the approved plan: a `Target` protocol (`publish`, `read_decisions`), default detection from
-the repository's remote (`github.com` → GitHub pages, `gitlab.*` → GitLab wiki) refusing rather
-than guessing, publishing gated by `guard_release` because it is egress, and credentials from the
-environment only. `constat/git/adapter.py` needs a small read-only `remote_url`.
+After that, **CON-58 — read decisions back, with their channel and verification.** The publishing
+port's `read_decisions` raises `DecisionsNotReadable` on every target, so acceptance is still
+CLI-only — half of what the original question asked for.
 
-`PRODUCT_SPEC.md` § 6.2 defers "writing to GitHub" and needs amending first, with the reason
-stated — an amendment note, as D-028 has in § 6.3.
+D-061 is the thing to keep straight while building it: `attribution` (`stated` / `inferred`) sits
+*inside* the CLI channel and is not `channel` or `verification`. `channel` says where a decision was
+made; `verification` whether anything attested to it. A forge approval is genuinely verified;
+nothing on the CLI is. Do not collapse the three.
 
-Then **CON-58** (read decisions back, with channel and verification recorded) and **CON-59** (the
-other backends).
+Then **CON-61** → **CON-67** (a version's details are stored and unreachable; tracking them across
+versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-64 — done when: *the MCP workflow starts from the agent* ✅
+
+`D-063` records the decision. `gather_evidence` opens a ticket it does not find, so
+`/mcp__constat__document 615` works on a clean workspace. The prerequisite it removes was
+`constat ticket add 615` at the command line — a step nothing in the MCP interface mentioned, on
+the path the product recommends.
+
+### What changed
+
+| File | Change |
+| --- | --- |
+| `constat/errors.py` | `ReferenceMatchedNothing`, subclassing `NotRegistered` so the exit code and every existing handler are unchanged. |
+| `constat/operations.py` | `collect(..., require_ticket=True)`; `gather(..., open_if_absent=False)`; `_open_for_reference`; `OperationResult.ticket_opened`. |
+| `constat/mcp.py` | `gather_evidence` passes `open_if_absent=True` and reports `ticket_opened`. The instructions and the tool description say so. |
+| `ARCHITECTURE.md`, `USAGE.md` | the refusals table, and the MCP setup no longer opening a ticket first. |
+
+**No schema change.** The first ticket in a while without one.
+
+### The argument that carried it
+
+Not "a ticket carries no authority", though it does not. **`EXPOSED_TOOLS` does not grow** — it is
+the same four, and acceptance is as absent as ever. This removes a precondition from a tool that
+already gathered rather than adding a capability D-055 withheld, and `ticket add` already gathered
+immediately, so the agent gained nothing it did not have one command later. A test asserts the list
+is still four, in the file about this change, because that is the property the change rests on.
+
+### The order had to invert
+
+`collect` called `TicketStore.document(reference)` as its first line, so the refusal happened before
+any repository was read. Both halves of the ticket — open on a real reference, refuse a typo —
+require the search to run *first*. The guard moved out behind `require_ticket`; the search was
+always read-only, so the guard was about who may act on the result, not about safety.
+
+### A case the ticket did not anticipate
+
+**A repository that cannot be read reports `NOT_FOUND` with an `error` set**, which is
+indistinguishable by status from a genuine miss. Had that gone unnoticed, a reference would have
+been declared absent from a repository nobody could look in — and a ticket opened, or not, on that
+assumption. Those references are refused too, with the unreadable repositories *named* and the
+message saying explicitly that this is not a claim of absence. Product rule 1 applied to a refusal
+rather than to a report.
+
+`LANDED` does count as recognition. It contributes no evidence and is still a match (D-031): work
+found in mainline is work, and a ticket for it is about something real.
+
+### Tests — actually run
+
+`.venv/bin/python -m pytest` → **854 passed** in 148s, from 825. `tests/test_agent_opens_ticket.py`
+is new: 29 tests. **The existing 825 needed no changes**, which is the evidence that the change is
+as narrow as it claims.
+
+> A later run of the same suite reported 870, because a **second, concurrent session** has
+> uncommitted work in this tree (`constat/git/merge.py`, `tests/test_merge_on_accept.py`, and edits
+> to `cli.py` and `constat/store/`). Those tests and that feature are not part of CON-64. 854 is
+> the figure for this ticket, measured before that work appeared in a run here.
+
+Mutation-checked with seven mutations, each caught by the test that names the property:
+
+| Mutation | Caught by |
+| --- | --- |
+| Open the ticket whatever the search found | `test_the_refusal_leaves_no_ticket_behind` + 5 |
+| `LANDED` does not count as recognition | `test_a_landed_only_reference_opens_a_ticket` |
+| `open_if_absent` defaults to on | `test_gather_refuses_an_unknown_ticket_by_default` |
+| An unreadable repository reported as a plain miss | `test_the_refusal_says_the_reference_may_not_be_absent` |
+| `ticket_opened` always claims it opened one | `test_the_result_defaults_to_the_quieter_claim` + 2 |
+| `get_payload` opens a ticket too | `test_get_payload_does_not_open_a_ticket` |
+| The ticket guard stays in `collect` | `test_gather_evidence_opens_a_ticket_that_does_not_exist` + 5 |
+
+One existing test, `test_mcp.py::test_an_unknown_ticket_is_an_error`, **still passes for a different
+reason** — `nope` now fails because it matches no commits rather than because no ticket exists. It
+gained a docstring saying so, since a reader would otherwise take it for coverage of the old
+refusal.
+
+### Verified through a real client, on a real repository
+
+A fresh clone of `237feed-ui`, a workspace with `reader = mcp` and **no tickets**, driven over
+stdio by an `mcp` `ClientSession` rather than in process:
+
+- `gather_evidence(615)` → `ticket_opened: true`, status `landed`, and the ticket exists afterwards
+- `gather_evidence(99999)` → `is_error`, *"matched no commits: searched 1 repository(ies)"*, and
+  `ticket list` still shows only 615
+- `gather_evidence(615)` again → `ticket_opened: false`, run 2, no `AlreadyRegistered`
+
+### Known issues and what was left undone
+
+- **Who opened a ticket is not recorded.** A person and an agent are indistinguishable afterwards.
+  That needs a column on `ticket` and a schema 10 migration, and by the argument that closed this
+  ticket a ticket's origin is not a governance fact. Deliberate, and cheap to add later.
+- **The live workspace was not touched.** Verification used a throwaway clone and a throwaway
+  workspace. The real workspace at `~/.constat` holds 3 repositories and 5 tickets and is still at
+  schema 9 — this ticket added no migration, so there is nothing to run.
+- **Still no real reading.** This removes the last structural obstacle to the MCP loop and says
+  nothing about the quality of what comes out of it. That is the next task.
+- **A decision-number collision was resolved by renumbering this one.** This ticket originally took
+  `D-063`, which a concurrent uncommitted session was already using for a different decision —
+  merging a ticket's branch into mainline on acceptance (`constat/git/merge.py`), which amends
+  product rule 7's read-only posture. Opening a ticket is now **D-063**; `D-063` is reserved for
+  that session, and its `DECISIONS.md` entry is still to be written by it. Nothing of theirs was
+  touched here, including the `D-063` citation at `constat/operations.py:1174`.
+- **`DECISIONS.md` has a gap until that entry lands.** The log jumps D-061 → D-063. That is the
+  correct state for an append-only log with a number reserved, not an error to tidy up.
+
+---
+
+## CON-68 — done when: *`rule accept` needs no `--by`, and the record says how the name came* ✅
+
+`D-061` records the decision. `--by` was mandatory with no default, on the reasoning that a decision
+with no decider is not a decision — that reasoning survives. What did not survive examination is the
+idea that *typing* the name made it stronger.
+
+### What changed
+
+| File | Change |
+| --- | --- |
+| `constat/git/adapter.py` | `configured_identity()` — git's `user.name` / `user.email`, read-only. Returns None rather than raising. |
+| `constat/store/schema.py` | **schema 9**: `rule_proposal_decision.attribution`, with the 8 → 9 migration. |
+| `constat/store/acceptance.py`, `constat/store/proposals.py` | the decision carries its attribution; `decided_attribution` on the stored proposal. |
+| `constat/cli.py` | `--by` optional on `rule accept` / `rule reject`; the inference, the refusal, and `recorded as:` in the output. |
+| `ARCHITECTURE.md`, `README.md`, `USAGE.md` | the acceptance commands no longer carry a mandatory flag. |
+
+Every view that shows who decided shows which — the queue, `rule proposals --all`, and
+`rule history`, where it matters most because that is the audit view.
+
+### Tests — actually run
+
+`.venv/bin/python -m pytest` → **825 passed** in 135s, from 812. `tests/test_decider_identity.py` is
+new: 13 tests. Mutation-checked with five mutations, each caught by its named test — including
+recording an inferred name as `stated`, and falling back to `$USER`.
+
+Two tests that asserted `--by` was required were **rewritten rather than deleted**. The property
+worth keeping was never the flag: it is that no decision is stored without a decider, and that the
+record says how the name was obtained.
+
+### Three things worth keeping straight
+
+- **`inferred` is not weaker than `stated`.** Nothing here proves who ran the command; an agent with
+  shell access can run either form. The recorded distinction is narrower: whether a person asserted
+  this name or a machine supplied it. Product rule 3, applied to the decision rather than to the
+  claim it approves.
+- **git config, not `$USER` or the OS login.** Those name an account — `padjis` is not who decided
+  anything, while `user.name` is what this person already chose to be called in a record of who did
+  what. With no git identity at all it refuses, naming both ways out.
+- **A naming collision, found by hitting it.** `StoredRuleProposal.attribution` already meant who
+  *read* the evidence (D-057). The decider's is `decided_attribution`. Two different people, two
+  different questions.
+
+### Known issues and what was left undone
+
+- **The inferred name depends on the working directory**, because git's own precedence does — a
+  local `user.name` wins inside a repository. That is the right answer rather than a quirk; it is
+  the name git would put on a commit made there. It does mean one person can appear under two
+  names, which is why the record says the name was inferred.
+- **No real decision has been made through the inferred path on the real workspace.** The migration
+  and the commands are tested; the 8 → 9 migration has not been run against the live workspace the
+  way CON-60's and CON-54's were.
+- **D-055 is untouched.** An MCP `accept` tool is no more acceptable than it was: the objection was
+  the agent accepting its own proposal, and inference does nothing about that. CON-58.
+
+---
+
+## CON-66 — done when: *the MCP loop is one command, and both paths define a rule identically* ✅
+
+Also raises **CON-67**.
+
+### What changed
+
+| File | Change |
+| --- | --- |
+| `constat/ai/guidance.py` | **new** — what a business rule is, held once. |
+| `constat/ai/providers/anthropic.py` | `SYSTEM` imports the shared guidance instead of restating it. |
+| `constat/mcp.py` | two prompts, `document` and `review`, with their arguments. |
+
+```
+/mcp__constat__document 615    gather, read, submit
+/mcp__constat__review 615      summarise what is waiting
+```
+
+A tool is what the model chooses to call; a prompt is what the *user* invokes. The friction of
+describing the loop in a sentence every time had no principle behind it, unlike the refusals — it
+was simply a part of MCP this server did not implement.
+
+### The second half matters more than the slash command
+
+**The MCP path had no equivalent of the provider's system prompt.** Tool descriptions can say what a
+tool does; they are a poor place to explain what a business rule *is*, and nothing on this path was
+explaining it at all. An agent asked to propose rules had the shape of the reply and no guidance on
+what belonged in it.
+
+The guidance leads with the failure it exists to prevent: *"A transfer above the daily limit is
+refused"* is a rule; *"the LIMIT constant changed from 100 to 250"* is not. Restating the diff is
+the most common way to get this wrong, and nothing was warning against it.
+
+Two prose blocks maintained in parallel would drift, and then the catalogue would record which path
+happened to be configured rather than what is true. A test asserts the shared text appears in both.
+
+### Tests — actually run
+
+`.venv/bin/python -m pytest` → **812 passed**, from 803. Eleven new tests cover the prompt list, the
+arguments, the shared guidance, and that **no prompt can instruct acceptance**. `review` says so
+explicitly, because the natural shape of "summarise what is waiting" is to end with a
+recommendation — and a recommendation from the thing that wrote the proposal is not a review.
+`document` likewise tells the agent to report a refusal rather than work around it, so nobody
+reaches for `--accept-scan-findings` on a model's initiative.
+
+### Known issues and what was left undone
+
+- **The guidance is still unvalidated.** It is now shared by both paths, which means a flaw in it is
+  shared too. No real API call has ever been made, so whether this prose produces better readings is
+  unknown.
+- **CON-67 is raised from a stated expectation**, not built: a rule has a title summarising it and
+  details characterising it, and across iterations a detail may be added, removed, edited or
+  unchanged. Most of that exists under worse names — `statement` is the title, `behaviours` are the
+  details — and the tracking does not exist, though `rule_version_behaviour` already holds the data
+  CON-61 would read. The one real decision is recorded in the ticket: with a detail stored as a bare
+  string, an edit cannot be told from a removal plus an addition, so either details get a surrogate
+  id as rules did at D-050, or only added/removed/unchanged are reported. Guessing is not an option
+  (product rule 1).
+- **CON-64 still blocks the path this ticket smoothed.** `/mcp__constat__document 615` is one
+  command, and it still fails unless someone ran `constat ticket add 615` at the CLI first.
+  **Closed 2026-11-14 by D-063** — `gather_evidence` opens the ticket.
 
 ---
 
@@ -417,7 +679,7 @@ silently reconfigure the workspace, and accepting an invalid reader.
 
 - **CON-64 is still open.** `gather_evidence` cannot open a ticket, so `constat ticket add <REF>`
   remains a required manual step before an agent can do anything — surprising, and the next thing
-  to remove from that path.
+  to remove from that path. **Closed 2026-11-14 by D-063.**
 - **Readings still accumulate on recompute** (noted under CON-56's successor work). Re-running a
   ticket adds proposals rather than superseding them, and accepting one does not retire its
   duplicates.

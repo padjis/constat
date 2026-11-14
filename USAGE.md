@@ -92,7 +92,7 @@ you decide.
 
 | Phase | Where | Commands |
 | --- | --- | --- |
-| Set up | your terminal | `init`, `repo add`, `ticket add <REF> --no-provider` |
+| Set up | your terminal | `init`, `repo add`, `config reader mcp` |
 | Read | your agent | `gather_evidence`, `get_payload`, `submit_rules` |
 | Decide | your terminal | `rule proposals`, `rule accept --by <who>` |
 
@@ -110,12 +110,19 @@ that is `~/.constat` and both must agree. Point them at different places and the
 constat config reader mcp
 ```
 
-**Open the ticket before you ask the agent.** `gather_evidence` works on a ticket that already
-exists and there is no tool that opens one, so the workflow cannot start from the agent:
+**You no longer open the ticket first.** `gather_evidence` opens one when the reference is new, so
+the loop starts from the agent (D-063). A reference that matches no commits in any registered
+repository is refused instead — a typo does not become a ticket, and the agent is told which
+repositories were searched:
 
-```bash
-constat ticket add 622
 ```
+reference '6222' matched no commits: searched 3 repository(ies). No ticket was
+opened: a reference that matches nothing is more often a typo than a ticket…
+```
+
+`constat ticket add 622` still works and is still the way to open a ticket deliberately — for work
+the repositories do not mention yet, say. The CLI's own `constat document <REF>` keeps refusing an
+unknown ticket: at a terminal, a mistyped reference should be a question rather than a new ticket.
 
 `--no-provider` still exists, but you no longer need it here. It is a per-run override for the
 genuine one-off — gathering evidence on a `provider` workspace without spending anything — and it
@@ -269,7 +276,9 @@ the documentation; this table is the short version.
 | `could not determine the default branch` | `origin/HEAD` is not set | `git remote set-head origin -a`, or pass `--default-branch` |
 | `whose documentation convention Constat does not know` | Publishing to an unrecognised host | Pass `--target` with the documentation repository URL |
 | `a workspace already exists` | `init` on an existing workspace | Nothing was touched. Remove the file deliberately if you mean to start over |
-| `no ticket '622'. Open one with \`ticket add\`` | Over MCP: usually the config's `--workspace` differs from the one you set up in, or the ticket was never opened | Make the paths agree, then `constat ticket add 622 --no-provider` |
+| `no ticket '622'. Open one with \`ticket add\`` | At the CLI, or from `get_payload` before anything gathered | `constat ticket add 622`, or call `gather_evidence` first — it opens one |
+| `matched no commits: searched N repository(ies)` | The reference appears in no commit message or branch name anywhere | Check the reference. If the work is real but unmentioned, open it deliberately with `ticket add` |
+| `… of which 1 could not be read` | A registered repository has moved or been deleted, so absence could not be established | Fix the path with `repo add`, or accept that the answer is unknown rather than "no" |
 
 Two that are *not* refusals, and matter:
 

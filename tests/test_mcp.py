@@ -268,6 +268,14 @@ class TestTheGatesHoldThroughThisDoor:
             call(home, "submit_rules", reference="622", reply="I found none.")
 
     def test_an_unknown_ticket_is_an_error(self, home: str):
+        """Still true after CON-64, for a different reason.
+
+        This used to fail because no ticket existed; `gather_evidence` now
+        opens one. It fails because `nope` matches no commits in any
+        repository — which is the half of the old refusal that was doing the
+        work, and `test_agent_opens_ticket.py` is where that is covered
+        properly.
+        """
         from mcp.server.mcpserver.exceptions import ToolError
 
         with pytest.raises(ToolError):

@@ -41,7 +41,7 @@ from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
 from .publish import PublishedRef, Target
 from .publish.targets.git_pages import detect as git_pages_detect
-from .errors import PayloadRefused, RepositoryError
+from .errors import PayloadRefused, ReferenceMatchedNothing, RepositoryError
 from .evidence import DEFAULT_LIMITS, EvidenceBundle, ExcerptLimits, collect_evidence
 from .git.adapter import Repository, Revision, discover_repository, resolve_revision
 from .git.diff import compare_revisions
@@ -91,6 +91,12 @@ class OperationResult:
     """The run this result belongs to. A rule proposal reads the evidence one
     run gathered (D-046), so the caller needs the identity, not just the
     body."""
+
+    ticket_opened: bool = False
+    """Whether this run opened the ticket rather than finding it (D-063).
+
+    A caller that asked to gather and silently got a new ticket as well should
+    be told, so the agent can say it. Defaults to the quieter claim."""
 
     @property
     def repositories_searched(self) -> int:
@@ -605,13 +611,20 @@ def collect(
     workspace: Workspace,
     reference: str,
     limits: ExcerptLimits = DEFAULT_LIMITS,
+    require_ticket: bool = True,
 ) -> tuple[RepositoryFindings, ...]:
     """Read every registered repository for a ticket. Writes nothing.
 
     Shared by `gather` and `export_payload` so the two cannot disagree about
     what a ticket's evidence is.
+
+    `require_ticket=False` searches for a reference no ticket exists for yet.
+    Only `gather` asks for that, and only to decide whether the reference is
+    real enough to open one (D-063) — the search is read-only either way, so
+    the guard is about who is allowed to act on the result, not about safety.
     """
-    TicketStore(workspace).document(reference)  # NotRegistered if unknown
+    if require_ticket:
+        TicketStore(workspace).document(reference)  # NotRegistered if unknown
     registry = Registry(workspace)
     return tuple(
         _collect_repository(entry, reference, limits) for entry in registry.list()
@@ -814,12 +827,56 @@ def _record_scan_override(
         )
 
 
+def _open_for_reference(
+    workspace: Workspace,
+    reference: str,
+    findings: tuple[RepositoryFindings, ...],
+) -> None:
+    """Open a ticket for a reference the repositories recognise (D-063).
+
+    `LANDED` counts as recognition even though it contributes no evidence: the
+    work was found, in mainline, which is a different answer from "no such
+    reference" (D-031) and a ticket for it is about something real.
+
+    A repository that could not be read is not evidence of absence. It reports
+    `NOT_FOUND` with an `error` set, which is indistinguishable by status from
+    a genuine miss, so a reference seen by nothing and unreadable somewhere is
+    refused with both counts named rather than resolved by assuming the
+    unreadable one would also have missed.
+    """
+    recognised = [
+        f
+        for f in findings
+        if f.status in (TicketStatus.PENDING, TicketStatus.LANDED)
+    ]
+    if recognised:
+        TicketStore(workspace).add(reference)
+        return
+
+    unreadable = [f for f in findings if f.error is not None]
+    coverage = f"searched {len(findings)} repository(ies)"
+    if unreadable:
+        coverage += (
+            f", of which {len(unreadable)} could not be read "
+            f"({', '.join(f.repository.alias for f in unreadable)}) — so this "
+            "is not a statement that the reference is absent from those"
+        )
+    raise ReferenceMatchedNothing(
+        f"reference {reference!r} matched no commits: {coverage}. No ticket "
+        "was opened: a reference that matches nothing is more often a typo "
+        "than a ticket, and an empty ticket cannot be opened again. Open one "
+        f"deliberately with `constat ticket add {reference}` if it should "
+        "exist anyway."
+    )
+
+
 def gather(
     workspace: Workspace,
     reference: str,
     limits: ExcerptLimits = DEFAULT_LIMITS,
     provider: Provider | None = None,
     accept_scan_findings: bool = False,
+    open_if_absent: bool = False,
 ) -> OperationResult:
     """Run the gathering operation for a ticket and expand its document.
 
@@ -837,11 +894,22 @@ def gather(
     `accept_scan_findings` overrides the refusal for this run only. It is
     recorded in the document and as an operation, because an override nobody
     can see afterwards is indistinguishable from no scan at all.
+
+    `open_if_absent` opens the ticket when the reference is unknown but the
+    repositories recognise it (D-063). The search has to run first for that
+    decision to be possible, which is why the ticket guard moved out of
+    `collect`. Off by default: the CLI keeps its refusal, because a person who
+    mistypes a reference should be told rather than handed a new ticket.
     """
     if provider is None:
         provider = resolve_provider()
 
-    findings = collect(workspace, reference, limits)
+    opening = open_if_absent and TicketStore(workspace).find(reference) is None
+    findings = collect(workspace, reference, limits, require_ticket=not opening)
+    if opening:
+        # After the search and before anything is written. Every later step
+        # needs the document to exist, and none of them has run yet.
+        _open_for_reference(workspace, reference, findings)
 
     # Redaction happens on the real path rather than only where a provider
     # exists. A privacy boundary first exercised by the code that needs it is
@@ -950,6 +1018,7 @@ def gather(
         scan_findings=scan_findings,
         scan_accepted=accepted,
         run_id=run_id,
+        ticket_opened=opening,
     )
 
 
@@ -1061,3 +1130,4 @@ def detect_target(repository: str | None = None) -> Target:
     while the repository someone is standing in is unambiguous.
     """
     return git_pages_detect(discover_repository(repository or "."))
+

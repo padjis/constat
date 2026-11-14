@@ -23,6 +23,12 @@ is needed — which § 6.2 also defers.
 operation, so the gates hold here by construction: identity never crosses the
 boundary (D-040), the credential gate fires on export (D-047), and a submitted
 reading is grounded against re-gathered evidence (D-052).
+
+**One precondition was removed rather than a tool added** (CON-64, D-063).
+`gather_evidence` opens a ticket it does not find, because the loop above
+cannot start otherwise and nothing here said so. The tool list is unchanged by
+it — which is the argument for it. A reference matching no commits anywhere is
+still refused, so the refusal it replaced survives where it was doing work.
 """
 
 from __future__ import annotations
@@ -48,9 +54,14 @@ INSTRUCTIONS = """\
 Constat turns software changes into evidence-backed, human-approved knowledge.
 
 The loop: gather_evidence collects what a ticket changed across the registered
-repositories; get_payload returns that evidence, redacted, together with the
-rules already in the catalogue; you read it and submit_rules stores what you
-concluded as rule proposals; list_rule_proposals shows what is awaiting review.
+repositories, opening the ticket if it is new; get_payload returns that
+evidence, redacted, together with the rules already in the catalogue; you read
+it and submit_rules stores what you concluded as rule proposals;
+list_rule_proposals shows what is awaiting review.
+
+Start with gather_evidence whether or not the ticket exists. A reference no
+repository knows is refused rather than opened, so a refusal there means the
+reference is wrong — report it rather than retrying.
 
 Nothing you submit is accepted. Every rule proposal waits for a human decision
 at the command line, and there is no tool here that can make one. Anchors must
@@ -106,18 +117,33 @@ def build_server(workspace_home: str | None = None):
             "and expand its document. Call this before get_payload. Reports "
             "every repository searched, including those that contributed "
             "nothing — silence about a repository is not the same as no "
-            "changes there."
+            "changes there. If the ticket does not exist yet it is opened, "
+            "but only when the repositories recognise the reference: one that "
+            "matches no commits anywhere is refused rather than opened, "
+            "because that is usually a typo."
         )
     )
     def gather_evidence(reference: str) -> str:
-        """Collect what a ticket changed."""
+        """Collect what a ticket changed, opening the ticket if need be.
+
+        `open_if_absent` is what makes the loop startable from here (CON-64,
+        D-063). Without it the first step of the agent's own workflow failed
+        on a clean workspace until a person ran `constat ticket add` at the
+        command line — a prerequisite nothing in this interface mentioned.
+
+        This grows no tool list. `EXPOSED_TOOLS` is the same four it was, and
+        acceptance is as absent as ever: the change removes a precondition
+        from a tool that already gathered, rather than granting a capability
+        D-055 withheld.
+        """
 
         def run() -> str:
           with Workspace.open(workspace_home) as workspace:
-            result = gather(workspace, reference)
+            result = gather(workspace, reference, open_if_absent=True)
             return _text(
                 {
                     "reference": result.reference,
+                    "ticket_opened": result.ticket_opened,
                     "run_id": result.run_id,
                     "repositories_searched": result.repositories_searched,
                     "repositories_contributing": result.repositories_contributing,

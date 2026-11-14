@@ -184,6 +184,9 @@ Two properties that diagram is drawing:
   billing relationships for one reading. `constat mcp` needs no API key, ever (D-003, D-045).
 - **Acceptance has one door and a model is not behind it.** There is no `accept` tool, and a test
   asserts the live tool list to keep it that way (D-055).
+- **The loop starts from the agent.** `gather_evidence` opens a ticket it does not find, so no
+  command-line step precedes the agent's first call (D-063). The tool list is unchanged by that —
+  which is the argument for it: a precondition was removed, not a capability added.
 
 **The other path does call a model, and it is opt-in.** `CONSTAT_AI_PROVIDER=anthropic` makes
 Constat issue the request itself, which is what gives `ticket add` a review queue with no MCP
@@ -235,6 +238,7 @@ the same door the MCP server uses (D-045), which is why the manual path cannot r
 | Provider | A call that did not complete | A timeout is not a finding about the code (D-041, D-057) |
 | Publish | A document carrying a credential | A page cannot be recalled; it refuses before cloning (D-058) |
 | Publish | A target that had to be guessed | A push to a guessed URL is not undone by noticing (D-058) |
+| Gather | Opening a ticket for a reference no repository knows | A typo would become a ticket that cannot be opened again (D-063) |
 | Everywhere | Any non-human acceptance | No tool, CLI or MCP, can accept (D-048, D-055) |
 
 ## 3. Proposed package layout

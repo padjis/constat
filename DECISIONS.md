@@ -8,6 +8,52 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-063 · 2026-11-14 · Opening a ticket is not a governance act, and `gather_evidence` may do it
+
+**Decision.** `gather_evidence` opens a ticket for a reference the workspace does not know, **when
+the registered repositories recognise that reference**. A reference matching no commits anywhere is
+refused with `ReferenceMatchedNothing` and no ticket is created. The MCP tool passes
+`open_if_absent=True`; the library default is `False`, so the CLI keeps its refusal.
+
+**Context.** The agent's own workflow failed at its first step. `gather_evidence` raised
+`no ticket '622'` unless a person had already run `constat ticket add 622` at the command line — a
+prerequisite nothing in the MCP interface mentioned, on the path the product recommends (D-045,
+D-060). CON-64 was found by trying to use it, not by reading the code.
+
+**Why this is compatible with D-055.** The load-bearing argument is not that a ticket carries no
+authority, though it does not: it is that **the tool list does not grow**. `EXPOSED_TOOLS` is the
+same four it was, acceptance is as absent as ever, and what changed is that an existing tool no
+longer has an unstated precondition. D-055's list is deliberately short and every addition to it
+has to be argued; this is not an addition. `ticket add` already gathered immediately, so no
+capability exists here that the agent did not already have one command later.
+
+**Consequences.**
+
+- **The search has to run before the ticket is opened**, which is why the guard moved out of
+  `collect` behind `require_ticket`. The search was always read-only; the guard was about who may
+  act on the result, not about safety.
+- **`LANDED` counts as recognition.** It contributes no evidence and is still a match (D-031) —
+  work found in mainline is work, and a ticket for it is about something real.
+- **A repository that could not be read is not evidence of absence.** It reports `NOT_FOUND` with an
+  `error` set, indistinguishable by status from a genuine miss. A reference seen by nothing and
+  unreadable somewhere is therefore refused with the unreadable repositories *named*, and the
+  message says explicitly that this is not a claim the reference is absent from them. Product rule 1
+  applied to a refusal rather than to a report.
+- **The refusal it replaces had to survive, in a narrower form.** Opening a ticket for a typo would
+  be worse than failing: `ticket add` refuses a duplicate, so the empty ticket could never be
+  opened again. `ReferenceMatchedNothing` subclasses `NotRegistered` so the exit code and every
+  existing handler are unchanged.
+- **Only the gathering step may do this.** `get_payload` and `list_rule_proposals` still refuse an
+  unknown ticket, and `constat document <REF>` still refuses at the CLI. A person who mistypes a
+  reference should be told, not handed a new ticket.
+- **Who opened a ticket is deliberately not recorded.** That would need a column on `ticket` and a
+  schema 10 migration, and by the argument above a ticket's origin is not a governance fact. If a
+  later ticket wants it, it is a migration and not a redesign.
+
+**Status.** accepted
+
+---
+
 ## D-061 · 2026-11-13 · The decider's name may be inferred, and the record says that it was
 
 **Decision.** `--by` is optional on `rule accept` and `rule reject`. Omitted, the decider is taken

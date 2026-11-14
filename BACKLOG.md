@@ -107,7 +107,7 @@ forces them.
 | CON-66 | MCP prompts, so the loop is one command | `/mcp__constat__document <REF>` runs the whole loop; the rule-writing guidance is shared with the provider path. | ✅ |
 | CON-68 | Infer the decider from git config | `rule accept` needs no `--by`; the record says whether the name was stated or inferred. | ✅ D-061 |
 | CON-67 | A rule has a title and details, and details are tracked across versions | `rule history` shows which details were added, removed, edited or unchanged between versions. | ⬜ — needs CON-61, and a decision on detail identity |
-| CON-64 | An agent can open a ticket | The MCP workflow starts from the agent: `gather_evidence` on an unknown reference opens the ticket rather than failing. | ⬜ — today the agent cannot start, and `ticket add` at the CLI is a required first step nobody expects |
+| CON-64 | An agent can open a ticket | The MCP workflow starts from the agent: `gather_evidence` on an unknown reference opens the ticket rather than failing. | ✅ D-063 — opens when the repositories recognise the reference; a reference matching nothing is still refused |
 | CON-62 | Gemini as a provider | `CONSTAT_AI_PROVIDER=gemini` proposes rules through the same `parse` and the same gates, as an optional extra. | ⬜ — CON-60 built the seam; this is a second `Provider` implementation |
 | CON-63 | ChatGPT as a provider | `CONSTAT_AI_PROVIDER=openai` likewise. The error D-041 raises for an unimplemented name currently names this one as the example. | ⬜ |
 | CON-61 | Read a frozen version's behaviours and anchors back | `rule history` can show what a version's behaviours and anchors were at the time it was accepted, not only its name and statement. | ⬜ — completes CON-14's recoverability criterion |
@@ -366,7 +366,7 @@ does not guess (product rule 1). Two honest options:
 The second is the smaller honest answer and the first is the better one. Worth deciding
 deliberately rather than by whichever is easier to implement.
 
-### CON-64 — the MCP workflow cannot start from the agent
+### CON-64 — the MCP workflow cannot start from the agent — **closed, D-063**
 
 Found by trying to use it: `gather_evidence` raises `no ticket '622'` unless someone has already
 run `constat ticket add 622` at the command line. There is no tool that opens a ticket, so an
@@ -381,6 +381,19 @@ assumed.
 If it lands, the refusal it replaces must not simply vanish. A reference that matches nothing in
 any repository should still be reported as `not_found` rather than silently creating an empty
 ticket, or the agent will cheerfully open tickets for typos.
+
+**Settled** (2026-11-14). Not a governance act, and the argument that carried it was narrower than
+"a ticket carries no authority": **the tool list does not grow.** `EXPOSED_TOOLS` is the same four,
+so this removes a precondition rather than adding a capability D-055 withheld.
+
+The refusal survived as `ReferenceMatchedNothing`. One thing the ticket did not anticipate: a
+repository that cannot be read reports `NOT_FOUND` *with an error set*, so "matched nothing
+anywhere" and "nobody could look" are indistinguishable by status. Those are refused too, with the
+unreadable repositories named and the message saying it is not a claim of absence.
+
+Left undone deliberately: nothing records whether a person or an agent opened a ticket. That needs
+a column on `ticket` and schema 10, and a ticket's origin is not a governance fact by the same
+argument that closed this one.
 
 ### CON-62 / CON-63 — a second and third provider are small, and that is the test of the seam
 
