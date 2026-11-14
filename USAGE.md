@@ -245,6 +245,30 @@ appends version N+1 rather than duplicating the rule. You cannot erase version 1
 
 ---
 
+## 7a. Landing the branch on acceptance
+
+Off by default. Turned on, accepting a rule proposal also merges the ticket's branch into the
+default branch of every registered repository that has one, and pushes it (D-062):
+
+```bash
+constat config merge-on-accept          # show it
+constat config merge-on-accept on       # turn it on
+```
+
+What it does, precisely:
+
+- The branch is the one whose **name encodes the ticket** — `feat/615-no-ads` for `615` — the same
+  attribution that decides which commits belong to the ticket. You do not name it here.
+- The merge is made in a **temporary clone of the remote** and lands by pushing. The repository you
+  registered is never written to; it may hold work in progress.
+- It **refuses rather than resolves**: a conflict, two branches naming the ticket, a branch that is
+  not on the remote, no remote, or no git identity. Each refusal says which, exits 7, and pushes
+  nothing.
+- A refused merge **does not unwind the acceptance**. The decision is recorded and the rule version
+  baselined; only the merge is missing, and merging by hand afterwards is fine.
+
+---
+
 ## 8. Exit codes
 
 | Code | Meaning |
@@ -255,6 +279,7 @@ appends version N+1 rather than duplicating the rule. You cannot erase version 1
 | 4 | Workspace — not initialised, unknown ticket, workspace already exists |
 | 5 | Provider — misconfigured, unreachable, unparseable reply, or a credential in the evidence |
 | 6 | Publish — target unknown, unreachable, or a credential in the document |
+| 7 | Merge — the acceptance is recorded; landing the ticket's branch did not happen (D-062) |
 
 ---
 
@@ -296,7 +321,8 @@ Not limitations to work around — they are the product.
 - **Accept anything by itself.** No command, flag, tool or provider can mark a rule proposal
   approved. Only `rule accept --by <who>`.
 - **Send author or committer identity to a model.** The payload type has no field for it.
-- **Write to a repository it reads.** Gathering cannot change what it is evidence of.
+- **Write to a repository it reads** — unless you turn `merge_on_accept` on, which is off by
+  default and is the one exception (D-062). Gathering never writes, whatever the setting says.
 - **Report a failure as a finding.** A timeout, an unparseable reply or a missing provider is an
   error, never "no rules were identified".
 - **Delete a rule, a decision, or an approved version.** Enforced by database trigger, not by

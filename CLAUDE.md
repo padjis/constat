@@ -88,6 +88,12 @@ implementing:
 5. History is durable — approved baselines and rejections stay available and traceable.
 6. Release streams are distinct — do not assume one linear timeline.
 7. Security by design — read-only, least privilege, no stored credentials.
+   **Amended 2026-11-14 (D-062):** `rule accept` writes to a subject repository when the
+   `merge_on_accept` setting is on, merging the ticket's branch into the default branch and pushing
+   it. Off by default; the merge happens in a temporary clone, never in the registered repository;
+   every ambiguity refuses. Least privilege and no stored credentials are unchanged. Do not widen
+   this further — `constat/git/merge.py` is the only writer in `constat/git/`, and `adapter.py`
+   must keep its read-only guarantee.
 8. Useful for both audiences — a business explanation and a technical evidence view, not conflated.
 
 ## Suggested 90-minute session shape

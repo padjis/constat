@@ -25,7 +25,7 @@ from .errors import (
 )
 from .evidence import collect_evidence, describe_commit
 from .mapping import change_proposal, commit_record, state_proposal
-from .store import READER_MCP, READERS, Settings
+from .store import OFF, ON, READER_MCP, READERS, SWITCH, Settings
 from .store import (
     Catalogue,
     Review,
@@ -38,7 +38,13 @@ from .store import (
 from .ai import MCP_READER_NOTE, NULL_PROVIDER_NAME, PROVIDER_ENV
 from .ai import as_dict as payload_as_dict
 from .ai import resolve as resolve_provider
-from .operations import export_payload, gather, publish_document, submit_reply
+from .operations import (
+    export_payload,
+    gather,
+    land_ticket,
+    publish_document,
+    submit_reply,
+)
 from .publish import GitPages
 from .tickets import TicketStatus, find_ticket_commits
 from .git import (
@@ -65,6 +71,7 @@ EXIT_REPOSITORY = 3  # the input was fine; the repository or revision was not.
 EXIT_WORKSPACE = 4  # Constat's own stored state could not be opened or created.
 EXIT_PROVIDER = 5  # the interpretation layer was misconfigured; nothing else was.
 EXIT_PUBLISH = 6  # the document is fine; publishing it did not happen (D-058).
+EXIT_MERGE = 7  # the acceptance is recorded and durable; the merge did not happen (D-062).
 
 
 def _describe_repository(repo) -> None:
@@ -400,6 +407,21 @@ def build_parser() -> argparse.ArgumentParser:
         "value", nargs="?", choices=sorted(READERS), default=None,
         help="omit to show the current value",
     )
+    config_merge = config_actions.add_parser(
+        "merge-on-accept",
+        help="show or set whether accepting a rule proposal lands the branch",
+        description=(
+            "When on, accepting a rule proposal merges the ticket's branch "
+            "into each registered repository's default branch and pushes it "
+            "(D-062). Off by default: acceptance otherwise writes to the "
+            "workspace and nothing else, and this is the one setting that "
+            "makes it change a repository other people share."
+        ),
+    )
+    config_merge.add_argument(
+        "value", nargs="?", choices=sorted(SWITCH), default=None,
+        help="omit to show the current value",
+    )
 
     analyse = subparsers.add_parser(
         "analyse",
@@ -627,7 +649,20 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                 print("The version is frozen and points back at the reading")
                 print("you accepted. See it with `constat rule history "
                       f"{result.rule_id}`.")
-                return EXIT_OK
+
+                if not Settings(workspace).merge_on_accept:
+                    return EXIT_OK
+
+                # Ordered deliberately: the acceptance is already committed
+                # above, so a failed merge below reports a missing merge
+                # rather than putting the decision in doubt (D-062).
+                reference = RuleProposals(workspace).reference_of(args.proposal_id)
+                if reference is None:
+                    print()
+                    print("merge_on_accept is on, but this rule proposal has no")
+                    print("ticket to land. Nothing was merged.")
+                    return EXIT_MERGE
+                return _report_landing(land_ticket(workspace, reference))
 
             if args.rule_action == "reject":
                 decided_by, attribution = _decider(args)
@@ -893,6 +928,8 @@ def _run_config(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
     try:
         with Workspace.open(args.workspace) as workspace:
             settings = Settings(workspace)
+            if args.config_action == "merge-on-accept":
+                return _run_config_merge(settings, args.value)
             if args.value is None:
                 print(f"reader: {settings.reader}")
                 if settings.reader == READER_MCP:
@@ -927,6 +964,67 @@ def _run_config(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
     except WorkspaceError as exc:
         print(f"{PROG}: error: {exc}", file=sys.stderr)
         return EXIT_WORKSPACE
+
+
+def _run_config_merge(settings: Settings, value: str | None) -> int:
+    """Show or set `merge_on_accept`.
+
+    Turning it on prints what it will do in the imperative, not "enabled".
+    Someone who reads "merge_on_accept: on" and nothing else has not been told
+    that `rule accept` will start pushing to branches other people pull from.
+    """
+    if value is None:
+        print(f"merge_on_accept: {ON if settings.merge_on_accept else OFF}")
+        if settings.merge_on_accept:
+            print(
+                "  Accepting a rule proposal merges the ticket's branch into "
+                "each registered repository's default branch and pushes it."
+            )
+        else:
+            print(
+                "  Accepting a rule proposal records the decision and "
+                "baselines a rule version. No repository is written to."
+            )
+        return EXIT_OK
+
+    settings.set_merge_on_accept(value)
+    print(f"merge_on_accept: {value}")
+    if value == ON:
+        print()
+        print("`rule accept` will now push a merge commit to the default")
+        print("branch of every registered repository that has a branch naming")
+        print("the ticket. It never merges inside the repository you")
+        print("registered — the merge is made in a temporary clone and lands")
+        print("by pushing — and it refuses on a conflict rather than resolving")
+        print("one. The acceptance is recorded either way.")
+    else:
+        print()
+        print("Accepting a rule proposal is back to writing nothing outside")
+        print("the workspace.")
+    return EXIT_OK
+
+
+def _report_landing(landing) -> int:
+    """Print what the merge did, and exit non-zero only for a refusal.
+
+    `already_merged` and `no_branch` are reported and exit 0: a ticket whose
+    work is in mainline, or which never had a branch, is a normal state and
+    not a failure of the command the user ran.
+    """
+    print()
+    print(f"landing {landing.reference}:")
+    for result in landing.results:
+        print(f"  {result.describe()}")
+
+    refusals = landing.refusals
+    if not refusals:
+        return EXIT_OK
+
+    print()
+    print(f"{len(refusals)} repository(ies) did not merge. The acceptance is")
+    print("recorded and the rule version is baselined — only the merge is")
+    print("missing, and re-running it is safe once the cause is fixed.")
+    return EXIT_MERGE
 
 
 def _run_publish(args: argparse.Namespace) -> int:

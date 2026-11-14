@@ -153,6 +153,12 @@ These are invariants. A change that breaks one of them is a defect, not a trade-
    timeline.
 7. **Security by design.** Start read-only, minimise permissions, never store credentials in project
    files.
+   **Amended 2026-11-14 (D-062):** one path now writes to a subject repository. With the
+   `merge_on_accept` setting on, `rule accept` merges the ticket's branch into the default branch
+   and pushes it. It is off by default, the merge is made in a temporary clone so the registered
+   repository is never written to, every ambiguity refuses rather than resolves, and no credential
+   is stored — the push uses git's own helper. "Minimise permissions" and "never store credentials"
+   are unchanged; "start read-only" now has one stated exception instead of none.
 8. **Useful for both audiences.** Offer a business explanation and a technical evidence view without
    conflating them.
 

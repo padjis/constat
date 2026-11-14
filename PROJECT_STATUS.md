@@ -2,7 +2,8 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session:** CON-64 closed (D-063). CON-65, CON-66, CON-68 closed before it; CON-67 raised.
+**Current session:** CON-69 closed (D-062) — accepting a rule proposal can land the ticket's
+branch. CON-64 closed before it (D-063); CON-65, CON-66, CON-68 earlier; CON-67 raised.
 
 ---
 
@@ -408,6 +409,58 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-69 — done when: *accepting a rule proposal lands the ticket's branch* ✅
+
+`D-062` records the decision, and amends product rule 7: one path now writes to a subject
+repository. It is off by default.
+
+**What changed.**
+
+- `constat/store/settings.py` — a second setting, `merge_on_accept`, defaulting to `off`. No
+  migration: the `setting` table has existed since schema 9, so this is a key, not a schema change.
+- `constat/git/merge.py` (new) — the only writer in `constat/git/`. Clones the remote into a
+  temporary directory, merges `origin/<branch>` into the default branch with `--no-ff`, pushes, and
+  deletes the clone. `adapter.py` keeps its read-only guarantee untouched.
+- `constat/operations.py` — `land_ticket` walks the registered repositories and returns a
+  `Landing` with one `MergeResult` each. The branch comes from `branches_naming` (D-030), not from
+  an argument.
+- `constat/store/proposals.py` — `reference_of`, because a decision is taken by proposal id while
+  landing is addressed by ticket reference.
+- `constat/cli.py` — `config merge-on-accept`, exit code 7, and the call after the acceptance is
+  already committed.
+
+**The ordering is the design.** The acceptance is written first, so a failed merge reports a
+missing merge rather than putting the decision in doubt. A conflict must not discard a human
+decision.
+
+**Deliberately not done.** No merge request flow, no per-repository override, and no retry
+command — a refused merge is finished by hand in the repository. `land_ticket` is reachable only
+from `rule accept`; nothing in the MCP surface can call it, which is unchanged from D-048.
+
+**Numbering.** This entry takes `D-062`, the number CON-64 reserved when it renumbered itself to
+`D-063`. Its note that the log jumps D-061 → D-063 described the state before this landed; the log
+is contiguous again.
+
+**Known gap.** Every test uses a bare repository on disk as the remote. The push path has never
+run against an authenticated remote, so credential-helper behaviour and a protected-branch refusal
+are both untested — the first real one to try is the `237feed` GitLab remote.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_merge_on_accept.py` → **19 passed**. The files this change
+reaches — `test_cli.py`, `test_acceptance.py`, `test_config.py`, `test_reader_setting.py`,
+`test_proposal_storage.py`, `test_operations.py` and the new file — → **217 passed in 28s**. The
+whole suite ran once while CON-64 was still uncommitted in this tree: **873 passed in 171s**,
+exit 0, which is CON-64's 854 plus these 19.
+
+Each refusal asserts that mainline on the remote is byte-identical afterwards, not merely that a
+non-zero code came back: conflict, local-only branch, no remote, no git identity, two branches
+naming one ticket, an unreadable repository. One test asserts the registered clone's working tree
+and HEAD are untouched. One asserts an acceptance survives a conflicted merge with the rule still
+in the catalogue and exit 7.
 
 ---
 

@@ -54,6 +54,52 @@ capability exists here that the agent did not already have one command later.
 
 ---
 
+## D-062 · 2026-11-14 · Accepting a rule proposal may land the ticket's branch
+
+**Decision.** A workspace setting, `merge_on_accept`, decides whether `rule accept` also merges the
+ticket's branch into each registered repository's default branch and pushes it. Default `off`. When
+on, the merge is made in a **temporary clone of the remote** and lands by pushing; the registered
+repository is never written to. Every ambiguity refuses: a conflict, two branches naming the
+ticket, a branch absent from the remote, no remote, no git identity. A refused merge exits 7 and
+**never unwinds the acceptance**.
+
+**Context.** Until now acceptance wrote to the workspace and nothing else, and `publish` was the
+only command that wrote outside it (D-058). This is the second such command and the more
+consequential one: a push to mainline is seen immediately by everyone who pulls, and no later
+Constat command can take it back. It was asked for directly, after the alternatives — accept then
+publish, or opening a merge request instead — were put and declined.
+
+**On the number.** This entry takes `D-062`, which CON-64 reserved when it renumbered itself to
+`D-063` rather than claim a number another session was already citing. The log is now contiguous
+again.
+
+**What this amends.** Product rule 7 (security by design: read-only, least privilege) held for
+every path into a subject repository. It no longer holds for this one, and the amendment is stated
+here rather than left for a reader to infer from the code. Rules 1–6 and 8 are untouched, and
+product rule 4 is the reason the setting exists at all: generated content is a proposal, so the act
+that promotes it must be one a person chose, including its side effects.
+
+**Consequences.**
+
+- **Off by default, and an existing workspace is inert.** Silence is not consent to a push. A
+  workspace that never answered the question behaves exactly as it did before.
+- **The branch is evidence, not an argument.** It comes from `branches_naming` — the same
+  branch-name attribution D-030 uses to decide which commits belong to a ticket — so nothing is
+  merged on the strength of a name typed into this command. Two candidate branches refuse rather
+  than one being chosen.
+- **The write lives in one module.** `constat/git/merge.py` is the only writer in `constat/git/`;
+  `adapter.py` keeps its read-only guarantee intact, which is what makes the boundary auditable.
+- **A failed merge leaves a recorded acceptance and an unmerged branch.** That asymmetry is
+  deliberate. The acceptance is a human decision and a git conflict is not grounds to discard it;
+  the reverse — unwinding a decision because a merge failed — would let the state of a repository
+  overrule a person.
+- **No credentials are stored.** The push uses git's own credential helper or SSH agent, with
+  `GIT_TERMINAL_PROMPT=0` so a missing credential fails rather than hanging.
+
+**Status.** accepted.
+
+---
+
 ## D-061 · 2026-11-13 · The decider's name may be inferred, and the record says that it was
 
 **Decision.** `--by` is optional on `rule accept` and `rule reject`. Omitted, the decider is taken

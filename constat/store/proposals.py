@@ -226,6 +226,23 @@ class RuleProposals:
         ).fetchall()
         return tuple(self._hydrate(row) for row in rows)
 
+    def reference_of(self, proposal_id: int) -> str | None:
+        """The ticket a reading was made for, or None if there is no such id.
+
+        The reverse of `for_ticket`, and needed because a decision is taken by
+        proposal id while anything that acts on the ticket's work — landing it,
+        for one (D-062) — is addressed by reference.
+        """
+        row = self._workspace.execute(
+            "SELECT t.reference FROM rule_proposal p "
+            "JOIN run r ON r.id = p.run_id "
+            "JOIN document d ON d.id = r.document_id "
+            "JOIN ticket t ON t.id = d.ticket_id "
+            "WHERE p.id = ?",
+            (proposal_id,),
+        ).fetchone()
+        return None if row is None else str(row["reference"])
+
     def undecided(self, reference: str) -> tuple[StoredRuleProposal, ...]:
         """Readings a human has not answered yet — the review queue."""
         return tuple(p for p in self.for_ticket(reference) if not p.is_decided)

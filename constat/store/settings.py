@@ -1,7 +1,8 @@
 """Workspace settings: answers that belong to a setup, not to a run (D-060).
 
-One table, one question so far. `reader` records who reads the evidence —
-an agent over MCP, or Constat itself through a provider.
+One table, two questions. `reader` records who reads the evidence — an agent
+over MCP, or Constat itself through a provider. `merge_on_accept` records
+whether accepting a rule proposal also lands the ticket's branch (D-062).
 
 **Why this is stored rather than passed.** D-059 refuses a rule-generating
 command when nothing can read the evidence, and at the command line these two
@@ -33,6 +34,23 @@ DEFAULT_READER = READER_PROVIDER
 """The strict one. A workspace that never said how it reads is treated as
 expecting a provider, so the refusal D-059 added stays in force unless someone
 turns it off deliberately — the safe direction for a default to lean."""
+
+MERGE_ON_ACCEPT = "merge_on_accept"
+
+ON = "on"
+OFF = "off"
+SWITCH = (ON, OFF)
+
+DEFAULT_MERGE_ON_ACCEPT = OFF
+"""Off, for the same reason `reader` defaults to the strict value: the unsafe
+direction must be chosen out loud.
+
+Accepting a rule proposal writes to the workspace and nothing else (D-048).
+With this on it also pushes a merge to mainline, which is the only thing
+Constat does that another person sees immediately and that cannot be undone by
+re-running a command. A workspace that never answered the question has not
+agreed to that, and reading silence as consent is exactly the failure product
+rule 4 exists to prevent."""
 
 
 class Settings:
@@ -75,3 +93,24 @@ class Settings:
                 f"MCP server; `{READER_PROVIDER}` means Constat reads it itself."
             )
         self.set(READER, value)
+
+    @property
+    def merge_on_accept(self) -> bool:
+        """Whether accepting a rule proposal also lands the ticket's branch.
+
+        Returned as a bool because there is nothing to distinguish between:
+        unlike `reader`, where "unset" and "provider" mean different things to
+        a refusal message, an unset switch and an off switch both mean Constat
+        does not push.
+        """
+        return self.get(MERGE_ON_ACCEPT, DEFAULT_MERGE_ON_ACCEPT) == ON
+
+    def set_merge_on_accept(self, value: str) -> None:
+        if value not in SWITCH:
+            raise InvalidInput(
+                f"merge_on_accept must be {ON} or {OFF}, not {value!r}. "
+                f"`{ON}` means accepting a rule proposal merges the ticket's "
+                f"branch into mainline and pushes it; `{OFF}` means accepting "
+                "only records the decision."
+            )
+        self.set(MERGE_ON_ACCEPT, value)

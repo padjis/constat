@@ -49,7 +49,13 @@ from .models import RegisteredRepository
 from .store import READER_MCP, Settings
 from .store import Catalogue, Registry, RuleProposals, TicketStore, Workspace
 from .store.workspace import utc_now
-from .tickets import TicketMatch, TicketStatus, find_ticket_commits
+from .git.merge import MergeResult, merge_ticket_branch
+from .tickets import (
+    TicketMatch,
+    TicketStatus,
+    branches_naming,
+    find_ticket_commits,
+)
 
 
 @dataclass(frozen=True)
@@ -1131,3 +1137,76 @@ def detect_target(repository: str | None = None) -> Target:
     """
     return git_pages_detect(discover_repository(repository or "."))
 
+# -- landing a ticket's work ---------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Landing:
+    """What accepting a rule proposal did to the registered repositories.
+
+    Always a tuple of results, one per repository, even when only one of them
+    knows the ticket. A ticket spans repositories (D-027) and "nothing to
+    merge in the other two" is information a reviewer needs rather than noise
+    to suppress: it is the difference between a one-repository change and a
+    merge that silently reached only one of several.
+    """
+
+    reference: str
+    results: tuple[MergeResult, ...]
+
+    @property
+    def landed(self) -> tuple[MergeResult, ...]:
+        return tuple(r for r in self.results if r.landed)
+
+    @property
+    def refusals(self) -> tuple[MergeResult, ...]:
+        return tuple(r for r in self.results if r.is_refusal)
+
+    @property
+    def changed_anything(self) -> bool:
+        return bool(self.landed)
+
+
+def land_ticket(workspace: Workspace, reference: str) -> Landing:
+    """Merge the ticket's branch into mainline in every registered repository.
+
+    Reached only when `merge_on_accept` is on (D-062). The caller checks the
+    setting: this function does the work it is asked to do, and a function
+    that silently did nothing because of a setting it read itself would be
+    impossible to test honestly.
+
+    The branch comes from `branches_naming` — the same branch-name attribution
+    D-030 already uses to decide which commits belong to a ticket. Nothing is
+    merged on the strength of a name a user typed into this command.
+    """
+    results: list[MergeResult] = []
+
+    for entry in Registry(workspace).list():
+        try:
+            repo = discover_repository(entry.source)
+        except RepositoryError as exc:
+            # Unreadable is not "nothing to merge". A repository that cannot
+            # be opened may well hold the ticket's branch, and reporting it as
+            # a clean no-op would claim the ticket had landed everywhere.
+            results.append(
+                MergeResult(
+                    repository_alias=entry.alias,
+                    source_branch=None,
+                    target_branch=entry.default_branch,
+                    outcome="repository_unreadable",
+                    detail=f"could not read {entry.source}: {exc}",
+                )
+            )
+            continue
+
+        results.append(
+            merge_ticket_branch(
+                repo,
+                alias=entry.alias,
+                branches=branches_naming(repo, reference),
+                target_branch=entry.default_branch,
+                reference=reference,
+            )
+        )
+
+    return Landing(reference=reference, results=tuple(results))

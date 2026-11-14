@@ -106,6 +106,7 @@ forces them.
 | CON-65 | Who reads the evidence is a workspace setting | `ticket add` needs no flag on an MCP workspace; `init --reader` and `config reader` set it. | ✅ D-060 |
 | CON-66 | MCP prompts, so the loop is one command | `/mcp__constat__document <REF>` runs the whole loop; the rule-writing guidance is shared with the provider path. | ✅ |
 | CON-68 | Infer the decider from git config | `rule accept` needs no `--by`; the record says whether the name was stated or inferred. | ✅ D-061 |
+| CON-69 | Accepting a rule proposal can land the ticket's branch | With `merge_on_accept` on, `rule accept` merges the branch naming the ticket into each registered repository's default branch and pushes it; off by default, and every ambiguity refuses without unwinding the acceptance. | ✅ D-062 |
 | CON-67 | A rule has a title and details, and details are tracked across versions | `rule history` shows which details were added, removed, edited or unchanged between versions. | ⬜ — needs CON-61, and a decision on detail identity |
 | CON-64 | An agent can open a ticket | The MCP workflow starts from the agent: `gather_evidence` on an unknown reference opens the ticket rather than failing. | ✅ D-063 — opens when the repositories recognise the reference; a reference matching nothing is still refused |
 | CON-62 | Gemini as a provider | `CONSTAT_AI_PROVIDER=gemini` proposes rules through the same `parse` and the same gates, as an optional extra. | ⬜ — CON-60 built the seam; this is a second `Provider` implementation |
