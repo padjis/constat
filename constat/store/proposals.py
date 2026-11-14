@@ -267,6 +267,43 @@ class RuleProposals:
         ).fetchall()
         return tuple(row["rule_id"] for row in rows)
 
+    def pending_candidates_for(
+        self, anchors: tuple[Anchor, ...], exclude: int | None = None
+    ) -> tuple[int, ...]:
+        """Undecided rule proposals whose anchors overlap these (CON-70).
+
+        The queue-side twin of `candidates_for`, and separate from it on
+        purpose: that one answers "which catalogue rule might this revise",
+        this one answers "has someone already proposed this and nobody
+        decided yet". A reader given the two mixed together could not tell a
+        revision opportunity from a duplicate.
+
+        `exclude` drops the proposal being examined. A reading is recorded
+        before its candidates are looked up, so without this every proposal
+        overlaps itself.
+
+        Decided proposals are left out. An accepted one became a rule and
+        `candidates_for` finds it there; a rejected one was found
+        inconclusive, and another reading of the same evidence is exactly what
+        D-036 expects to follow.
+        """
+        if not anchors:
+            return ()
+        globs = {anchor.path_glob for anchor in anchors}
+        placeholders = ", ".join("?" for _ in globs)
+        rows = self._workspace.execute(
+            "SELECT DISTINCT a.rule_proposal_id AS id "
+            "FROM rule_proposal_anchor a "
+            "LEFT JOIN rule_proposal_decision d "
+            "  ON d.rule_proposal_id = a.rule_proposal_id "
+            f"WHERE a.path_glob IN ({placeholders}) AND d.id IS NULL "
+            "ORDER BY a.rule_proposal_id",
+            tuple(globs),
+        ).fetchall()
+        return tuple(
+            int(row["id"]) for row in rows if exclude is None or int(row["id"]) != exclude
+        )
+
     def _hydrate(self, row: sqlite3.Row) -> StoredRuleProposal:
         behaviours = tuple(
             Behaviour(description=r["description"])

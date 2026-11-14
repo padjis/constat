@@ -133,6 +133,28 @@ class KnownRule:
 
 
 @dataclass(frozen=True)
+class PendingProposal:
+    """A reading already awaiting a decision on this ticket (CON-70).
+
+    Deliberately **not** a `KnownRule`, though the fields look alike. A
+    catalogue rule can be revised and its id is what `revises` names; a pending
+    proposal can be neither — there is no rule yet, so there is no version to
+    append to. `proposal_id` is therefore *not* usable in `revises`, and naming
+    the field differently is what stops a reading from trying.
+
+    What it is for is narrower: so a second reading of the same evidence can
+    see that it would be saying something already said. Without it the queue
+    grows one duplicate per run, each costing a reviewer a decision for a rule
+    they have already read.
+    """
+
+    proposal_id: int
+    name: str
+    statement: str
+    anchors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class ProviderPayload:
     """Everything a provider is given, and nothing else."""
 
@@ -142,6 +164,10 @@ class ProviderPayload:
     """Rules already accepted, so a reading can revise one instead of
     duplicating it. Carries no identity and no evidence — just what the
     workspace already holds."""
+    pending: tuple[PendingProposal, ...] = ()
+    """Readings already in this ticket's review queue (CON-70). Separate from
+    `catalogue` because the two call for different things: a catalogue rule can
+    be revised, a pending one can only be left alone."""
 
     @property
     def commit_count(self) -> int:
@@ -166,6 +192,7 @@ def redact(
     reference: str,
     findings: tuple[RepositoryFindings, ...],
     catalogue: tuple[KnownRule, ...] = (),
+    pending: tuple[PendingProposal, ...] = (),
 ) -> ProviderPayload:
     """Build the provider payload from gathered findings, stripping identity."""
     repositories = []
@@ -207,6 +234,7 @@ def redact(
         reference=reference,
         repositories=tuple(repositories),
         catalogue=catalogue,
+        pending=pending,
     )
 
 

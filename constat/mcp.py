@@ -40,6 +40,7 @@ from .ai.guidance import (
     ANCHORS,
     NOTHING_IS_ACCEPTED,
     REPLY_SHAPE,
+    PENDING,
     REVISION,
     WHAT_A_RULE_IS,
 )
@@ -214,6 +215,13 @@ def build_server(workspace_home: str | None = None):
                     "possible_duplicates": {
                         str(k): list(v) for k, v in result.candidates.items()
                     },
+                    # Separate key, not merged into the one above: those are
+                    # catalogue rule ids, these are rule proposal ids, and a
+                    # reader cannot tell which is which from the number
+                    # (CON-70).
+                    "possible_duplicate_proposals": {
+                        str(k): list(v) for k, v in result.pending_candidates.items()
+                    },
                     "accepted": False,
                     "note": (
                         "Stored and awaiting a human decision. There is no tool "
@@ -298,7 +306,7 @@ def build_server(workspace_home: str | None = None):
             "conclusions as JSON.\n"
             "4. Tell me what was stored and what was discarded, with the "
             "reasons.\n\n"
-            f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{REVISION}\n\n"
+            f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{REVISION}\n\n{PENDING}\n\n"
             f"{NOTHING_IS_ACCEPTED}\n\n"
             "The reply for step 3 is JSON in this shape:\n\n"
             f"{REPLY_SHAPE}\n\n"

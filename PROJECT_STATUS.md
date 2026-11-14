@@ -2,8 +2,9 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session:** CON-69 closed (D-062) — accepting a rule proposal can land the ticket's
-branch. CON-64 closed before it (D-063); CON-65, CON-66, CON-68 earlier; CON-67 raised.
+**Current session:** CON-70 closed (D-064) — a duplicate rule proposal is reported, never refused.
+Raised by the first real reading through the MCP loop (615, live workspace), which also raised
+CON-71 and CON-72. CON-69 closed before it (D-062), CON-64 before that (D-063).
 
 ---
 
@@ -387,17 +388,21 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**Run one real ticket through the MCP loop on the live workspace, end to end, and read what comes
-back.** Not a code task, and the most valuable one available. The loop is now startable from the
-agent and the rule-writing guidance is shared between both paths (CON-66) — but **no model has ever
-read a real payload through it**, so whether `constat/ai/guidance.py` produces business statements
-or restated diffs is unknown. A flaw in it is now shared by both paths rather than confined to one.
-The decision not to bill API usage was taken on 2026-11-14: the MCP path validates the guidance at
-no API cost, and leaves the provider's transport untested.
+**CON-58 — read decisions back, with their channel and verification.** CON-70 is closed, and the
+other two findings from the first real reading both need a decision from you before any code:
+CON-71 (what grounding means when a rule is attested by evidence it is not anchored to) and CON-72
+(whether a rule may be conditional on a transient business state).
 
-After that, **CON-58 — read decisions back, with their channel and verification.** The publishing
-port's `read_decisions` raises `DecisionsNotReadable` on every target, so acceptance is still
-CLI-only — half of what the original question asked for.
+An alternative worth weighing ahead of CON-58: **breadth**. The guidance was validated on one
+commit touching one file. A 30-commit ticket across the three registered repositories is the case
+that would actually strain a reading, and nothing yet says it holds there.
+
+~~Run one real ticket through the MCP loop on the live workspace~~ **done 2026-11-14**, written up
+below. The decision not to bill API usage stands: the MCP path validated the guidance at no API
+cost and leaves the provider's transport untested.
+
+What CON-58 involves: the publishing port's `read_decisions` raises `DecisionsNotReadable` on
+every target, so acceptance is still CLI-only — half of what the original question asked for.
 
 D-061 is the thing to keep straight while building it: `attribution` (`stated` / `inferred`) sits
 *inside* the CLI channel and is not `channel` or `verification`. `channel` says where a decision was
@@ -409,6 +414,117 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-70 — done when: *a re-run does not duplicate a pending rule proposal* ✅
+
+`D-064` records the decision: a duplicate is **reported, never refused**. Convergence is evidence —
+proposals 1 and 2 on ticket 615 agreeing is what validated `guidance.py` the day before — so
+discarding the second would destroy the product's own validation.
+
+**What changed.**
+
+- `constat/ai/redaction.py` — a `PendingProposal` type and `ProviderPayload.pending`. Separate from
+  `KnownRule` because the two call for different things: a catalogue rule can be revised, a pending
+  one can only be left alone. The field is `proposal_id`, not `rule_id`, so a reading cannot mistake
+  it for something to put in `revises`.
+- `constat/store/proposals.py` — `pending_candidates_for(anchors, exclude=…)`, the queue-side twin
+  of `candidates_for`. `exclude` drops the proposal being examined: a reading is recorded before its
+  candidates are looked up, so without it every submission reports itself.
+- `constat/operations.py` — `pending_readings(workspace, reference)` fills the payload at all three
+  build sites, and `SubmitResult.pending_candidates` carries the overlap separately from
+  `candidates`.
+- `constat/cli.py`, `constat/mcp.py` — two distinct reports. Both hold plain integers, and a
+  reviewer told "overlaps 1" cannot act without knowing which table indexes it.
+- `constat/ai/guidance.py` — a `PENDING` block, imported by both the provider system prompt and the
+  MCP `document` prompt, telling a reader what the queue is for and why `revises` is not the answer.
+
+**Verified on the case that found it.** A copy of the live workspace (never the live one), a third
+reading of 615 submitted:
+
+```
+1 overlap a rule proposal nobody has decided yet:
+    [3] anchors overlap rule proposal(s) 1, 2
+```
+
+The payload for 615 now carries all three pending proposals with `catalogue: []`. That warning is
+exactly what was missing on 2026-11-14.
+
+**Deliberately not done.** No deduplication, no merge, no similarity scoring. Overlap is by anchor
+path, which is the same signal D-050 already uses and the same caveat applies: one file routinely
+implements several rules, so overlap is a candidate and not a verdict.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_pending_duplicates.py` → **13 passed** (new file). The files
+this change reaches — `test_submit.py`, `test_export.py`, `test_mcp.py`, `test_ai.py`,
+`test_operations.py`, `test_proposal_storage.py`, `test_cli.py`, `test_scanning.py` and the new
+file — → **344 passed in 47s**. Whole suite not re-run.
+
+Four assertions carry it: the duplicate is reported, the duplicate is still *stored*, a proposal
+does not overlap itself, and catalogue overlap and queue overlap stay in separate fields. A fifth
+asserts both prompt paths carry the same `PENDING` text, because a rule proposed over MCP and the
+same rule proposed by a provider must mean the same thing.
+
+---
+
+## The first real reading through the MCP loop — 2026-11-14
+
+Not a ticket: the task `PROJECT_STATUS.md` had carried as "next" since CON-66. Ticket **615** was
+run end to end against the **live workspace** (`~/.constat`, 3 repositories, 5 tickets) by an agent
+driving `constat mcp` over stdio — `gather_evidence` → `get_payload` → read → `submit_rules` →
+`list_rule_proposals`. Runs 17, 18 and 19 are that work.
+
+**The guidance holds.** What came back is a business sentence rather than a restated diff:
+
+> 237feed's news and feed content pages carry no third-party advertising while the site is not
+> approved by the advertising network.
+
+Stored as rule proposal **2**, anchored to `functions/_lib/render.ts` in `237feed-ui`, grounded and
+undecided. The evidence was one commit removing the AdSense loader from NEWS and FEED pages after
+the site was rejected for "low value content" — 252 KiB and ~112ms of main-thread time for zero
+ads.
+
+**The validation is accidental and is the strongest available.** Rule proposal **1**, from run 16
+and a different reader, had already produced nearly the same sentence with the same anchor. Two
+independent readings of one commit converged on one business rule, which is evidence that
+`constat/ai/guidance.py` constrains the output rather than the model's instincts doing the work
+unaided.
+
+**`WHAT_A_RULE_IS` also suppressed what it was written to suppress.** Two candidates were dropped
+as rationale rather than rules: a Core Web Vitals performance budget, and an inference about AdMob
+inventory drawn from `public/ads.txt` being deliberately left alone. Both were in the commit body;
+neither is a rule the evidence supports.
+
+### Three findings, now CON-70, CON-71 and CON-72
+
+1. **A re-run silently duplicates a pending rule proposal (CON-70).** `submit_rules` reported
+   `possible_duplicates: {}` while rule proposal 1 sat in the queue saying the same thing.
+   `RuleProposals.candidates_for` queries the `anchor` table — accepted rules only — and
+   `get_payload` returns `catalogue` but never the pending queue. So each re-run of a ticket costs
+   the reviewer another decision for one rule, which is how a review queue stops being readable.
+2. **Anchor grounding cannot say "attested here, lives elsewhere" (CON-71).** The evidence states a
+   second genuine rule — the landing and install-funnel pages are deliberately ad-free because they
+   market the app as paywall-free — whose home is `src/pages/`, a path this commit never touched.
+   The only groundable anchor would be `render.ts`, a false claim about where the rule lives, so a
+   real rule went unproposed. Structural, not a model failure: D-049's check has one notion of
+   grounding where two are needed.
+3. **The guidance is silent on transient rules (CON-72).** "While the site is not approved" encodes
+   a temporary business state in a catalogue meant for durable rules. Nothing said whether that is
+   allowed, so it was written in, and a reviewer now has to decide both the rule and whether the
+   rule is the right shape. That answer belongs in the guidance, once, not in every reading.
+
+### What this says about the roadmap
+
+The question this task existed to answer — *does the guidance produce business statements or
+restated diffs* — is answered: business statements, on one ticket, on real evidence, twice. What it
+did not test is breadth. One commit touching one file is the easy case; a 30-commit ticket spanning
+three repositories is where a reading either holds together or becomes a list.
+
+**Nothing was accepted and nothing merged.** Rule proposal 2 is a duplicate of 1 by content and can
+be rejected as inconclusive (`constat rule reject 2`), which D-036 reads as "another reading is
+expected", not as "wrong".
 
 ---
 

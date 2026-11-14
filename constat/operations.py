@@ -28,6 +28,7 @@ from .ai import (
     ProviderPayload,
     Rejection,
     KnownRule,
+    PendingProposal,
     SecretFinding,
     describe_scan,
     guard_release,
@@ -613,6 +614,28 @@ def known_rules(workspace: Workspace) -> tuple[KnownRule, ...]:
     return tuple(rules)
 
 
+def pending_readings(workspace: Workspace, reference: str) -> tuple[PendingProposal, ...]:
+    """This ticket's review queue, as a reading sees it (CON-70).
+
+    Scoped to the ticket rather than the workspace: a duplicate only matters
+    against the evidence being read now, and showing a reading every undecided
+    proposal in the workspace would bury the one that matters.
+
+    Separate from `known_rules` because the payload keeps them apart — a
+    catalogue rule invites a revision, a pending proposal invites silence.
+    """
+    proposals = RuleProposals(workspace)
+    return tuple(
+        PendingProposal(
+            proposal_id=stored.id,
+            name=stored.proposal.name,
+            statement=stored.proposal.statement,
+            anchors=tuple(a.path_glob for a in stored.proposal.anchors),
+        )
+        for stored in proposals.undecided(reference)
+    )
+
+
 def collect(
     workspace: Workspace,
     reference: str,
@@ -670,7 +693,12 @@ def export_payload(
     override nobody can see afterwards is the same as no scan (D-044).
     """
     findings = collect(workspace, reference, limits)
-    payload = redact(reference, findings, known_rules(workspace))
+    payload = redact(
+        reference,
+        findings,
+        known_rules(workspace),
+        pending_readings(workspace, reference),
+    )
     scan_findings = guard_release(payload, accepted=accept_scan_findings)
 
     accepted = bool(scan_findings)
@@ -702,6 +730,12 @@ class SubmitResult:
     candidates: dict[int, tuple[int, ...]] = field(default_factory=dict)
     """Rule proposal id -> rules its anchors overlap, for readings that claimed
     to be new. A warning to the reviewer, never a decision (D-050)."""
+    pending_candidates: dict[int, tuple[int, ...]] = field(default_factory=dict)
+    """Rule proposal id -> *undecided* rule proposals its anchors overlap
+    (CON-70). Kept apart from `candidates` because the reviewer's next move
+    differs: an overlapping catalogue rule may want a revision, an overlapping
+    pending proposal wants one of the two collapsed before either is
+    accepted."""
 
     @property
     def stored_count(self) -> int:
@@ -710,6 +744,10 @@ class SubmitResult:
     @property
     def possible_duplicates(self) -> int:
         return len(self.candidates)
+
+    @property
+    def possible_pending_duplicates(self) -> int:
+        return len(self.pending_candidates)
 
 
 def submit_reply(
@@ -743,7 +781,12 @@ def submit_reply(
     catalogue.
     """
     findings = collect(workspace, reference, limits)
-    payload = redact(reference, findings, known_rules(workspace))
+    payload = redact(
+        reference,
+        findings,
+        known_rules(workspace),
+        pending_readings(workspace, reference),
+    )
 
     # Raises MalformedResponse for an unusable reply, rather than storing
     # nothing and letting that read as "no rules were identified" (D-046).
@@ -753,6 +796,7 @@ def submit_reply(
     proposals = RuleProposals(workspace)
     stored = []
     candidates: dict[int, tuple[int, ...]] = {}
+    pending_candidates: dict[int, tuple[int, ...]] = {}
     for proposal in result.proposals:
         proposal_id = proposals.record(
             run_id=run_id,
@@ -772,11 +816,22 @@ def submit_reply(
             if overlapping:
                 candidates[proposal_id] = overlapping
 
+            # And the queue, which `candidates_for` cannot see: it reads the
+            # `anchor` table, where only accepted rules appear. Two readings of
+            # one ticket used to produce two identical proposals and no
+            # warning (CON-70).
+            also_pending = proposals.pending_candidates_for(
+                proposal.anchors, exclude=proposal_id
+            )
+            if also_pending:
+                pending_candidates[proposal_id] = also_pending
+
     return SubmitResult(
         run_id=run_id,
         stored=tuple(stored),
         rejections=result.rejections,
         candidates=candidates,
+        pending_candidates=pending_candidates,
     )
 
 
@@ -920,7 +975,12 @@ def gather(
     # Redaction happens on the real path rather than only where a provider
     # exists. A privacy boundary first exercised by the code that needs it is
     # a boundary first tested in production.
-    payload = redact(reference, findings, known_rules(workspace))
+    payload = redact(
+        reference,
+        findings,
+        known_rules(workspace),
+        pending_readings(workspace, reference),
+    )
 
     sends_payload = provider.name != NULL_PROVIDER_NAME
     if sends_payload:

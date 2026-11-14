@@ -44,6 +44,14 @@ revision of one of them, name its id in `revises` rather than proposing it \
 again — that appends a new version instead of duplicating the rule.\
 """
 
+PENDING = """\
+You are also shown this ticket's review queue: readings already submitted that \
+nobody has decided yet. If one of them already says what you would say, do not \
+say it again — a second identical proposal costs a person a second decision for \
+one rule, and `revises` cannot be used for it because a pending proposal is not \
+yet a rule. Propose only what the queue does not already cover.\
+"""
+
 NOTHING_IS_ACCEPTED = """\
 Nothing you propose is accepted. Every proposal waits for a person to decide \
 at the command line, and there is no tool, flag or setting that can decide for \
@@ -65,7 +73,8 @@ def for_system_prompt() -> str:
     return (
         "You are reading the evidence for one software ticket and identifying "
         "the business rules it touches.\n\n"
-        f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{REVISION}\n\n{NOTHING_IS_ACCEPTED}\n\n"
+        f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{REVISION}\n\n{PENDING}\n\n"
+        f"{NOTHING_IS_ACCEPTED}\n\n"
         "Reply with JSON and nothing else, in exactly this shape:\n\n"
         f"{REPLY_SHAPE}\n\n"
         '`revises` is optional; omit it for a new rule. Return {"rules": []} '

@@ -8,6 +8,48 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-064 · 2026-11-14 · A duplicate rule proposal is reported, never refused
+
+**Decision.** When a submitted reading overlaps a rule proposal nobody has decided yet, both are
+stored and the overlap is **reported** — to the reviewer as a warning, and to the next reader as the
+ticket's queue inside the payload. Nothing is discarded, merged or deduplicated. `revises` stays
+what it was: a claim about a *catalogue rule*, never about a pending proposal, because a proposal is
+not yet a rule and has no version to append to.
+
+**Context.** CON-70, found by running ticket 615 through the MCP loop on 2026-11-14. Two
+independent readings of one commit produced near-identical proposals and `submit_rules` reported
+`possible_duplicates: {}`, because `candidates_for` queries the `anchor` table — accepted rules
+only — and the payload showed `catalogue` but never the queue. Every re-run of a ticket cost the
+reviewer another decision for a rule they had already read.
+
+**Why reporting rather than refusing.** Convergence is evidence. Those two proposals agreeing is
+what validated `guidance.py` in the first place: two readings reaching the same business sentence
+from the same commit is the strongest signal available that the guidance constrains the output
+rather than the model's instincts carrying it. A product that discarded the second would have
+destroyed its own validation. Deduplication is also a judgement about meaning — the thing this
+product never makes on a person's behalf (D-050 for anchors, product rule 4 for acceptance).
+
+**Consequences.**
+
+- **Two separate reports, never merged.** `candidates` holds catalogue rule ids, `pending_candidates`
+  holds rule proposal ids, and both are plain integers. A reviewer told "overlaps 1" cannot act
+  without knowing which table indexes it: one invites a revision, the other asks for two proposals
+  to be collapsed. The MCP tool keeps them as `possible_duplicates` and
+  `possible_duplicate_proposals` for the same reason.
+- **The queue reaches the reader as `pending`, beside `catalogue`.** Scoped to the ticket: a
+  duplicate only matters against the evidence being read now, and the whole workspace's queue would
+  bury the one entry that matters. `PendingProposal.proposal_id` is deliberately not named
+  `rule_id`, so a reading cannot mistake it for something to put in `revises`.
+- **Decided proposals are not reported.** An accepted one became a rule and `candidates_for` finds
+  it there; a rejected one was found inconclusive, and another reading of the same evidence is
+  exactly what D-036 expects to follow.
+- **Collapsing a duplicate is `rule reject`.** Which is correct under D-036 rather than a
+  workaround: a duplicate reading is inconclusive, not wrong.
+
+**Status.** accepted.
+
+---
+
 ## D-063 · 2026-11-14 · Opening a ticket is not a governance act, and `gather_evidence` may do it
 
 **Decision.** `gather_evidence` opens a ticket for a reference the workspace does not know, **when

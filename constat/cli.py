@@ -537,6 +537,20 @@ def _report_submission(result) -> int:
         print("  Anchor overlap is a candidate, not a verdict — one file often")
         print("  implements several rules. Check before accepting a duplicate.")
 
+    if result.pending_candidates:
+        print()
+        print(
+            f"{result.possible_pending_duplicates} overlap a rule proposal "
+            "nobody has decided yet:"
+        )
+        for proposal_id, others in sorted(result.pending_candidates.items()):
+            named = ", ".join(str(o) for o in others)
+            print(f"    [{proposal_id}] anchors overlap rule proposal(s) {named}")
+        print("  Two readings of one ticket can say the same thing (CON-70).")
+        print("  Collapse them before accepting either, or the catalogue gets")
+        print("  one rule twice. `rule reject` records the other as")
+        print("  inconclusive, which is what a duplicate is.")
+
     if result.stored_count:
         print()
         print("None of them is accepted. They await a human decision —")
