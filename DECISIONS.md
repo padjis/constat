@@ -8,6 +8,82 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-066 · 2026-11-14 · A rule statement is purely business, always
+
+**Decision.** A rule's statement and its behaviours contain nothing technical: no class, method or
+field name, no file, no endpoint or status code, no table, index or column, no framework, database
+or library, and no condition only a developer could evaluate. The test is one question — *would
+someone in the business have an opinion on this sentence, read aloud?* — and it is stated that way
+in `WHAT_A_RULE_IS` rather than as a list of prohibitions.
+
+**Context.** Ticket 628 was read through the MCP loop and produced three proposals. Two should not
+have existed: one was an allocation-set leak described as a rule, and one carried the cause of a
+concurrency bug inside its sentence. The catalogue is meant to be readable by the business audience
+product rule 8 names, and a catalogue of repaired mechanisms is not that.
+
+**What is enforced, and what is not.** Leakage is refused **mechanically** — `constat/ai/statements.py`
+matches an identifier, a qualified name, a path, a snake_case token, an annotation, a call, an HTTP
+verb, inline code — and the refusal names the offending token so the reading knows what to remove.
+Whether a sentence is *business-oriented* is a judgement, and guessing at judgements is what this
+product refuses to do everywhere else. The sentence that caused this decision contains no code
+token and passes every check; the guidance and the reviewer are what stop it. That division is
+stated out loud, in the module and in its tests, so nobody later mistakes the check for a quality
+guarantee.
+
+**Consequences.**
+
+- **The detector errs toward allowing.** A false refusal discards a reading a person might have
+  accepted, and the reader cannot argue. So every pattern needs two signals or an unambiguous one:
+  `AdSense`, `GitHub` and `iPhone` carry one internal capital and pass; `findOrCreateDevice` and
+  `PostgreSQL` carry two and do not. A status code is matched only through the word HTTP, because a
+  bare three-digit number is money far more often — "a transfer above 500 euros is refused" is the
+  canonical business rule, not a leak.
+- **Behaviours are tested too.** A clean statement with behaviours naming classes is still a
+  technical record of a rule.
+- **A bug fix usually establishes no rule.** The guidance now says so: a fix restores conformance
+  to a rule that was already true, and often never written down. Until D-065 is built, the correct
+  output for a pure repair is no rules at all.
+- **An existing rule is unaffected.** The catalogue is append-only (D-048) and this gate runs at
+  parse time, so nothing already accepted is re-judged. Rule 1 passes the check anyway.
+
+**Status.** accepted.
+
+---
+
+## D-065 · 2026-11-14 · Evidence can repair a rule, and the repair reaches the review queue
+
+**Decision.** A reading may report that evidence **repairs a violation** of a rule that was already
+true, rather than establishing a new one. It reaches the review queue as the rule it repairs —
+including a rule nobody had written down — marked as repaired. Acceptance stays the only way a rule
+enters the catalogue (D-048). The repair claim is provenance *about the code* and is carried
+alongside the rule, never inside its statement, because product rule 3 requires implementation
+evidence to stay distinguishable from the rule it supports.
+
+**Context.** A proposal could stand in only two relations to the catalogue: it establishes a rule,
+or it revises one. A bug fix is neither. Ticket 628 fixed a first-launch failure affecting ~3% of
+new installs; the product always intended a first launch to work, so there was no new business
+knowledge in the commit — only new knowledge about whether the code honoured knowledge already
+held. With no way to say that, the reading invented rules out of the repair.
+
+**Why the queue rather than a document note.** A repair that proposed nothing would be an assertion
+Constat made with no human decision behind it, which is what D-048 exists to prevent. Routing it
+through the queue keeps one mechanism and one door. The cost is that a rule version carries a claim
+about code fidelity, which is why the claim sits beside the statement rather than in it.
+
+**Consequences.**
+
+- **The valuable case is the unwritten rule.** "Your catalogue is missing a rule, and production was
+  breaking it" is a stronger claim than any new-rule proposal, and today the violation half is
+  discarded.
+- **Not yet built.** CON-73 carries it: a relation on the proposal, a schema 10 migration, guidance
+  naming the three relations, and a document rendering that distinguishes a repair from a new rule.
+- **Until then, a repair returns no rules.** D-066's guidance says so explicitly, and that interim
+  answer is correct rather than a stopgap: no rules is better than a manufactured one.
+
+**Status.** accepted.
+
+---
+
 ## D-064 · 2026-11-14 · A duplicate rule proposal is reported, never refused
 
 **Decision.** When a submitted reading overlaps a rule proposal nobody has decided yet, both are

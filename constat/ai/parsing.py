@@ -39,6 +39,7 @@ from ..errors import MalformedResponse
 from ..globs import matches_path
 from ..models import Anchor, Behaviour, RuleProposal
 from .redaction import ProviderPayload
+from .statements import code_leakage
 
 FENCE = re.compile(r"^\s*```(?:json)?\s*(?P<body>.*?)\s*```\s*$", re.DOTALL)
 """Models wrap JSON in a code fence more often than not. Unwrapping it is
@@ -227,6 +228,22 @@ def parse(text: str, payload: ProviderPayload) -> ParseResult:
         if len(statement) > MAX_STATEMENT:
             rejections.append(Rejection(label, "statement is too long"))
             continue
+
+        # A rule is a business statement, always (D-066). Leakage is refused
+        # here and named, so the reading is told what to remove; whether the
+        # sentence is *business-oriented* is a judgement this cannot make and
+        # does not pretend to — see `statements.py`.
+        leak = code_leakage(statement)
+        if leak is not None:
+            rejections.append(
+                Rejection(
+                    label,
+                    f"the statement is not a business statement — it contains "
+                    f"{leak}. A rule has to read aloud to a product owner "
+                    "(D-066).",
+                )
+            )
+            continue
         if name in seen:
             rejections.append(Rejection(label, "duplicate name in one reply"))
             continue
@@ -248,6 +265,24 @@ def parse(text: str, payload: ProviderPayload) -> ParseResult:
                 )
                 continue
 
+        # Behaviours are part of the rule, so the same test applies. A rule
+        # whose statement is clean and whose behaviours name classes is still
+        # a technical record of a rule.
+        behaviours = _behaviours(raw.get("behaviours"))
+        leaking = next(
+            ((b, code_leakage(b.description)) for b in behaviours if code_leakage(b.description)),
+            None,
+        )
+        if leaking is not None:
+            rejections.append(
+                Rejection(
+                    label,
+                    f"a behaviour is not a business statement — it contains "
+                    f"{leaking[1]} (D-066).",
+                )
+            )
+            continue
+
         anchors = _anchors(raw.get("anchors"), paths, aliases)
         if not anchors:
             # Deliberately fatal for the proposal. An unanchored rule can
@@ -263,7 +298,7 @@ def parse(text: str, payload: ProviderPayload) -> ParseResult:
             RuleProposal(
                 name=name,
                 statement=statement,
-                behaviours=_behaviours(raw.get("behaviours")),
+                behaviours=behaviours,
                 anchors=anchors,
                 revises_rule_id=revises,
             )

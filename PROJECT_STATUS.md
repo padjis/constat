@@ -2,9 +2,9 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session:** CON-70 closed (D-064) — a duplicate rule proposal is reported, never refused.
-Raised by the first real reading through the MCP loop (615, live workspace), which also raised
-CON-71 and CON-72. CON-69 closed before it (D-062), CON-64 before that (D-063).
+**Current session:** CON-74 closed (D-066) — a rule statement is purely business, always. Raised
+by reading ticket 628, which also produced D-065 and CON-73 (a repair reaches the queue). CON-70
+closed before it (D-064), CON-69 before that (D-062), CON-64 before that (D-063).
 
 ---
 
@@ -388,10 +388,16 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-58 — read decisions back, with their channel and verification.** CON-70 is closed, and the
-other two findings from the first real reading both need a decision from you before any code:
-CON-71 (what grounding means when a rule is attested by evidence it is not anchored to) and CON-72
-(whether a rule may be conditional on a transient business state).
+**CON-73 — a reading can say that evidence repairs a rule.** `D-065` settled the design question
+that blocked it: a repair reaches the review queue as the rule it repairs, marked as repaired, with
+the violation carried as provenance beside the statement rather than inside it. What remains is
+schema 10 for the relation, guidance naming the three relations a reading can claim, and a document
+rendering that shows a repair as distinct from a new rule.
+
+Then **CON-58 — read decisions back, with their channel and verification.** CON-70 and CON-74 are
+closed; CON-71 (what grounding means when a rule is attested by evidence it is not anchored to) and
+CON-72 (whether a rule may be conditional on a transient business state) still need a decision from
+you before any code.
 
 An alternative worth weighing ahead of CON-58: **breadth**. The guidance was validated on one
 commit touching one file. A 30-commit ticket across the three registered repositories is the case
@@ -414,6 +420,56 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-74 — done when: *a rule statement is purely business* ✅
+
+`D-066` records the decision, and `D-065` the one behind CON-73 that came with it. Raised by
+reviewing the three proposals ticket 628 produced: two of them were not business rules, which is a
+failure of the catalogue's purpose (product rule 8) rather than a wording preference.
+
+**What changed.**
+
+- `constat/ai/statements.py` (new) — `code_leakage(text)` returns *what kind* of code a sentence
+  leaks, or None. A description rather than a bool, so the refusal can name the token to remove.
+- `constat/ai/parsing.py` — two new gates, on the statement and on the behaviours, between the
+  length check and the anchor check. A clean statement with behaviours naming classes is still a
+  technical record of a rule.
+- `constat/ai/guidance.py` — `WHAT_A_RULE_IS` rewritten around one question: *would someone in the
+  business have an opinion on this sentence, read aloud?* It also now says a bug fix usually
+  establishes no rule, which is the interim half of D-065.
+
+**The limit is stated, not hidden.** No check can decide whether a sentence is business-*oriented*.
+The statement that caused D-066 — "a first launch succeeds even when several requests arrive at
+once" — contains no code token and passes. A test asserts that it passes, with a docstring saying
+why, so these tests cannot later be read as a quality guarantee they are not.
+
+**The detector errs toward allowing**, because a false refusal discards a reading a person might
+have accepted and the reader cannot argue back. Patterns need two signals or an unambiguous one:
+`AdSense` and `iPhone` pass, `findOrCreateDevice` and `PostgreSQL` do not. Status codes match only
+through the word HTTP — a bare three-digit number is money far more often, and "a transfer above
+500 euros is refused" is the canonical business rule in this project's own documentation.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_business_statements.py` → **29 passed** (new file). The
+files this change reaches — `test_parsing.py`, `test_submit.py`, `test_ai.py`, `test_mcp.py`,
+`test_provider_anthropic.py`, `test_operations.py`, `test_pending_duplicates.py` and the new file —
+→ **260 passed in 42s**. Whole suite not re-run.
+
+Half the new tests assert the *opposite* direction: nine business sentences that each trip a pattern
+a careless detector would have refused — VAT, SMS, KYC, PDF, a brand with one internal capital, a
+three-digit amount, and the project's own accepted rule 1. That half matters more than the
+refusals: a check that rejects a real business rule has broken the product in order to protect it.
+
+### Still in the queue, undecided
+
+Ticket 628's three proposals (3, 4, 5) predate this and were **not** re-judged — the gate runs at
+parse time and nothing stored is re-examined. Under the new guidance the honest reading of 628 is
+*no rules*, or at most the beacon trade-off (#5). #4 is not a business rule and #3 carries the
+cause of the bug in its sentence; both are `rule reject` candidates, which D-036 reads as
+inconclusive rather than wrong. That decision is the human's and was left open.
 
 ---
 

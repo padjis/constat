@@ -19,16 +19,32 @@ even when the content must not.
 from __future__ import annotations
 
 WHAT_A_RULE_IS = """\
-A business rule is something a person in the business could agree or disagree \
-with, stated without reference to code. "A transfer above the daily limit is \
-refused" is a rule. "The LIMIT constant changed from 100 to 250" is not — it \
-is a description of a diff, and restating the diff is the most common way to \
-get this wrong.
+A business rule is a statement someone in the business would have an opinion \
+on, written so it can be read aloud to a product owner. That is the test. \
+Apply it to every sentence you write, and if a reader would have to open the \
+code to know whether the sentence is true, it is not a rule yet.
+
+"A transfer above the daily limit is refused" is a rule. "The LIMIT constant \
+changed from 100 to 250" is not — it is a description of a diff, and restating \
+the diff is the most common way to get this wrong.
+
+Nothing technical belongs in a statement: no class, method or field name, no \
+file, no endpoint or status code, no table, index or column, no framework, \
+database or library, and no condition only a developer could evaluate. A \
+statement containing one is refused and you will be told which. The subtler \
+version is not refused and is just as wrong: "a first launch succeeds even \
+when several requests arrive at once" smuggles the cause of a bug into a \
+business sentence. Say what the business guarantees — "a new user's first \
+launch works" — and leave why it used to fail to the evidence.
 
 Identify only rules the evidence supports. Returning no rules is a correct \
-answer when a change carries no business meaning: a refactor, a dependency \
-bump, a formatting pass. No rules is far better than a plausible guess, \
-because every proposal costs a person a decision.\
+answer, and it is the *expected* answer for a change that carries no business \
+meaning: a refactor, a dependency bump, a formatting pass. It is also usually \
+the right answer for a bug fix. A fix normally establishes no rule — it \
+restores conformance to a rule that was already true and perhaps never \
+written down — so look hard before concluding that repairing a defect created \
+business knowledge. No rules is far better than a plausible guess, because \
+every proposal costs a person a decision.\
 """
 
 ANCHORS = """\
