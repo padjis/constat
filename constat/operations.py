@@ -705,6 +705,42 @@ def pending_readings(workspace: Workspace, reference: str) -> tuple[PendingPropo
     )
 
 
+def mainline_files(
+    workspace: Workspace, aliases: tuple[str, ...] | None = None
+) -> dict[str, frozenset[str]]:
+    """The files at each registered repository's mainline, for grounding.
+
+    The second ground an anchor may rest on (D-072): a rule can be anchored
+    where it lives even when the ticket being read did not touch it. Before
+    CON-71 the only ground was the ticket's own diff, so a rule whose home was
+    not in that diff could not be proposed at all — and once a ticket landed,
+    *no* rule could be proposed for it, because a landed ticket contributes no
+    evidence (D-031).
+
+    **Not part of the payload.** A reader is told the rule in the guidance
+    rather than handed every path in the product: the live workspace holds 922
+    files across three repositories, and sending that to a provider on every
+    gather would cost real money to say what a sentence says.
+
+    A repository that cannot be read contributes nothing and is skipped
+    silently *here* — the caller already reports unreadable repositories from
+    `collect`, and a second complaint from the grounding layer would say
+    nothing new.
+    """
+    files: dict[str, frozenset[str]] = {}
+    for entry in Registry(workspace).list():
+        if aliases is not None and entry.alias not in aliases:
+            continue
+        try:
+            repo = discover_repository(entry.source)
+            mainline = resolve_mainline(repo, entry.default_branch)
+            revision = resolve_revision(repo, mainline.ref)
+            files[entry.alias] = frozenset(summarise_state(repo, revision).paths)
+        except RepositoryError:
+            continue
+    return files
+
+
 def collect(
     workspace: Workspace,
     reference: str,
@@ -859,7 +895,7 @@ def submit_reply(
 
     # Raises MalformedResponse for an unusable reply, rather than storing
     # nothing and letting that read as "no rules were identified" (D-046).
-    result = parse(text, payload)
+    result = parse(text, payload, mainline_files(workspace))
 
     run_id = open_run(workspace, reference, "submit_reply")
     proposals = RuleProposals(workspace)
@@ -1072,7 +1108,7 @@ def gather(
         accepted_at=now if accepted else None,
     )
 
-    interpretation = provider.interpret(payload)
+    interpretation = provider.interpret(payload, mainline_files(workspace))
 
     # A workspace that reads through an agent has no provider *by design*, so
     # the null provider's "no AI provider is configured" would report a fault

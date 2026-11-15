@@ -614,6 +614,16 @@ def _report_proposals(proposals, reference: str, include_decided: bool) -> int:
             print(f"      {item.decision} by {item.decided_by_description}")
         if item.claims_to_revise:
             print(f"      claims to revise rule {item.revises_rule_id}")
+        weak = [
+            a for a in item.proposal.anchors if a.grounded_in == "mainline"
+        ]
+        if weak:
+            # Said explicitly: an anchor grounded only in mainline means this
+            # ticket is not the evidence that the rule's home changed (D-072).
+            globs = ", ".join(a.path_glob for a in weak)
+            print(
+                f"      anchored in mainline, not in this ticket's changes: {globs}"
+            )
         if item.is_repair:
             # Said explicitly rather than left to the statement. A repair
             # accepted as though it were new business knowledge loses the only
@@ -639,7 +649,10 @@ def _print_rule(rule) -> None:
         print(f"  anchors ({len(rule.anchors)}):")
         for anchor in rule.anchors:
             scope = anchor.repository_alias or "any repository"
-            print(f"    - {anchor.path_glob}  [{scope}]")
+            # `grounded_in` is None for anchors recorded before D-072, which
+            # reads as "not recorded" rather than as either ground.
+            ground = f", grounded in {anchor.grounded_in}" if anchor.grounded_in else ""
+            print(f"    - {anchor.path_glob}  [{scope}{ground}]")
     else:
         print("  anchors: none — this rule can never be matched to a change")
 

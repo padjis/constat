@@ -2,9 +2,10 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-15):** CON-78 and CON-72 closed (D-070, D-071) — the product's current
-state can be read, grouped by business area, and a rule may be conditional with the condition in
-its statement. CON-77 (D-070), CON-75 (D-069) and CON-76 (D-068) closed before them today;
+**Current session (2026-11-15):** CON-71 closed (D-072) — an anchor may be grounded in mainline,
+and which ground supports it is recorded. CON-78 and CON-72 closed before it (D-070, D-071) — the
+product's current state can be read, grouped by business area, and a rule may be conditional with
+the condition in its statement. CON-77 (D-070), CON-75 (D-069) and CON-76 (D-068) closed before them today;
 CON-73 (D-065, D-067), CON-74 (D-066), CON-70 (D-064), CON-69 (D-062) and CON-64 (D-063) on
 2026-11-14. Every one came out of reading tickets 615 and 628 through the MCP loop rather than out
 of reading the code — the clearest argument available for running the product before extending it.
@@ -391,13 +392,16 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-71 — ground a rule against the state of mainline, not only a ticket's diff.** Reopened by
-CON-78 rather than answered by it. The defect is concrete: a rule proposed for ticket 628 is refused
-as ungrounded because 628 has landed and a landed ticket contributes no evidence (D-031). So once a
-ticket ships, no rule can be proposed for it at all. `product_state` now assembles the file list of
-every repository at its mainline revision, which is exactly the data the grounding check lacks —
-the work is to let `parse` accept an anchor present in mainline, and to record which of the two
-grounds it (product rule 3: the two are different provenance).
+**CON-58 — read decisions back, with their channel and verification.** Nothing is blocked on a
+decision from you any more: CON-71 and CON-72 are closed, and every ticket raised in the last two
+days is either done or waiting on evidence rather than on an answer. CON-58 is the half of
+acceptance that is still CLI-only — the publishing port's `read_decisions` raises
+`DecisionsNotReadable` on every target.
+
+Before it, consider **re-reading 615 now that an anchor can rest on mainline.** The rule that went
+unproposed there — the install pages deliberately carry no advertising — is proposable for the first
+time, and 615 is the ticket that produced three of the last two days' decisions. One run, and the
+cheapest possible check that D-072 did what it was built for.
 
 Then **CON-58 — read decisions back, with their channel and verification**, the half of acceptance
 that is still CLI-only.
@@ -438,6 +442,68 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-71 — done when: *a rule can be anchored where it lives* ✅
+
+`D-072` records the decision. Reopened by CON-78 rather than answered by it: CON-78 supplied the
+missing data, and this is the grounding change that uses it.
+
+**Two failures it fixes**, both found by running the loop rather than reading the code:
+
+- **615** — a real rule went unproposed. The evidence *described* it (the install pages deliberately
+  carry no advertising) but their home, `src/pages/`, was not in that commit's diff, so the only
+  groundable anchor would have been a false claim about where the rule lives.
+- **628** — after the ticket landed, *no* rule could be proposed at all. A landed ticket contributes
+  no evidence (D-031), so the product could document a ticket only in the window between merge and
+  release.
+
+**What changed.**
+
+- `constat/ai/parsing.py` — `_anchors` takes an optional mainline map and tries the evidence first,
+  because that is the stronger claim. `_in_mainline` checks a scoped anchor against its repository
+  and an unscoped one against all, matching how an unscoped anchor already matches everywhere.
+- `constat/models.py` — `Anchor.grounded_in`, three-valued: `evidence`, `mainline`, or None for
+  "not recorded".
+- `constat/store/schema.py` — schema **12**, `grounded_in` on all three anchor tables. Nullable,
+  no back-fill: an anchor recorded before this *was* grounded in the evidence by construction, but
+  writing that in now would assert something nobody recorded.
+- `constat/operations.py` — `mainline_files`, and both submit paths supply it.
+- `constat/ai/provider.py`, `providers/anthropic.py` — `interpret(payload, mainline=None)`,
+  defaulted so an implementation that does not parse anchors is unaffected.
+- `constat/ai/guidance.py` — the `ANCHORS` block names both grounds, says the evidence is stronger,
+  and warns that **the file list is not supplied** — a reader that thinks it has mainline will guess
+  paths.
+- `constat/cli.py` — the review queue says when an anchor rests on mainline alone, and `rule show`
+  names the ground.
+
+**Mainline is not in the payload.** It is grounding data for the parse, not context for the model.
+The live workspace holds 922 files across three repositories; sending that on every gather would
+cost real money to say what one sentence of guidance says.
+
+### Verified on the live workspace's 628, which could not be read at all an hour earlier
+
+```
+  [7] a-first-launch-works — awaiting a decision
+      A new user reaches the app on their first launch rather than an error.
+      area: device provisioning — read by mcp (claude-opus-5), run 29
+      anchored in mainline, not in this ticket's changes:
+        commons/src/main/java/padjis/feed/service/DeviceProvisioningService.java
+      claims to REPAIR a rule the code was violating
+```
+
+One proposal, four of today's tickets visible in it: CON-71's mainline ground, CON-77's area,
+CON-73's `repairs` relation, and CON-70's duplicate warning against the pending proposal 6.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_mainline_grounding.py` → **16 passed** (new file). Whole
+suite, twice: **9 failed, 1009 passed**, then **1018 passed in 203s**, exit 0.
+
+**Eight of those nine failures were one line.** The migration fixtures needed schema 12's columns
+registered in `helpers.INTRODUCED_AT` — the map CON-77 introduced after the same problem broke three
+files by hand. One entry fixed all eight, which is what it was for.
 
 ---
 

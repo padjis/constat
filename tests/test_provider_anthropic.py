@@ -190,7 +190,7 @@ class TestAFailedCallIsNotAFinding:
             name = "anthropic"
             model = "m"
 
-            def interpret(self, payload):
+            def interpret(self, payload, mainline=None):
                 raise ProviderFailed("rate limited")
 
         with pytest.raises(ProviderFailed):

@@ -171,9 +171,14 @@ class Review:
             for anchor in stored.proposal.anchors:
                 ws.execute(
                     "INSERT INTO rule_version_anchor "
-                    "(rule_version_id, repository_id, path_glob) "
-                    "VALUES (?, (SELECT id FROM repository WHERE alias = ?), ?)",
-                    (version_id, anchor.repository_alias, anchor.path_glob),
+                    "(rule_version_id, repository_id, path_glob, grounded_in) "
+                    "VALUES (?, (SELECT id FROM repository WHERE alias = ?), ?, ?)",
+                    (
+                        version_id,
+                        anchor.repository_alias,
+                        anchor.path_glob,
+                        anchor.grounded_in,
+                    ),
                 )
 
             # The current state follows the new version. `rule` is mutable for
@@ -199,9 +204,15 @@ class Review:
             for anchor in stored.proposal.anchors:
                 ws.execute(
                     "INSERT INTO anchor "
-                    "(rule_id, repository_id, path_glob, created_at) "
-                    "VALUES (?, (SELECT id FROM repository WHERE alias = ?), ?, ?)",
-                    (rule_id, anchor.repository_alias, anchor.path_glob, now),
+                    "(rule_id, repository_id, path_glob, grounded_in, created_at) "
+                    "VALUES (?, (SELECT id FROM repository WHERE alias = ?), ?, ?, ?)",
+                    (
+                        rule_id,
+                        anchor.repository_alias,
+                        anchor.path_glob,
+                        anchor.grounded_in,
+                        now,
+                    ),
                 )
 
         return version_id, version_no

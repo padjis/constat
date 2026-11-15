@@ -19,7 +19,7 @@ fallback to nothing (`UnknownProvider`). Generation arrives with CON-42.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Mapping, Protocol, runtime_checkable
 
 from ..models import RuleProposal
 from .parsing import Rejection
@@ -108,8 +108,18 @@ class Provider(Protocol):
     name: str
     model: str | None
 
-    def interpret(self, payload: ProviderPayload) -> Interpretation:
-        """Propose rules from the payload. Must never raise for empty input."""
+    def interpret(
+        self,
+        payload: ProviderPayload,
+        mainline: Mapping[str, frozenset[str]] | None = None,
+    ) -> Interpretation:
+        """Propose rules from the payload. Must never raise for empty input.
+
+        `mainline` is the second ground an anchor may rest on (D-072) and is
+        **not** part of the payload: it is grounding data for the parse, not
+        context for the model. Defaulted, so an implementation that does not
+        parse anchors is unaffected.
+        """
         ...
 
 
@@ -123,5 +133,9 @@ class NullProvider:
     name = NULL_PROVIDER_NAME
     model: str | None = None
 
-    def interpret(self, payload: ProviderPayload) -> Interpretation:
+    def interpret(
+        self,
+        payload: ProviderPayload,
+        mainline: Mapping[str, frozenset[str]] | None = None,
+    ) -> Interpretation:
         return Interpretation(provider=self.name, note=NO_PROVIDER_NOTE)

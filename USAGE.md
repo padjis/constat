@@ -297,6 +297,12 @@ Nothing is stored. The view is computed each time, so it is always of the revisi
 there is deliberately nothing here to drift from. A frozen baseline to compare against is a separate
 thing and does not exist yet.
 
+**Mainline is also what a rule can be anchored to** (D-072). An anchor must name a path the ticket
+changed *or* a path that exists in mainline, so a rule can be filed where it actually lives even
+when this ticket did not touch it — and a ticket that has already shipped can still be documented.
+The review queue says which ground supports each anchor, because "the evidence shows this changed"
+and "this file exists" are different claims.
+
 ---
 
 ## 8. Exit codes

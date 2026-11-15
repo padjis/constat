@@ -26,6 +26,8 @@ finding about the code (D-041, D-057).
 
 from __future__ import annotations
 
+from typing import Mapping
+
 import json
 from collections.abc import Callable, Mapping
 
@@ -123,7 +125,11 @@ class AnthropicProvider:
         self.model = model
         self._transport = transport
 
-    def interpret(self, payload: ProviderPayload) -> Interpretation:
+    def interpret(
+        self,
+        payload: ProviderPayload,
+        mainline: Mapping[str, frozenset[str]] | None = None,
+    ) -> Interpretation:
         """Send the payload, parse the reply, and report both halves.
 
         Raises `ProviderFailed` if the call did not complete and
@@ -134,7 +140,7 @@ class AnthropicProvider:
         text, resolved = self._transport(
             self.model, json.dumps(as_dict(payload), default=str)
         )
-        result = parse(text, payload)
+        result = parse(text, payload, mainline)
 
         return Interpretation(
             provider=self.name,

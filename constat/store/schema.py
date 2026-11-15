@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -177,11 +177,16 @@ CREATE TABLE rule_proposal_behaviour (
     description      TEXT    NOT NULL
 );
 
+-- `grounded_in` says which ground supports the anchor (D-072): `evidence` if
+-- the ticket changed the path, `mainline` if the path exists in the product but
+-- this ticket did not touch it. Both are verifiable; they are different claims,
+-- and product rule 3 keeps them apart.
 CREATE TABLE rule_proposal_anchor (
     id               INTEGER PRIMARY KEY,
     rule_proposal_id INTEGER NOT NULL REFERENCES rule_proposal(id) ON DELETE CASCADE,
     repository_id    INTEGER REFERENCES repository(id),
-    path_glob        TEXT    NOT NULL
+    path_glob        TEXT    NOT NULL,
+    grounded_in      TEXT    CHECK (grounded_in IN ('evidence', 'mainline'))
 );
 
 -- A human's answer to one rule proposal. Separate from the reading so that
@@ -242,7 +247,8 @@ CREATE TABLE rule_version_anchor (
     id              INTEGER PRIMARY KEY,
     rule_version_id INTEGER NOT NULL REFERENCES rule_version(id) ON DELETE CASCADE,
     repository_id   INTEGER REFERENCES repository(id),
-    path_glob       TEXT    NOT NULL
+    path_glob       TEXT    NOT NULL,
+    grounded_in     TEXT    CHECK (grounded_in IN ('evidence', 'mainline'))
 );
 
 -- A distinct way the application handles a business case under its rule.
@@ -262,6 +268,7 @@ CREATE TABLE anchor (
     rule_id       INTEGER NOT NULL REFERENCES rule(id) ON DELETE CASCADE,
     repository_id INTEGER REFERENCES repository(id) ON DELETE CASCADE,
     path_glob     TEXT    NOT NULL,
+    grounded_in   TEXT    CHECK (grounded_in IN ('evidence', 'mainline')),
     created_at    TEXT    NOT NULL,
     UNIQUE (rule_id, repository_id, path_glob)
 );
@@ -593,5 +600,17 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
         "ALTER TABLE rule_proposal ADD COLUMN area TEXT",
         "ALTER TABLE rule ADD COLUMN area TEXT",
         "ALTER TABLE rule_version ADD COLUMN area TEXT",
+    ),
+    # 11 -> 12: an anchor records which ground supports it (D-072, CON-71).
+    #
+    # Nullable, no back-fill, for the reason every other migration here gives:
+    # an anchor written before this existed was grounded in the evidence by
+    # construction — that was the only ground — but writing `evidence` into it
+    # now would be asserting something nobody recorded. NULL reads as "not
+    # recorded", which is the truth.
+    11: (
+        "ALTER TABLE rule_proposal_anchor ADD COLUMN grounded_in TEXT",
+        "ALTER TABLE anchor ADD COLUMN grounded_in TEXT",
+        "ALTER TABLE rule_version_anchor ADD COLUMN grounded_in TEXT",
     ),
 }

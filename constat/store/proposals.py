@@ -192,8 +192,14 @@ class RuleProposals:
                     repository_id = row["id"] if row is not None else None
                 ws.execute(
                     "INSERT INTO rule_proposal_anchor "
-                    "(rule_proposal_id, repository_id, path_glob) VALUES (?, ?, ?)",
-                    (proposal_id, repository_id, anchor.path_glob),
+                    "(rule_proposal_id, repository_id, path_glob, grounded_in) "
+                    "VALUES (?, ?, ?, ?)",
+                    (
+                        proposal_id,
+                        repository_id,
+                        anchor.path_glob,
+                        anchor.grounded_in,
+                    ),
                 )
             return proposal_id
 
@@ -353,9 +359,11 @@ class RuleProposals:
             Anchor(
                 path_glob=r["path_glob"],
                 repository_alias=r["alias"],
+                grounded_in=r["grounded_in"],
             )
             for r in self._workspace.execute(
-                "SELECT a.path_glob, rep.alias FROM rule_proposal_anchor a "
+                "SELECT a.path_glob, a.grounded_in, rep.alias "
+                "FROM rule_proposal_anchor a "
                 "LEFT JOIN repository rep ON rep.id = a.repository_id "
                 "WHERE a.rule_proposal_id = ? ORDER BY a.id",
                 (row["id"],),

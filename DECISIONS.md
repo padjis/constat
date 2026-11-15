@@ -8,6 +8,56 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-072 · 2026-11-15 · An anchor may be grounded in mainline, and which ground is recorded
+
+**Decision.** An anchor is grounded if it names a path in the ticket's evidence **or** a path that
+exists in the product's mainline. Which of the two supports it is recorded on the anchor, on the
+rule and on the frozen version (`grounded_in`: `evidence` | `mainline`). The evidence is tried
+first, because it is the stronger claim. An anchor matching neither is still refused. Mainline's
+file list is **not** part of the payload: it is grounding data for the parse, not context for the
+model.
+
+**Context.** CON-71, reopened by CON-78 rather than answered by it. Grounding looked only at a
+ticket's delta, and that produced two failures, both found by running the loop:
+
+- On 615 a real rule went unproposed. The evidence *described* it — the install pages deliberately
+  carry no advertising — but their home, `src/pages/`, was not in that commit's diff, so the only
+  groundable anchor would have been a false claim about where the rule lives.
+- On 628, after the ticket landed, **no** rule could be proposed at all. A landed ticket contributes
+  no evidence (D-031), so there were no paths to anchor to. The product could document a ticket only
+  in the window between merge and release.
+
+**D-049 is not relaxed.** The reason anchors are checked at all is that a model will otherwise
+invent a path, and an invented path is invented against either ground. What widens is the set of
+*verifiable* paths, not the willingness to accept an unverifiable one.
+
+**Why the two grounds stay apart.** "The evidence shows this changed" and "this file exists in the
+product" are different claims, and product rule 3 requires the provenance types to stay
+distinguishable. An anchor grounded only in mainline means **this ticket is not the evidence that
+the rule's home changed** — true and weaker, and a reviewer deciding has to see it. The review queue
+says so in as many words.
+
+**Consequences.**
+
+- **Nothing extra is sent to a provider.** The live workspace holds 922 files across three
+  repositories; shipping that on every gather would cost real money to say what one sentence of
+  guidance says. The reader is told the rule and names such a path only when the evidence tells it
+  the path exists.
+- **`parse` defaults to the old behaviour.** With no mainline supplied it grounds exactly as before,
+  so a caller that cannot supply it is not silently weakened.
+- **The provider protocol gained an optional argument.** `interpret(payload, mainline=None)` —
+  defaulted, so an implementation that does not parse anchors is unaffected.
+- **Nullable, no back-fill.** An anchor recorded before this was grounded in the evidence by
+  construction, that being the only ground, but writing `evidence` into it now would assert
+  something nobody recorded. NULL reads as "not recorded".
+- **A mainline-grounded anchor can go stale in a new way.** It names a file the ticket never touched,
+  so nothing in that ticket's evidence will ever confirm it again. CON-78's retirement flagging is
+  what catches it later.
+
+**Status.** accepted.
+
+---
+
 ## D-071 · 2026-11-15 · A rule may be conditional, and the condition is in the statement
 
 **Decision.** A rule may be conditional on a business state that will change. The condition belongs

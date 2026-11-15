@@ -131,6 +131,21 @@ class Anchor(Frozen):
 
     path_glob: str = Field(min_length=1)
     repository_alias: str | None = None
+    grounded_in: Literal["evidence", "mainline"] | None = None
+    """Which ground supports this anchor (D-072).
+
+    `evidence` — the ticket being read changed this path. The strong case, and
+    the only one that existed before CON-71.
+    `mainline` — the path exists in the product's mainline but this ticket did
+    not touch it. Verifiable, and a weaker claim *about this ticket*: the rule
+    lives there, and this ticket is not the evidence that it changed.
+    `None` — not recorded. Anchors written before CON-71, and anchors built
+    outside `parse`.
+
+    Kept apart because product rule 3 requires the provenance types to stay
+    distinguishable, and these two are different claims. Collapsing them would
+    let "the evidence shows this changed" and "this file exists" render
+    alike."""
 
 
 class Rule(Frozen):

@@ -31,6 +31,8 @@ claiming a relationship to one is inventing it.
 
 from __future__ import annotations
 
+from typing import Mapping
+
 import json
 import re
 from dataclasses import dataclass
@@ -169,12 +171,31 @@ def _behaviours(raw: object) -> tuple[Behaviour, ...]:
     )
 
 
-def _anchors(raw: object, paths: set[str], aliases: set[str]) -> tuple[Anchor, ...]:
+def _anchors(
+    raw: object,
+    paths: set[str],
+    aliases: set[str],
+    mainline: Mapping[str, frozenset[str]] | None = None,
+) -> tuple[Anchor, ...]:
     """Grounded anchors only. An ungrounded one leaves the tuple empty, which
-    the caller treats as a rejection."""
+    the caller treats as a rejection.
+
+    Two grounds, tried in that order (D-072). The ticket's changed paths come
+    first because they are the stronger claim; the product's mainline files
+    come second, so a rule can be anchored where it actually lives even when
+    this ticket did not touch it. Which ground was used is recorded on the
+    anchor, never flattened — "the evidence shows this changed" and "this file
+    exists" are different claims.
+
+    `mainline` is **not** part of the payload. The reader is told the rule in
+    the guidance and is not handed a thousand file paths it did not ask for:
+    sending the whole tree to a provider on every gather would cost real money
+    to say something a sentence covers.
+    """
     if not isinstance(raw, list):
         return ()
 
+    mainline = mainline or {}
     anchors = []
     for item in raw:
         if isinstance(item, str):
@@ -192,14 +213,39 @@ def _anchors(raw: object, paths: set[str], aliases: set[str]) -> tuple[Anchor, .
             if not isinstance(alias, str) or alias not in aliases:
                 return ()
 
-        if not any(matches_path(path, glob) for path in paths):
+        if any(matches_path(path, glob) for path in paths):
+            ground = "evidence"
+        elif _in_mainline(glob, alias, mainline):
+            ground = "mainline"
+        else:
             return ()
 
-        anchors.append(Anchor(path_glob=glob, repository_alias=alias))
+        anchors.append(
+            Anchor(path_glob=glob, repository_alias=alias, grounded_in=ground)
+        )
     return tuple(anchors)
 
 
-def parse(text: str, payload: ProviderPayload) -> ParseResult:
+def _in_mainline(
+    glob: str, alias: str | None, mainline: Mapping[str, frozenset[str]]
+) -> bool:
+    """Whether the glob matches a file in mainline.
+
+    An anchor with no repository is checked against every repository, matching
+    how an unscoped anchor already matches everywhere when a document asks
+    which rules a change touches.
+    """
+    scopes = [mainline[alias]] if alias in mainline else list(mainline.values())
+    return any(
+        matches_path(path, glob) for paths in scopes for path in paths
+    )
+
+
+def parse(
+    text: str,
+    payload: ProviderPayload,
+    mainline: Mapping[str, frozenset[str]] | None = None,
+) -> ParseResult:
     """Parse a provider reply into grounded proposals.
 
     Raises `MalformedResponse` if the reply as a whole is unusable. Individual
@@ -352,13 +398,17 @@ def parse(text: str, payload: ProviderPayload) -> ParseResult:
             # fact the reply already stated, read a second way.
             relation = "revises" if revises is not None else "establishes"
 
-        anchors = _anchors(raw.get("anchors"), paths, aliases)
+        anchors = _anchors(raw.get("anchors"), paths, aliases, mainline)
         if not anchors:
             # Deliberately fatal for the proposal. An unanchored rule can
             # never be matched to a future change (CON-40), and an anchor
             # naming a path nobody sent is the model inventing evidence.
             rejections.append(
-                Rejection(label, "no anchor grounded in the evidence supplied")
+                Rejection(
+                    label,
+                    "no anchor grounded in the evidence supplied, or in any "
+                    "registered repository's mainline",
+                )
             )
             continue
 

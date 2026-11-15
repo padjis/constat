@@ -176,7 +176,9 @@ class TestTheParseGate:
         result = parse(_reply("A transfer above 500 euros is refused."), _payload())
 
         assert result.proposals == ()
-        assert result.rejections[0].reason == "no anchor grounded in the evidence supplied"
+        # The anchor reason, not the wording gate's. CON-71 widened this
+        # message to name both grounds, so it is matched rather than compared.
+        assert "no anchor grounded in the evidence supplied" in result.rejections[0].reason
 
 
 # -- the guidance says it, on both paths --------------------------------------

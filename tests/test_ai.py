@@ -64,9 +64,14 @@ class FakeProvider:
         self.proposals = tuple(proposals)
         self.note = note
         self.seen: list[ProviderPayload] = []
+        self.seen_mainline: list[object] = []
 
-    def interpret(self, payload: ProviderPayload) -> Interpretation:
+    def interpret(self, payload: ProviderPayload, mainline=None) -> Interpretation:
+        # `mainline` is grounding data rather than model context (D-072), and
+        # it is recorded separately so a test can assert it was supplied
+        # without it looking like part of the payload.
         self.seen.append(payload)
+        self.seen_mainline.append(mainline)
         return Interpretation(
             provider=self.name,
             model=self.model,

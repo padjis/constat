@@ -99,9 +99,13 @@ class Catalogue:
             )
         )
         anchors = tuple(
-            Anchor(path_glob=a["path_glob"], repository_alias=a["alias"])
+            Anchor(
+                path_glob=a["path_glob"],
+                repository_alias=a["alias"],
+                grounded_in=a["grounded_in"],
+            )
             for a in self._workspace.execute(
-                "SELECT a.path_glob, r.alias FROM anchor a "
+                "SELECT a.path_glob, a.grounded_in, r.alias FROM anchor a "
                 "LEFT JOIN repository r ON r.id = a.repository_id "
                 "WHERE a.rule_id = ? ORDER BY a.path_glob",
                 (rule_id,),

@@ -54,10 +54,20 @@ every proposal costs a person a decision.\
 """
 
 ANCHORS = """\
-Every anchor must name a path that appears in the evidence you were given. An \
-anchor says where a rule lives, not that its behaviour changed — whether the \
-behaviour changed is for a reviewer to say. A proposal anchored to a path \
-nobody sent is discarded with a reason, so inventing one wastes the run.\
+An anchor says where a rule lives, not that its behaviour changed — whether \
+the behaviour changed is for a reviewer to say.
+
+An anchor must name either a path in the evidence you were given, or a path \
+that exists in the product's mainline today. The first is the stronger claim \
+and is what you should reach for. The second is there for the rule the \
+evidence *describes* without touching: a commit that says "the install pages \
+deliberately carry no ads" is evidence of a rule living in those pages, and \
+anchoring it to the file the commit happened to change would be wrong. You are \
+not shown mainline's file list, so name such a path only when the evidence \
+tells you it exists.
+
+A proposal whose anchors are neither is discarded with a reason, so guessing \
+at a path wastes the run.\
 """
 
 AREAS = """\
