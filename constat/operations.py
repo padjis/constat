@@ -543,6 +543,19 @@ def render(
             else f"`{entry.default_branch}`"
         )
         lines.append(f"Measured against {measured}.")
+        own = finding.match.excluded_own_commits
+        if own:
+            # Stated, not performed silently. Every other omission in this
+            # product says so, and evidence that quietly disagrees with
+            # `git log` is worse than evidence with a line of explanation
+            # (CON-75).
+            lines.append("")
+            lines.append(
+                f"{len(own)} commit(s) excluded: made by Constat when landing "
+                "this ticket, so not the team's implementation evidence — "
+                + ", ".join(f"`{sha[:12]}`" for sha in own)
+                + "."
+            )
         if finding.mainline is not None and finding.mainline.has_unpushed:
             lines.append("")
             lines.append(

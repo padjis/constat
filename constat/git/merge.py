@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Literal, Sequence
 
 from ..errors import GitUnavailable
-from .adapter import GIT, Repository, remote_url
+from .adapter import GIT, LANDED_TRAILER, Repository, remote_url
 
 Outcome = Literal[
     "merged",
@@ -63,8 +63,6 @@ MERGE_BODY = (
     "The acceptance is the human decision; this merge records that it was made.\n"
     "See `constat rule history` for the rule version it baselined."
 )
-
-
 @dataclass(frozen=True)
 class MergeResult:
     """What one repository's merge attempt did, and why.
@@ -337,7 +335,10 @@ def _merge_in_clone(
             "-m",
             MERGE_SUBJECT.format(branch=branch, reference=reference),
             "-m",
-            MERGE_BODY,
+            # The reference is in the trailer rather than only in the subject,
+            # so the marker survives a subject someone rewrites and is read
+            # back by `%(trailers:key=...)` instead of by pattern matching.
+            f"{MERGE_BODY}\n\n{LANDED_TRAILER}: {reference}",
             source,
         ],
         cwd=clone,

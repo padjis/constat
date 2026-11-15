@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .errors import GitCommandFailed
-from .git.adapter import Repository, run_git
+from .git.adapter import LANDED_TRAILER, Repository, run_git
 
 
 class Attribution(str, Enum):
@@ -64,6 +64,15 @@ class TicketMatch:
     commits: tuple[TicketCommit, ...] = ()
     branches: tuple[str, ...] = ()
     """Branches whose name encodes the ticket."""
+    excluded_own_commits: tuple[str, ...] = ()
+    """Commits Constat itself made, left out of the evidence (CON-75).
+
+    Kept as SHAs rather than a count, so the document can name them and a
+    reviewer can check the claim — the same reason evidence points at commits
+    at all (product rule 2). Reported rather than silently dropped: every
+    other omission in this product states itself, and evidence that quietly
+    disagrees with `git log` is worse than evidence with a line of
+    explanation."""
 
     @property
     def commit_count(self) -> int:
@@ -108,8 +117,22 @@ def _refs_containing(repo: Repository, sha: str) -> tuple[str, ...]:
     return tuple(sorted(line.strip() for line in result.stdout.split("\n") if line.strip()))
 
 
-def _log(repo: Repository, args: list[str]) -> list[tuple[str, str]]:
-    result = run_git(["log", "--format=%H%x1f%s", *args], cwd=repo.root)
+def _log(repo: Repository, args: list[str]) -> list[tuple[str, str, str]]:
+    """Commits as (sha, subject, own-marker).
+
+    The third field is the `Constat-Landed` trailer, read through git's own
+    trailer support rather than by grepping the message. A trailer has a
+    defined syntax and git parses it; a pattern over a commit message is a
+    guess about someone else's prose (CON-75).
+    """
+    result = run_git(
+        [
+            "log",
+            f"--format=%H%x1f%s%x1f%(trailers:key={LANDED_TRAILER},valueonly,separator=%x2c)",
+            *args,
+        ],
+        cwd=repo.root,
+    )
     if result.returncode != 0:
         raise GitCommandFailed(
             f"could not search commits in {repo.root}: {result.stderr.strip()}"
@@ -119,10 +142,30 @@ def _log(repo: Repository, args: list[str]) -> list[tuple[str, str]]:
     for line in result.stdout.split("\n"):
         if "\x1f" not in line:
             continue
-        sha, subject = line.split("\x1f", 1)
+        parts = line.split("\x1f")
+        sha, subject = parts[0], parts[1]
+        own = parts[2].strip() if len(parts) > 2 else ""
         if sha.strip():
-            found.append((sha.strip(), subject))
+            found.append((sha.strip(), subject, own))
     return found
+
+
+def _partition_own(
+    entries: list[tuple[str, str, str]]
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """Split a log into the team's commits and Constat's own.
+
+    Constat's merge is its own output. Counting it as implementation evidence
+    double-counts every file in the branch it merged and credits the team with
+    a commit Constat wrote (CON-75)."""
+    theirs: list[tuple[str, str]] = []
+    ours: list[str] = []
+    for sha, subject, own in entries:
+        if own:
+            ours.append(sha)
+        else:
+            theirs.append((sha, subject))
+    return theirs, ours
 
 
 def find_ticket_commits(
@@ -139,10 +182,13 @@ def find_ticket_commits(
     named_branches = branches_naming(repo, reference)
 
     collected: dict[str, TicketCommit] = {}
+    excluded: list[str] = []
 
     # 1. Branch-name attribution: everything those branches add to mainline.
     for branch in named_branches:
-        for sha, subject in _log(repo, [branch, "--not", mainline]):
+        theirs, ours = _partition_own(_log(repo, [branch, "--not", mainline]))
+        excluded += ours
+        for sha, subject in theirs:
             collected[sha] = TicketCommit(
                 sha=sha,
                 subject=subject,
@@ -151,9 +197,11 @@ def find_ticket_commits(
             )
 
     # 2. Commit-message attribution, across everything mainline lacks.
-    for sha, subject in _log(
-        repo, ["--all", "--not", mainline, "-E", f"--grep={pattern}"]
-    ):
+    theirs, ours = _partition_own(
+        _log(repo, ["--all", "--not", mainline, "-E", f"--grep={pattern}"])
+    )
+    excluded += ours
+    for sha, subject in theirs:
         if sha not in collected:
             collected[sha] = TicketCommit(
                 sha=sha,
@@ -162,6 +210,8 @@ def find_ticket_commits(
                 found_on=_refs_containing(repo, sha),
             )
 
+    own = tuple(sorted(set(excluded)))
+
     if collected:
         commits = tuple(sorted(collected.values(), key=lambda c: c.sha))
         return TicketMatch(
@@ -169,11 +219,15 @@ def find_ticket_commits(
             status=TicketStatus.PENDING,
             commits=commits,
             branches=named_branches,
+            excluded_own_commits=own,
         )
 
     # Nothing ahead of mainline. Distinguish "already landed" from "no such
     # reference" — reporting both as "nothing found" would be misleading.
-    landed = _log(repo, [mainline, "-E", f"--grep={pattern}"])
+    landed, landed_own = _partition_own(
+        _log(repo, [mainline, "-E", f"--grep={pattern}"])
+    )
+    own = tuple(sorted(set(excluded) | set(landed_own)))
     if landed:
         return TicketMatch(
             repository_alias=alias,
@@ -183,15 +237,20 @@ def find_ticket_commits(
                     sha=sha,
                     subject=subject,
                     attribution=Attribution.COMMIT_MESSAGE,
-                    found_on=(f"refs/heads/{mainline}",),
+                    found_on=(mainline,),
                 )
                 for sha, subject in sorted(landed)
             ),
             branches=named_branches,
+            excluded_own_commits=own,
         )
 
+    # Constat's own merge is not evidence that a ticket exists either. A
+    # reference known only to a commit Constat wrote has not been seen in the
+    # team's work, and saying otherwise would make the tool its own witness.
     return TicketMatch(
         repository_alias=alias,
         status=TicketStatus.NOT_FOUND,
         branches=named_branches,
+        excluded_own_commits=own,
     )

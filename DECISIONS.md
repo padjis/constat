@@ -8,6 +8,47 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-069 · 2026-11-15 · Constat's own commits are not evidence, and the exclusion is stated
+
+**Decision.** A commit Constat made is left out of a ticket's evidence. It is identified by a
+`Constat-Landed: <reference>` trailer Constat writes and git parses — never by its subject. The
+excluded SHAs are kept and the document names them. A reference known *only* to a commit Constat
+wrote does not make a ticket `pending`: the tool is not its own witness.
+
+**Context.** Re-reading 628 after `merge_on_accept` landed its branch returned two commits — the
+team's fix and Constat's merge — so 14 changed files were reported for 7 real ones, and a commit
+Constat authored was presented as implementation evidence. Product rule 3 requires the provenance
+types to stay distinguishable, and "a commit Constat wrote" is not the team's work by any reading.
+
+**Why a trailer rather than the subject.** `MERGE_SUBJECT` is text anyone could write, so matching
+it would silently drop a human merge worded the same way. Under-reporting evidence is the worse
+failure of the two — an over-reported commit is visible and arguable, a dropped one is not — and a
+trailer is a token Constat controls, with a defined syntax that git parses through
+`%(trailers:key=…)`. A commit that merely mentions the word in prose is not marked by it, which a
+grep could not promise.
+
+**Why the exclusion is stated.** Every other omission in this product says so: a truncated diff
+names what it dropped, a repository that contributed nothing is still listed, a reference matching
+nothing is distinguished from a ticket with no rules. Evidence that quietly disagrees with
+`git log` would be the one place Constat asked to be trusted rather than checked.
+
+**Consequences.**
+
+- **Not retroactive, and that is the cost of refusing the heuristic.** Merges Constat made before
+  this landed carry no trailer and stay in their ticket's evidence — `9eda7b44` in `237feed` is one,
+  and ticket 628 will over-count it permanently. Excluding it would mean matching its subject, which
+  is the thing this decision rejects. One historical commit in one ticket is the price.
+- **The same filter applies to the landed lookup**, not only the pending one. 628's over-count was
+  in the landed path, which is where a merge naturally sits.
+- **Left open:** whether a merge commit should contribute evidence *at all*. A human merging the
+  same branch through a forge double-counts identically and carries no trailer to filter on. The
+  narrow fix is deliberate; the general question needs evidence from a real human merge before it is
+  answered.
+
+**Status.** accepted.
+
+---
+
 ## D-068 · 2026-11-15 · Mainline is the shared ref, and drift from it is disclosed
 
 **Decision.** A ticket's work is measured against `<remote>/<default-branch>` — the ref everyone

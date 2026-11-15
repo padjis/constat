@@ -32,6 +32,19 @@ from ..errors import (
 
 GIT = "git"
 
+LANDED_TRAILER = "Constat-Landed"
+"""The trailer marking a commit Constat made, so it can be told apart later.
+
+Constat's merge is not implementation evidence — it is Constat's own output —
+and reading it back as a ticket's evidence double-counts the files and
+attributes a commit Constat wrote to the team (CON-75, product rule 3).
+
+**A trailer rather than the subject.** `MERGE_SUBJECT` is text anyone could
+write, and matching on it would silently drop a human merge worded the same
+way. Under-reporting evidence is the worse failure, and this is a token
+Constat controls: exact, parsed by git's own trailer support, no false
+positives."""
+
 
 @dataclass(frozen=True)
 class Repository:

@@ -2,10 +2,11 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-15):** CON-76 closed (D-068) — mainline is the shared ref, and drift
-from it is disclosed in both directions. CON-73 (D-065, D-067), CON-74 (D-066), CON-70 (D-064),
-CON-69 (D-062) and CON-64 (D-063) closed on 2026-11-14. Every one of them came out of reading
-tickets 615 and 628 through the MCP loop rather than out of reading the code.
+**Current session (2026-11-15):** CON-75 closed (D-069) — Constat's own commits are not evidence,
+and the exclusion is stated. CON-76 closed before it (D-068). CON-73 (D-065, D-067), CON-74
+(D-066), CON-70 (D-064), CON-69 (D-062) and CON-64 (D-063) closed on 2026-11-14. Every one came out
+of reading tickets 615 and 628 through the MCP loop rather than out of reading the code — which is
+the clearest argument available for running the product before extending it.
 
 ---
 
@@ -389,15 +390,21 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-75 — Constat's own merge commit is not evidence.** Small, and the last loose end from landing
-628: the payload carried Constat's own merge commit beside the real fix, so 14 changed files were
-reported for 7 real ones and a commit Constat authored was presented as the team's implementation
-evidence. Identify it by a `Constat-Landed:` trailer it writes — not by its subject, which is text
-anyone could write — and state the exclusion rather than performing it silently.
+**CON-71 and CON-72 need a decision from you, and nothing else is blocked on code.** Both came out
+of the first real reading and both are cheap once answered:
 
-One open question to answer first, noted on the ticket: whether a merge commit should contribute
-evidence **at all**. A human merging the same branch through a GitLab MR double-counts identically
-and carries no trailer to filter on.
+- **CON-71** — what grounding means when a rule is attested by evidence it is not anchored to. A
+  real rule went unproposed on 615 because its home was a path the commit never touched.
+- **CON-72** — whether a rule may be conditional on a transient business state. Rule 1 in your
+  catalogue is conditional ("while the site is not approved") and already immutable, so the answer
+  decides whether it should be superseded.
+
+Then **CON-58 — read decisions back, with their channel and verification**, which is the larger
+piece and the half of acceptance that is still CLI-only.
+
+Also open, and unanswered rather than unbuilt: whether a merge commit should contribute evidence
+**at all** (noted on CON-75). A human merging a branch through a forge double-counts the same way
+and carries no trailer to filter on. Worth a real human merge as evidence before deciding.
 
 ~~Re-read ticket 628, now that a repair is sayable~~ **done 2026-11-14.** It worked: three
 proposals became one, relation `repairs`, and the concurrency clause is gone from the statement.
@@ -430,6 +437,45 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-75 — done when: *Constat's own merge commit is not evidence* ✅
+
+`D-069` records the decision. The last loose end from landing 628: the payload carried Constat's own
+merge beside the team's fix, so 14 changed files were reported for 7 real ones.
+
+**What changed.**
+
+- `constat/git/adapter.py` — `LANDED_TRAILER = "Constat-Landed"`. It lives in the read-only module
+  because *reading* a trailer is read-only; `merge.py` imports it to write one. The reverse — the
+  attribution path importing the only writer — would have pointed the dependency the wrong way.
+- `constat/git/merge.py` — the merge commit carries `Constat-Landed: <reference>`.
+- `constat/tickets.py` — `_log` reads the trailer through `%(trailers:key=…)`, `_partition_own`
+  splits the team's commits from Constat's, and `TicketMatch.excluded_own_commits` keeps the SHAs so
+  the claim can be checked. Applied to the **landed** lookup as well as the pending one, which is
+  where 628's over-count actually was.
+- `constat/operations.py` — the document names what was excluded and why.
+
+**A latent bug fell out of it.** The landed path built `found_on` as
+`refs/heads/{mainline}`, which CON-76 had quietly turned into `refs/heads/origin/main` — a ref that
+does not exist. Now the resolved ref is used directly.
+
+**Known limit, and it is the price of refusing the heuristic.** Merges Constat made before this
+landed carry no trailer, so they stay in their ticket's evidence: `9eda7b44` in `237feed` means 628
+will over-count permanently. Catching it would mean matching its subject, which is exactly what
+D-069 rejects — a human merge worded the same way would then be dropped silently.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_own_commits.py` → **10 passed** (new file). **Whole suite**:
+`964 passed in 176s`, exit 0 — `_log` is on every attribution path, so a subset would not have been
+honest.
+
+The test that carries this one is not the exclusion but its opposite: a human commit whose subject
+is **byte-identical** to what Constat writes is kept, as is a commit that mentions
+`Constat-Landed:` in prose. If those two ever fail, the identification has become a guess about
+someone else's writing.
 
 ---
 
