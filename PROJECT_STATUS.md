@@ -2,8 +2,9 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-15):** CON-61 closed — a frozen version's behaviours and anchors are
-readable, completing CON-14's recoverability criterion and unblocking CON-67. Rule 3
+**Current session (2026-11-15):** CON-25 closed (D-074) — copyright held personally, with the
+triggers that would reopen it named. CON-61 closed before it — a frozen version's behaviours and
+anchors are readable, completing CON-14's recoverability criterion and unblocking CON-67. Rule 3
 (`install-pages-carry-no-advertising`) was accepted, the catalogue's first rule derived from the
 product's intent rather than from a diff. CON-79 closed before it (D-073) — a rule records the
 evidence it was accepted on, as a pointer rather than a copy. Raised and closed in the same session: the defect was
@@ -397,11 +398,18 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-22 — the trademark knockout search on "Constat".** Not a code task, and that is the argument
-for it: the product moved a long way over 2026-11-14 and 15, and the non-code side has not moved at
-all. CON-22 and CON-23 are both marked "before the first pilot conversation", CON-25 (the copyright
-holder) is marked "before accepting any outside contribution", and the repository has been public
-throughout. CON-26 is still at zero discovery conversations.
+**Register `tryconstat.com`.** Not a code task and not a decision — a purchase, about ten euros,
+and the only item in `BRAND_NAME_REVIEW.md` § 9 marked **"Now"** with no prerequisite. Chosen in
+D-014, confirmed unregistered, still unbought, and the name has been public on GitHub since the
+first commit. It cannot be done for you.
+
+Then **CON-22 — the trademark knockout search on "Constat".** Not a code task either, and that is
+the argument for it: the product moved a long way over 2026-11-14 and 15 while the non-code side
+did not move at all. CON-22 and CON-23 are both marked "before the first pilot conversation", and
+the repository has been public throughout. CON-26 is still at zero discovery conversations.
+
+CON-25 is now closed (D-074): the copyright is held personally, which `LICENSE` and `NOTICE`
+already said — the ticket needed a recorded decision, not an edit.
 
 The next code task is **CON-67 — track which details changed between versions**, which CON-61 just
 unblocked: a version's behaviours and anchors are now readable, so the diff between two versions can

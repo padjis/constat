@@ -8,6 +8,44 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-074 · 2026-11-15 · The copyright holder is Emmanuel Padjinou personally
+
+**Decision.** Copyright in Constat is held by **Emmanuel Padjinou** as a natural person, as `LICENSE`
+and `NOTICE` already state. It is not assigned to a company, and no contributor licence agreement is
+required beyond Apache-2.0's own § 5.
+
+**Context.** CON-25 had stood open as "decide the copyright holder" while `LICENSE:189` and
+`NOTICE:2` already named him — so the ticket's own done-when was satisfied and the question it
+pointed at was a different one: person or entity. Left unrecorded, that gets rediscovered every time
+someone reads the backlog.
+
+**Why personal.** There is one contributor. Apache-2.0 means any future contributor licenses their
+contribution *to the holder* under § 5, so nothing is lost by the holder being a person. And a
+company to assign to does not exist: choosing an entity now would mean blocking the licence on
+incorporation, which is a real cost for no present benefit.
+
+**What would change it**, stated so the question is reopened deliberately rather than by accident:
+
+- **Incorporation.** If a company is formed to commercialise Constat, the copyright should be
+  assigned to it, and that assignment is a document, not an edit to `NOTICE`.
+- **An outside contributor.** Apache-2.0 § 5 covers the inbound licence, but a project taking
+  substantial outside contributions and intending to relicense later needs a CLA. Relicensing is
+  the trigger, not contribution itself.
+- **A pilot that demands it.** An enterprise pilot may ask who owns the software. A person is a
+  complete answer; it is simply a different one from a company.
+
+**Consequences.**
+
+- **`LICENSE` and `NOTICE` are already correct** and need no change. CON-25 closes as recorded
+  rather than as implemented.
+- **Nothing here clears the *name*.** Copyright and trademark are separate: `BRAND_NAME_REVIEW.md`
+  § 9 tasks 1–3 (USPTO/EUIPO knockout search, attorney review, INPI/RCS check) remain outstanding
+  and are CON-22 and CON-23. Deciding the copyright holder does not touch them.
+
+**Status.** accepted.
+
+---
+
 ## D-073 · 2026-11-15 · A rule records the evidence it was accepted on, as a pointer
 
 **Decision.** A run writes down the commits whose evidence it read: SHA, identity-scrubbed subject,
