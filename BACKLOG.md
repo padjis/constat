@@ -85,7 +85,7 @@ forces them.
 
 | ID | Title | Done when | Status |
 | --- | --- | --- | --- |
-| CON-21 | Register `tryconstat.com` | The domain is owned. | 🔴 **not done** — chosen in D-014 and confirmed free, but unregistered and now named publicly. |
+| CON-21 | The site has a home | The project site resolves somewhere its author controls. | ✅ D-075 — `constat.padjinou.com`, a subdomain of an owned domain. No domain bought: `tryconstat.com` stays the choice from D-014 for when there is something to put on it, and stays registerable by anyone until then |
 | CON-22 | Trademark knockout search on "Constat" | USPTO and EUIPO searched in Nice classes 9 and 42, plus an INPI/RCS check. | ⬜ before the first pilot conversation |
 | CON-23 | Trademark attorney review | A finalist cleared, including the FR/EU descriptiveness question. | ⬜ before the first pilot conversation |
 | CON-24 | Ratify the proposal unit (Q1) | A `D-NNN` entry fixes the unit of a proposal. | ✅ D-025 |

@@ -8,6 +8,45 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-075 · 2026-11-15 · The site starts at `constat.padjinou.com`, and no domain is bought yet
+
+**Amends D-014**, which chose `tryconstat.com` and treated registering it as securing the name. That
+choice is not withdrawn — it remains the domain to buy when there is something to put on it — but
+the *timing* changes: nothing is registered now, and the web presence starts on a subdomain of a
+domain already owned.
+
+**Decision.** The project site is hosted at **`constat.padjinou.com`**. No new domain is purchased.
+
+**Context.** D-014 reasoned that registering was "about securing the name, not launching", and
+CON-21 has been marked 🔴 *not done* since, on the grounds that the name is public while the domain
+is free. A subdomain of an owned domain answers the hosting need at zero cost and immediately, and
+there is nothing to deploy yet: validation is at **zero discovery conversations** (CON-26), so a
+landing page has no audience to fail in front of.
+
+**What this accepts, rather than solves.**
+
+- **The name is not protected by this.** `tryconstat.com` stays registerable by anyone, and
+  `constat.ai` is still on an aftermarket listing that can be bought or withdrawn. D-014's note that
+  a listed domain can disappear applies unchanged. The bet is that the risk of losing a `try…`
+  prefix is small enough to carry — and it is a bet, not a mitigation.
+- **A personal subdomain reads as a personal project.** That is accurate today and becomes a
+  liability at precisely the moment it stops being: a pilot conversation with a business audience
+  (roadmap weeks 3–8). D-014 already observed that `try<name>.com` "reads as a product landing
+  page"; `constat.padjinou.com` does not.
+
+**Consequences.**
+
+- **CON-21 is deferred, not closed.** Reworded from "register `tryconstat.com`" to "the site has a
+  home", which this satisfies. Buying a domain returns as its own item when it has a reason.
+- **The trigger to revisit is the first pilot conversation**, not a date. Before showing the product
+  to someone outside, the question is whether a subdomain is the address to show them.
+- **Nothing in the product depends on either name.** Publishing targets are per-repository (D-058)
+  and the catalogue has no notion of a website.
+
+**Status.** accepted.
+
+---
+
 ## D-074 · 2026-11-15 · The copyright holder is Emmanuel Padjinou personally
 
 **Decision.** Copyright in Constat is held by **Emmanuel Padjinou** as a natural person, as `LICENSE`

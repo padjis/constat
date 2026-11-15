@@ -244,7 +244,7 @@ URL and every document were updated with no public history to rewrite.
 | 1 | Preliminary USPTO and EUIPO knockout search in Nice classes 9 and 42. | Before the first pilot conversation |
 | 2 | Trademark attorney review of the finalist, including the FR/EU descriptiveness question in § 8. | Before the first pilot conversation |
 | 3 | French company-register (INPI / RCS) check. | With task 2 |
-| 4 | **Register `tryconstat.com`** — chosen in D-014, confirmed unregistered, not yet bought. `constat.ai` is listed for sale on GoDaddy and remains the upgrade path once validated. | Now |
+| 4 | ~~**Register `tryconstat.com`**~~ **Amended 2026-11-15 (D-075):** the site starts at `constat.padjinou.com`, a subdomain of an owned domain, and no domain is bought. `tryconstat.com` remains the choice for when there is something to deploy, and remains registerable by anyone until then; `constat.ai` is still the upgrade path once validated. | Revisit before the first pilot conversation |
 | 5 | GitHub organisation name, if one is wanted later. | Not urgent |
 
 ### The known weakness of this choice
