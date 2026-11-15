@@ -794,6 +794,32 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                     # what evidence is this based on (D-073). A version from
                     # before schema 13 has no pointer, and says so rather than
                     # printing nothing.
+                    if v["area"]:
+                        print(f"      area: {v['area']}")
+                    # From the version, not the rule (CON-61). The live tables
+                    # are rewritten by each acceptance, so reading them here
+                    # would show every historical version the newest one's
+                    # substance — and it would look right.
+                    if v["behaviours"]:
+                        print(f"      behaviours ({len(v['behaviours'])}):")
+                        for description in v["behaviours"]:
+                            print(f"        - {description}")
+                    else:
+                        print("      behaviours: none recorded in this version")
+                    if v["anchors"]:
+                        print(f"      anchors ({len(v['anchors'])}):")
+                        for anchor in v["anchors"]:
+                            scope = anchor.repository_alias or "any repository"
+                            ground = (
+                                f", grounded in {anchor.grounded_in}"
+                                if anchor.grounded_in
+                                else ""
+                            )
+                            print(
+                                f"        - {anchor.path_glob}  [{scope}{ground}]"
+                            )
+                    else:
+                        print("      anchors: none recorded in this version")
                     commits = evidence_for_version(workspace, v["id"])
                     if commits:
                         print(f"      read from {len(commits)} commit(s):")
@@ -804,9 +830,15 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                                 f"{commit.subject}"
                             )
                     else:
+                        # Two states that cannot be told apart from an empty
+                        # pointer set: a version accepted before schema 13, and
+                        # one whose run genuinely read nothing because the
+                        # ticket had landed (D-031, D-072). Asserting either
+                        # would be claiming more than is known.
                         print(
-                            "      evidence: not recorded — accepted before "
-                            "Constat kept evidence pointers"
+                            "      evidence: no commits recorded — this "
+                            "reading's run gathered none, or it predates "
+                            "evidence pointers"
                         )
                 return EXIT_OK
 

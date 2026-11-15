@@ -2,8 +2,11 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-15):** CON-79 closed (D-073) — a rule records the evidence it was
-accepted on, as a pointer rather than a copy. Raised and closed in the same session: the defect was
+**Current session (2026-11-15):** CON-61 closed — a frozen version's behaviours and anchors are
+readable, completing CON-14's recoverability criterion and unblocking CON-67. Rule 3
+(`install-pages-carry-no-advertising`) was accepted, the catalogue's first rule derived from the
+product's intent rather than from a diff. CON-79 closed before it (D-073) — a rule records the
+evidence it was accepted on, as a pointer rather than a copy. Raised and closed in the same session: the defect was
 already true of both rules in the catalogue. CON-71 closed before it (D-072) — an anchor may be
 grounded in mainline, and which ground supports it is recorded. CON-78 and CON-72 closed before it (D-070, D-071) — the
 product's current state can be read, grouped by business area, and a rule may be conditional with
@@ -394,15 +397,15 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**Decide rule proposal 7 on ticket 615** — the install-pages rule, in the queue since the re-read.
-It is a one-command decision, and it is worth making deliberately because its own entry says its run
-gathered no evidence: accepting it means accepting a statement whose supporting commit the workspace
-cannot show. That is exactly the judgement D-073 made visible, and it is the first proposal to put
-it in front of you.
+**CON-22 — the trademark knockout search on "Constat".** Not a code task, and that is the argument
+for it: the product moved a long way over 2026-11-14 and 15, and the non-code side has not moved at
+all. CON-22 and CON-23 are both marked "before the first pilot conversation", CON-25 (the copyright
+holder) is marked "before accepting any outside contribution", and the repository has been public
+throughout. CON-26 is still at zero discovery conversations.
 
-Then **CON-61 — read a frozen version's behaviours and anchors back.** It is the same complaint
-CON-79 just answered for evidence: the frozen version is under-recorded. Doing it next keeps one
-pass over what a `rule_version` owes a reviewer rather than spreading it over three migrations.
+The next code task is **CON-67 — track which details changed between versions**, which CON-61 just
+unblocked: a version's behaviours and anchors are now readable, so the diff between two versions can
+be computed rather than guessed.
 
 Then **CON-58 — read decisions back, with their channel and verification**, the half of acceptance
 that is still CLI-only.
@@ -443,6 +446,41 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-61 — done when: *a frozen version's behaviours and anchors can be read back* ✅
+
+No decision, no schema, no new data: `rule_version_behaviour` and `rule_version_anchor` have been
+written on every acceptance since CON-44, and nothing ever read them. CON-14's criterion —
+"previous content remains recoverable" — held for a version's name and statement and not for its
+substance. The data was on disk and unreachable.
+
+**What changed.** `Review.versions` now carries `behaviours` and `anchors` per version, through two
+new readers (`version_behaviours`, `version_anchors`); `rule history` prints them, with each
+anchor's scope and its `grounded_in` mark. Around 60 lines.
+
+**The property that matters is where the substance comes from.** `rule` holds the current state and
+is rewritten by each acceptance; the version tables are what a human agreed to at the time. Reading
+the live tables would give every historical version the newest one's behaviours — and it would look
+entirely right. **Mutation-checked:** pointing `version_behaviours` at the live `behaviour` table
+fails exactly one test, `test_an_earlier_version_keeps_its_own_substance`, which is the test written
+for it.
+
+### A false claim it exposed in CON-79's output
+
+`rule history` printed "evidence: not recorded — accepted before Constat kept evidence pointers" for
+rule 3, which was accepted minutes earlier. Two states are indistinguishable from an empty pointer
+set: a version from before schema 13, and one whose run genuinely read nothing because the ticket
+had landed (D-031, D-072). The message asserted the first. It now states both possibilities, which
+is the posture D-031 set for exactly this kind of ambiguity, and a test holds it there.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_version_substance.py` → **7 passed** (new file). The files
+this reaches — acceptance, cli, evidence pointers, rule areas, rule relations, catalogue, mainline
+grounding and the new one — → **197 passed in 38s**. No schema change, so the whole suite was not
+re-run.
 
 ---
 

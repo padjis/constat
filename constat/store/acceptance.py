@@ -23,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..errors import InvalidInput, NotRegistered
+from ..models import Anchor
 from .proposals import RuleProposals, StoredRuleProposal
 from .workspace import Workspace, utc_now
 
@@ -220,10 +221,17 @@ class Review:
     # -- reading -----------------------------------------------------------
 
     def versions(self, rule_id: int) -> tuple[dict, ...]:
-        """Every accepted version of a rule, oldest first.
+        """Every accepted version of a rule, oldest first, with its substance.
 
         Returned as plain rows: this is the audit view, and a reviewer reading
         history wants what was recorded rather than a reconstructed object.
+
+        **Behaviours and anchors come from the version, never from the rule**
+        (CON-61). `rule` holds the current state and is rewritten by each
+        acceptance; `rule_version_behaviour` and `rule_version_anchor` are what
+        a human agreed to at the time. Reading the live tables here would make
+        every version in the history display the newest one's substance, which
+        is the opposite of what CON-14 promises — and it would look right.
         """
         rows = self._workspace.execute(
             "SELECT v.id, v.version_no, v.name, v.statement, v.area, v.created_at, "
@@ -236,4 +244,43 @@ class Review:
             "WHERE v.rule_id = ? ORDER BY v.version_no",
             (rule_id,),
         ).fetchall()
-        return tuple(dict(row) for row in rows)
+
+        versions = []
+        for row in rows:
+            version = dict(row)
+            version["behaviours"] = self.version_behaviours(row["id"])
+            version["anchors"] = self.version_anchors(row["id"])
+            versions.append(version)
+        return tuple(versions)
+
+    def version_behaviours(self, rule_version_id: int) -> tuple[str, ...]:
+        """What this version said the system does, as it was frozen."""
+        rows = self._workspace.execute(
+            "SELECT description FROM rule_version_behaviour "
+            "WHERE rule_version_id = ? ORDER BY id",
+            (rule_version_id,),
+        ).fetchall()
+        return tuple(row["description"] for row in rows)
+
+    def version_anchors(self, rule_version_id: int) -> tuple[Anchor, ...]:
+        """Where this version said the rule lived, as it was frozen.
+
+        Carries `grounded_in` (D-072), because which ground supported an anchor
+        is part of what was accepted: a reviewer looking back has to be able to
+        tell "the evidence showed this changed" from "this file existed".
+        """
+        rows = self._workspace.execute(
+            "SELECT a.path_glob, a.grounded_in, r.alias "
+            "FROM rule_version_anchor a "
+            "LEFT JOIN repository r ON r.id = a.repository_id "
+            "WHERE a.rule_version_id = ? ORDER BY a.id",
+            (rule_version_id,),
+        ).fetchall()
+        return tuple(
+            Anchor(
+                path_glob=row["path_glob"],
+                repository_alias=row["alias"],
+                grounded_in=row["grounded_in"],
+            )
+            for row in rows
+        )

@@ -241,10 +241,15 @@ class TestReporting:
         assert git(clone, "rev-parse", "feat/615-no-ads")[:12] in out
 
     def test_a_version_with_no_pointer_says_so(self, workspace, capsys) -> None:
-        """A rule accepted before schema 13 has no evidence pointer, and
-        nothing is back-filled: the evidence those runs read is gone, and
-        inventing a SHA would be the worst possible lie in a governance
-        record."""
+        """A version with no pointer says so without claiming why.
+
+        Nothing is back-filled — the evidence those runs read is gone, and
+        inventing a SHA would be the worst possible lie in a governance record.
+        The wording also cannot assert *which* empty case this is: a version
+        accepted before schema 13 and one whose run read nothing because the
+        ticket had landed are indistinguishable from zero rows (CON-61 caught
+        this; the message had been claiming the first).
+        """
         from constat.cli import main
 
         ws, clone, _bare = workspace
@@ -256,7 +261,7 @@ class TestReporting:
         main(["--workspace", str(clone.parent / "ws"), "rule", "history",
               str(accepted.rule_id)])
 
-        assert "evidence: not recorded" in capsys.readouterr().out
+        assert "evidence: no commits recorded" in capsys.readouterr().out
 
     def test_the_queue_says_when_a_run_gathered_nothing(
         self, workspace, capsys
