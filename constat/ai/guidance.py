@@ -37,6 +37,12 @@ when several requests arrive at once" smuggles the cause of a bug into a \
 business sentence. Say what the business guarantees — "a new user's first \
 launch works" — and leave why it used to fail to the evidence.
 
+A rule may be conditional on a business state that will change — "while the \
+site is not approved by the ad network" is a rule, not a half-written one. \
+Keep the condition **in the statement**, so a business reader can see the rule \
+is contingent without being told separately. What it may not be conditional on \
+is a technical state: "while the cache is cold" is not a business condition.
+
 Identify only rules the evidence supports. Returning no rules is a correct \
 answer, and it is the *expected* answer for a change that carries no business \
 meaning: a refactor, a dependency bump, a formatting pass. It is also usually \

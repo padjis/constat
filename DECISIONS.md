@@ -8,6 +8,40 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-071 · 2026-11-15 · A rule may be conditional, and the condition is in the statement
+
+**Decision.** A rule may be conditional on a business state that will change. The condition belongs
+**in the statement**, where a business reader meets it, not in a field beside it. A rule may not be
+conditional on a technical state: "while the site is not approved by the ad network" is a business
+condition; "while the cache is cold" is not.
+
+**Context.** CON-72, raised by the first real reading. Rule 1 in the catalogue reads "…while the
+site is not approved by the ad network", and nothing told the reader whether that was allowed. It
+was written in because the evidence supported it, and a reviewer then had to decide both the rule
+and whether the rule was the right *shape* — a question that belongs in the guidance, answered once,
+rather than in every reading.
+
+**Why in the statement.** A contingent rule read as unconditional is a false statement about the
+product. Holding the condition in a separate field means a business reader can be shown the rule
+without the thing that limits it, which is the kind of confident under-report product rule 1 exists
+to prevent. One sentence, complete on its own.
+
+**Consequences.**
+
+- **Rule 1 stands as accepted.** No superseding version is needed, and the catalogue is unchanged
+  by this decision.
+- **It constrains what a *statement* may contain, not what a rule may be.** D-066 still refuses a
+  statement that leaks code, and a technical condition is refused for the same reason — it is not
+  something a business reader can evaluate.
+- **A lapsed condition is not yet expressible.** When the site *is* approved, rule 1 becomes false
+  and the only mechanism is a superseding version, which says "the rule changed" rather than "the
+  condition lapsed". Left open deliberately: the right answer probably lives with retirement
+  (D-070's flagging), and inventing a second mechanism before that is understood would be guessing.
+
+**Status.** accepted.
+
+---
+
 ## D-070 · 2026-11-15 · The catalogue is the business documentation, read as a current picture
 
 **Decision.** Four answers, taken together because they describe one thing.

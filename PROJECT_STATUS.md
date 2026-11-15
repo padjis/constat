@@ -2,12 +2,12 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-15):** CON-77 closed (D-070) — a rule carries a business area, the
-first half of making the catalogue the product's documentation. CON-75 (D-069) and CON-76 (D-068)
-closed before it today; CON-73 (D-065, D-067), CON-74 (D-066), CON-70 (D-064), CON-69 (D-062) and
-CON-64 (D-063) on 2026-11-14. Every one came out of reading tickets 615 and 628 through the MCP
-loop rather than out of reading the code — the clearest argument available for running the product
-before extending it.
+**Current session (2026-11-15):** CON-78 and CON-72 closed (D-070, D-071) — the product's current
+state can be read, grouped by business area, and a rule may be conditional with the condition in
+its statement. CON-77 (D-070), CON-75 (D-069) and CON-76 (D-068) closed before them today;
+CON-73 (D-065, D-067), CON-74 (D-066), CON-70 (D-064), CON-69 (D-062) and CON-64 (D-063) on
+2026-11-14. Every one came out of reading tickets 615 and 628 through the MCP loop rather than out
+of reading the code — the clearest argument available for running the product before extending it.
 
 ---
 
@@ -391,26 +391,21 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-78 — the current picture of the product.** `constat state` renders the accepted rules by area
-across every registered repository, each pinned at its own mainline revision, flagging rules whose
-anchors no longer exist and paths no rule claims. D-070 settled the shape; CON-77 supplied the
-grouping.
-
-It is also the only way to ground a rule once its ticket has landed, which is a defect today and
-not a nicety: a rule submitted for 628 is refused outright because a landed ticket contributes no
-evidence. **CON-71 should wait for it** — the grounding question may dissolve rather than need an
-answer.
+**CON-71 — ground a rule against the state of mainline, not only a ticket's diff.** Reopened by
+CON-78 rather than answered by it. The defect is concrete: a rule proposed for ticket 628 is refused
+as ungrounded because 628 has landed and a landed ticket contributes no evidence (D-031). So once a
+ticket ships, no rule can be proposed for it at all. `product_state` now assembles the file list of
+every repository at its mainline revision, which is exactly the data the grounding check lacks —
+the work is to let `parse` accept an anchor present in mainline, and to record which of the two
+grounds it (product rule 3: the two are different provenance).
 
 Then **CON-58 — read decisions back, with their channel and verification**, the half of acceptance
 that is still CLI-only.
 
-**CON-72 is answered** (a rule may be conditional on a transient state) and needs one guidance
-sentence saying so, plus a choice on whether the condition must be visible in the statement. Rule 1
-in the catalogue is conditional and already immutable, so the answer decides only what future
-readings do.
-
-Also unanswered rather than unbuilt: whether a merge commit should contribute evidence **at all**
-(noted on CON-75). Worth waiting for a real human merge as evidence.
+Still unanswered rather than unbuilt: whether a merge commit should contribute evidence **at all**
+(noted on CON-75); and how a *lapsed* condition is expressed now that D-071 allows conditional rules
+— when the site is approved, rule 1 becomes false and only a superseding version can say so, which
+says "the rule changed" rather than "the condition lapsed". That probably belongs with retirement.
 
 ~~Re-read ticket 628, now that a repair is sayable~~ **done 2026-11-14.** It worked: three
 proposals became one, relation `repairs`, and the concurrency clause is gone from the statement.
@@ -443,6 +438,64 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-78 — done when: *the product's current state can be read* ✅ · CON-72 ✅
+
+`D-070` set the shape; `D-071` closes CON-72 alongside it. `constat state` renders every accepted
+rule against the current mainline of every registered repository, grouped by business area.
+
+**On the live workspace it reads:**
+
+```
+# The product as it stands
+
+## Read from
+- **237feed** at `origin/main` `9eda7b440984` — 630 file(s), 1 claimed by a rule (0.2%)
+  - this clone is 2 commit(s) behind `origin/main`, so the picture may be out of date
+- **237feed-app** at `origin/main` `c9fb4b3414ff` — 143 file(s), 0 claimed by a rule (0.0%)
+- **237feed-ui** at `origin/main` `7014a1c24965` — 149 file(s), 1 claimed by a rule (0.7%)
+...
+## What this does not describe
+920 of 922 file(s) across the registered repositories are claimed by no rule.
+```
+
+That last line is the point of the view as much as the rules are. A catalogue of two rules describes
+0.2% of the product, and a report that hid the denominator would flatter itself (D-038).
+
+**What changed.**
+
+- `constat/operations.py` — `product_state` and `render_state`, plus `ProductState`,
+  `RepositoryState` and `RuleState`. Mostly composition: `resolve_mainline` (D-068) picks the ref,
+  `summarise_state` lists the files at it, and `Catalogue.rules_matching` already matched anchors
+  against paths. The new part is doing it against mainline rather than against a ticket's diff.
+- `constat/cli.py` — `constat state [--repo ALIAS] [--json]`. An unknown alias is **refused**, not
+  rendered as an empty picture: a mistyped alias would otherwise read as a claim about the product.
+- `constat/ai/guidance.py` — D-071's sentence: a rule may be conditional on a business state, the
+  condition goes in the statement, and a technical condition is not allowed.
+
+**Four properties it holds to.** It is *pinned* — every repository names its ref and revision,
+because a picture of "now" that cannot say which commit it described is not inspectable. Coverage is
+*stated*. A rule whose anchors are gone is *flagged, never removed*, and the wording says a human
+decides. An unreadable repository is *reported*, with the warning that it produces the same symptom
+as a retirement candidate — the one reading it must not be allowed to produce silently.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_product_state.py` → **16 passed** (new file). Whole suite →
+**1002 passed in 186s**, exit 0.
+
+### What it does not do
+
+Nothing is stored. The picture is computed, so it is always of the revisions it names and there is
+nothing to drift from — which means **CON-15** (compare against the last approved baseline) still
+needs a stored baseline and is untouched by this.
+
+It also does not yet let a rule be *grounded* against mainline, which was the finding that made this
+next: a rule submitted for landed ticket 628 is still refused as ungrounded, because grounding reads
+the ticket's evidence and a landed ticket has none. The data to fix it now exists in one place.
+**CON-71 is the ticket to reopen with it.**
 
 ---
 

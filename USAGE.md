@@ -269,6 +269,36 @@ What it does, precisely:
 
 ---
 
+## 7b. The product as it stands
+
+The catalogue **is** the product's business documentation (D-070). This reads it against the current
+mainline of every registered repository:
+
+```bash
+constat state                  # the whole product
+constat state --repo 237feed   # one repository
+constat state --json           # for a script
+```
+
+What it reports, in order:
+
+- **what it read from** — each repository's mainline ref and revision, how many files it holds, and
+  how many of them a rule claims. Pinned, because a picture of "now" that cannot name the commit it
+  described is not checkable.
+- **the business rules**, grouped by area, with the paths in mainline each one still matches.
+  `(unplaced)` comes last: a rule with no area is a gap, not a section.
+- **rules whose anchors are gone** — retirement candidates, never retirements. A rule leaves the
+  picture only by a human decision, and an unreadable repository produces the same symptom, which
+  the report says out loud.
+- **what it does not describe** — the files no rule claims. On a young catalogue this is almost
+  everything, and that is the honest headline rather than a footnote.
+
+Nothing is stored. The view is computed each time, so it is always of the revisions it names — and
+there is deliberately nothing here to drift from. A frozen baseline to compare against is a separate
+thing and does not exist yet.
+
+---
+
 ## 8. Exit codes
 
 | Code | Meaning |

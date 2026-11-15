@@ -52,8 +52,8 @@ from .git.adapter import (
     resolve_mainline,
     resolve_revision,
 )
-from .git.diff import compare_revisions
-from .models import RegisteredRepository
+from .git.diff import compare_revisions, summarise_state
+from .models import RegisteredRepository, Rule
 from .store import READER_MCP, Settings
 from .store import Catalogue, Registry, RuleProposals, TicketStore, Workspace
 from .store.workspace import utc_now
@@ -1339,3 +1339,266 @@ def land_ticket(workspace: Workspace, reference: str) -> Landing:
         )
 
     return Landing(reference=reference, results=tuple(results))
+
+
+# -- the current picture of the product ---------------------------------------
+
+
+@dataclass(frozen=True)
+class RepositoryState:
+    """One repository as it stands, and how current that picture is.
+
+    `revision` is the SHA the mainline ref resolved to when this was read.
+    Pinned rather than implied: a picture of "now" that cannot say which commit
+    it described is not inspectable (product rule 2), and two runs a day apart
+    are different pictures.
+    """
+
+    alias: str
+    mainline: MainlineRef | None
+    revision: str | None
+    file_count: int = 0
+    claimed_files: int = 0
+    error: str | None = None
+
+    @property
+    def readable(self) -> bool:
+        return self.error is None
+
+    @property
+    def claimed_share(self) -> float:
+        """Files claimed by at least one rule, as a fraction.
+
+        Reported because the honest headline of a young catalogue is how
+        little of the product it describes. Two rules over a thousand files is
+        a 0.2% picture, and a view that hid that would flatter itself (D-038).
+        """
+        return 0.0 if not self.file_count else self.claimed_files / self.file_count
+
+
+@dataclass(frozen=True)
+class RuleState:
+    """An accepted rule, and whether its anchors still exist in mainline."""
+
+    rule: Rule
+    matched: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    """Repository alias -> the paths in mainline its anchors match."""
+
+    @property
+    def holds(self) -> bool:
+        return bool(self.matched)
+
+    @property
+    def matched_count(self) -> int:
+        return sum(len(paths) for paths in self.matched.values())
+
+
+@dataclass(frozen=True)
+class ProductState:
+    """Every accepted rule, measured against the current mainline of each
+    registered repository (D-070).
+
+    The product's business documentation, assembled rather than stored: this is
+    computed on demand, so nothing here is frozen and nothing can drift from
+    it. A stored baseline is what CON-15 needs and is deliberately not this.
+    """
+
+    repositories: tuple[RepositoryState, ...] = ()
+    rules: tuple[RuleState, ...] = ()
+
+    @property
+    def holding(self) -> tuple[RuleState, ...]:
+        return tuple(r for r in self.rules if r.holds)
+
+    @property
+    def unanchored(self) -> tuple[RuleState, ...]:
+        """Rules whose anchors match nothing in mainline — retirement
+        candidates, never retirements (D-070). A person decides, because
+        nothing leaves the catalogue without a human decision (D-048)."""
+        return tuple(r for r in self.rules if not r.holds)
+
+    def by_area(self) -> dict[str, tuple[RuleState, ...]]:
+        """Rules grouped by area, unplaced last.
+
+        `(unplaced)` sorts to the end because it is a gap rather than a
+        section: a reader scanning the documentation should meet the organised
+        part first.
+        """
+        grouped: dict[str, list[RuleState]] = {}
+        for state in self.holding:
+            grouped.setdefault(state.rule.area or UNPLACED, []).append(state)
+        order = sorted(grouped, key=lambda area: (area == UNPLACED, area))
+        return {area: tuple(grouped[area]) for area in order}
+
+
+UNPLACED = "(unplaced)"
+"""What a rule with no area renders under. A heading rather than a silence, so
+the gap is visible and someone can place it."""
+
+
+def product_state(
+    workspace: Workspace, aliases: tuple[str, ...] | None = None
+) -> ProductState:
+    """Read the current state of the product from mainline.
+
+    Product-level by default (D-070): every registered repository, each pinned
+    at its own mainline revision, because one ticket's work and one rule's
+    anchors both cross repositories. `aliases` narrows the view without
+    changing its shape.
+
+    A repository that cannot be read is reported, not skipped. Its rules would
+    otherwise silently look unanchored, which reads as "retire these" — the
+    opposite of what an unreadable repository licenses anyone to conclude.
+    """
+    registry = Registry(workspace)
+    entries = [
+        entry
+        for entry in registry.list()
+        if aliases is None or entry.alias in aliases
+    ]
+
+    catalogue = Catalogue(workspace)
+    rules = catalogue.list()
+
+    repositories: list[RepositoryState] = []
+    matches: dict[str, dict[str, tuple[str, ...]]] = {rule.name: {} for rule in rules}
+
+    for entry in entries:
+        try:
+            repo = discover_repository(entry.source)
+            mainline = resolve_mainline(repo, entry.default_branch)
+            revision = resolve_revision(repo, mainline.ref)
+            state = summarise_state(repo, revision)
+        except RepositoryError as exc:
+            repositories.append(
+                RepositoryState(
+                    alias=entry.alias,
+                    mainline=None,
+                    revision=None,
+                    error=str(exc),
+                )
+            )
+            continue
+
+        matching = catalogue.rules_matching(entry.alias, state.paths)
+        for name, paths in matching.items():
+            matches[name][entry.alias] = paths
+
+        claimed = {path for paths in matching.values() for path in paths}
+        repositories.append(
+            RepositoryState(
+                alias=entry.alias,
+                mainline=mainline,
+                revision=revision.sha,
+                file_count=state.file_count,
+                claimed_files=len(claimed),
+            )
+        )
+
+    return ProductState(
+        repositories=tuple(repositories),
+        rules=tuple(RuleState(rule=rule, matched=matches[rule.name]) for rule in rules),
+    )
+
+
+def render_state(state: ProductState) -> str:
+    """Render the current picture as Markdown.
+
+    The same split the ticket document uses (product rule 8): what the product
+    does, then what that rests on. Here the evidence half is which revision of
+    which repository was read, and how much of it no rule describes.
+    """
+    lines: list[str] = ["# The product as it stands", ""]
+
+    readable = [r for r in state.repositories if r.readable]
+    if not state.repositories:
+        return "\n".join(
+            lines
+            + [
+                "No repositories are registered, so there is nothing to measure "
+                "the catalogue against. This is not a statement that the product "
+                "has no rules.",
+                "",
+            ]
+        )
+
+    lines += ["## Read from", ""]
+    for repo in state.repositories:
+        if not repo.readable:
+            lines.append(f"- **{repo.alias}** — could not be read: {repo.error}")
+            continue
+        assert repo.mainline is not None and repo.revision is not None
+        lines.append(
+            f"- **{repo.alias}** at `{repo.mainline.ref}` "
+            f"`{repo.revision[:12]}` — {repo.file_count} file(s), "
+            f"{repo.claimed_files} claimed by a rule "
+            f"({repo.claimed_share:.1%})"
+        )
+        if repo.mainline.is_stale:
+            lines.append(
+                f"  - this clone is {repo.mainline.behind} commit(s) behind "
+                f"`{repo.mainline.ref}`, so the picture may be out of date"
+            )
+        if repo.mainline.has_unpushed:
+            lines.append(
+                f"  - {repo.mainline.ahead} local commit(s) are not on "
+                f"`{repo.mainline.ref}` and are not described here"
+            )
+        if not repo.mainline.from_remote:
+            lines.append(
+                "  - no remote-tracking ref, so this is only as current as "
+                "this clone"
+            )
+    lines.append("")
+
+    if not state.rules:
+        lines += [
+            "The catalogue holds no rules, so there is nothing to describe yet. "
+            "A rule enters only as an accepted rule proposal (D-048).",
+            "",
+        ]
+        return "\n".join(lines)
+
+    grouped = state.by_area()
+    if grouped:
+        lines += ["## Business rules", ""]
+        for area, states in grouped.items():
+            lines += [f"### {area}", ""]
+            for item in states:
+                lines.append(f"- **{item.rule.name}** — {item.rule.statement}")
+                for alias, paths in sorted(item.matched.items()):
+                    shown = ", ".join(f"`{path}`" for path in paths[:5])
+                    more = "" if len(paths) <= 5 else f" and {len(paths) - 5} more"
+                    lines.append(f"  - in {alias}: {shown}{more}")
+            lines.append("")
+
+    if state.unanchored:
+        lines += [
+            "## Rules whose anchors are gone",
+            "",
+            f"{len(state.unanchored)} rule(s) are anchored to paths that no "
+            "longer exist in mainline. **Retirement candidates, not "
+            "retirements** — a rule leaves the picture only by a human "
+            "decision (D-070), and an unreadable repository above would "
+            "produce this symptom too.",
+            "",
+        ]
+        for item in state.unanchored:
+            area = item.rule.area or UNPLACED
+            lines.append(f"- **{item.rule.name}** ({area}) — {item.rule.statement}")
+            anchors = ", ".join(f"`{a.path_glob}`" for a in item.rule.anchors)
+            lines.append(f"  - anchored to {anchors or '(nothing)'}")
+        lines.append("")
+
+    claimed = sum(r.claimed_files for r in readable)
+    total = sum(r.file_count for r in readable)
+    lines += [
+        "## What this does not describe",
+        "",
+        f"{total - claimed} of {total} file(s) across the registered "
+        "repositories are claimed by no rule. The catalogue only knows the "
+        "rules it holds, so this is where it is incomplete rather than where "
+        "nothing happens (D-038).",
+        "",
+    ]
+    return "\n".join(lines)

@@ -42,7 +42,9 @@ from .operations import (
     export_payload,
     gather,
     land_ticket,
+    product_state,
     publish_document,
+    render_state,
     submit_reply,
 )
 from .publish import GitPages
@@ -421,6 +423,35 @@ def build_parser() -> argparse.ArgumentParser:
     config_merge.add_argument(
         "value", nargs="?", choices=sorted(SWITCH), default=None,
         help="omit to show the current value",
+    )
+
+    state = subparsers.add_parser(
+        "state",
+        help="show the product as it stands on mainline",
+        description=(
+            "Render the accepted business rules against the current mainline "
+            "of every registered repository, grouped by business area. This is "
+            "the product's business documentation (D-070): the catalogue is "
+            "the content, and this is the reading of it. Computed on demand "
+            "and stored nowhere, so it is always of the revisions it names and "
+            "never a baseline to drift from."
+        ),
+    )
+    state.add_argument(
+        "--repo",
+        dest="aliases",
+        metavar="ALIAS",
+        action="append",
+        default=None,
+        help=(
+            "narrow to one registered repository; repeatable. Omit for the "
+            "whole product, which is the point of the view."
+        ),
+    )
+    state.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the structured state instead of the rendered document",
     )
 
     analyse = subparsers.add_parser(
@@ -952,6 +983,65 @@ def _decider(args: argparse.Namespace) -> tuple[str, str]:
     return inferred, "inferred"
 
 
+def _run_state(args: argparse.Namespace) -> int:
+    """Render the product's current state, or say why it could not be read."""
+    try:
+        with Workspace.open(args.workspace) as workspace:
+            aliases = tuple(args.aliases) if args.aliases else None
+            if aliases is not None:
+                known = {entry.alias for entry in Registry(workspace).list()}
+                unknown = sorted(set(aliases) - known)
+                if unknown:
+                    # Refused rather than rendered as an empty picture: a
+                    # mistyped alias would otherwise read as "this repository
+                    # contributes nothing", which is a claim about the product.
+                    print(
+                        f"{PROG}: error: no registered repository named "
+                        f"{', '.join(repr(a) for a in unknown)}. Known: "
+                        f"{', '.join(sorted(known)) or '(none)'}.",
+                        file=sys.stderr,
+                    )
+                    return EXIT_WORKSPACE
+            state = product_state(workspace, aliases)
+    except WorkspaceError as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_WORKSPACE
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "repositories": [
+                        {
+                            "alias": r.alias,
+                            "mainline": None if r.mainline is None else r.mainline.ref,
+                            "revision": r.revision,
+                            "files": r.file_count,
+                            "claimed_files": r.claimed_files,
+                            "error": r.error,
+                        }
+                        for r in state.repositories
+                    ],
+                    "rules": [
+                        {
+                            "name": item.rule.name,
+                            "area": item.rule.area,
+                            "statement": item.rule.statement,
+                            "holds": item.holds,
+                            "matched": {a: list(p) for a, p in item.matched.items()},
+                        }
+                        for item in state.rules
+                    ],
+                },
+                indent=2,
+            )
+        )
+        return EXIT_OK
+
+    print(render_state(state))
+    return EXIT_OK
+
+
 def _run_config(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Show or change a workspace setting."""
     if args.config_action is None:
@@ -1458,6 +1548,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "publish":
         return _run_publish(args)
+
+    if args.command == "state":
+        return _run_state(args)
 
     if args.command == "analyse":
         return _run_analyse(args)
