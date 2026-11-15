@@ -41,6 +41,8 @@ from .ai import resolve as resolve_provider
 from .operations import (
     export_payload,
     gather,
+    evidence_for_run,
+    evidence_for_version,
     land_ticket,
     product_state,
     publish_document,
@@ -589,7 +591,9 @@ def _report_submission(result) -> int:
     return EXIT_OK
 
 
-def _report_proposals(proposals, reference: str, include_decided: bool) -> int:
+def _report_proposals(
+    proposals, reference: str, include_decided: bool, evidence=None
+) -> int:
     stored = (
         proposals.for_ticket(reference)
         if include_decided
@@ -610,6 +614,16 @@ def _report_proposals(proposals, reference: str, include_decided: bool) -> int:
         print(f"      {item.proposal.statement}")
         area = item.proposal.area or "(unplaced)"
         print(f"      area: {area} — read by {item.attribution}, run {item.run_id}")
+        if evidence is not None:
+            commits = evidence.get(item.run_id, ())
+            if commits:
+                shown = ", ".join(c.short_sha for c in commits[:3])
+                more = "" if len(commits) <= 3 else f" and {len(commits) - 3} more"
+                print(f"      read from {shown}{more}")
+            else:
+                # Said out loud: a reading whose run gathered nothing rests on
+                # evidence this workspace cannot show (D-073).
+                print("      read from no commits — this run gathered none")
         if item.decided_by_description is not None:
             print(f"      {item.decision} by {item.decided_by_description}")
         if item.claims_to_revise:
@@ -776,11 +790,38 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                         f"      accepted by {who} from rule proposal "
                         f"{v['from_rule_proposal_id']}"
                     )
+                    # The question product rule 2 asks of a governance record:
+                    # what evidence is this based on (D-073). A version from
+                    # before schema 13 has no pointer, and says so rather than
+                    # printing nothing.
+                    commits = evidence_for_version(workspace, v["id"])
+                    if commits:
+                        print(f"      read from {len(commits)} commit(s):")
+                        for commit in commits:
+                            where = commit.repository_alias or "(unknown repository)"
+                            print(
+                                f"        {commit.short_sha} in {where} — "
+                                f"{commit.subject}"
+                            )
+                    else:
+                        print(
+                            "      evidence: not recorded — accepted before "
+                            "Constat kept evidence pointers"
+                        )
                 return EXIT_OK
 
             if args.rule_action == "proposals":
+                stored_for_report = RuleProposals(workspace).for_ticket(
+                    args.reference
+                )
                 return _report_proposals(
-                    RuleProposals(workspace), args.reference, args.all
+                    RuleProposals(workspace),
+                    args.reference,
+                    args.all,
+                    evidence={
+                        item.run_id: evidence_for_run(workspace, item.run_id)
+                        for item in stored_for_report
+                    },
                 )
 
             if args.rule_action == "show":

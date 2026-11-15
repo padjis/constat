@@ -2,8 +2,10 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-15):** CON-71 closed (D-072) — an anchor may be grounded in mainline,
-and which ground supports it is recorded. CON-78 and CON-72 closed before it (D-070, D-071) — the
+**Current session (2026-11-15):** CON-79 closed (D-073) — a rule records the evidence it was
+accepted on, as a pointer rather than a copy. Raised and closed in the same session: the defect was
+already true of both rules in the catalogue. CON-71 closed before it (D-072) — an anchor may be
+grounded in mainline, and which ground supports it is recorded. CON-78 and CON-72 closed before it (D-070, D-071) — the
 product's current state can be read, grouped by business area, and a rule may be conditional with
 the condition in its statement. CON-77 (D-070), CON-75 (D-069) and CON-76 (D-068) closed before them today;
 CON-73 (D-065, D-067), CON-74 (D-066), CON-70 (D-064), CON-69 (D-062) and CON-64 (D-063) on
@@ -392,16 +394,15 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-58 — read decisions back, with their channel and verification.** Nothing is blocked on a
-decision from you any more: CON-71 and CON-72 are closed, and every ticket raised in the last two
-days is either done or waiting on evidence rather than on an answer. CON-58 is the half of
-acceptance that is still CLI-only — the publishing port's `read_decisions` raises
-`DecisionsNotReadable` on every target.
+**Decide rule proposal 7 on ticket 615** — the install-pages rule, in the queue since the re-read.
+It is a one-command decision, and it is worth making deliberately because its own entry says its run
+gathered no evidence: accepting it means accepting a statement whose supporting commit the workspace
+cannot show. That is exactly the judgement D-073 made visible, and it is the first proposal to put
+it in front of you.
 
-Before it, consider **re-reading 615 now that an anchor can rest on mainline.** The rule that went
-unproposed there — the install pages deliberately carry no advertising — is proposable for the first
-time, and 615 is the ticket that produced three of the last two days' decisions. One run, and the
-cheapest possible check that D-072 did what it was built for.
+Then **CON-61 — read a frozen version's behaviours and anchors back.** It is the same complaint
+CON-79 just answered for evidence: the frozen version is under-recorded. Doing it next keeps one
+pass over what a `rule_version` owes a reviewer rather than spreading it over three migrations.
 
 Then **CON-58 — read decisions back, with their channel and verification**, the half of acceptance
 that is still CLI-only.
@@ -442,6 +443,64 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-79 — done when: *a rule records the evidence it was accepted on* ✅
+
+`D-073` records the decision. Raised and closed in the same session, because the defect was already
+true of both rules in the live catalogue rather than being a future risk.
+
+**What was wrong.** Re-reading 615 after it landed, the chain
+`rule_version -> rule_proposal -> run -> operation` ended at a summary line reading
+`pending: 1 commit(s)`. No table held a SHA — not the proposal, not the version, not the operation —
+and a landed ticket contributes no evidence (D-031), so the document regenerates with no diffs.
+Product rule 2 was failing for every accepted rule the moment its ticket shipped.
+
+**What changed.**
+
+- `constat/store/schema.py` — schema **13**, `run_commit`: SHA, scrubbed subject, repository alias
+  and repository **identity** (root commit, D-025, so the pointer survives a move or re-clone).
+- `constat/operations.py` — `record_run_evidence` at both run sites, written *before* the readings
+  so a proposal never exists with its pointer missing; `evidence_for_run`, `evidence_for_proposal`
+  and `evidence_for_version` to read it back.
+- `constat/cli.py` — `rule history` names the commits per version, and the review queue says when a
+  run gathered none.
+
+**A pointer, not a copy.** Storing the redacted payload was the alternative and was rejected: it
+becomes a second source of truth that can disagree with git, and grows without bound. The cost is
+that a SHA can dangle, which is why the subject sits beside it — a squash-merge leaves a visible gap
+rather than a blank one, and there is a test for exactly that.
+
+**Two corrections I made to my own proposal while building it.**
+
+1. I had proposed dropping `operation.payload` as dead weight. It is not: the scan-override path
+   writes it to keep a credential-scan override auditable. Withdrawn after reading the code.
+2. The subject is **scrubbed** before storage, which I had not planned. It never leaves the machine,
+   but identity in a store is a disclosure waiting to happen and a subject can carry an address.
+
+### The live workspace now says this, honestly
+
+```
+  [7] install-pages-carry-no-advertising — awaiting a decision
+      area: advertising — read by mcp (claude-opus-5), run 29
+      read from no commits — this run gathered none
+      anchored in mainline, not in this ticket's changes: src/pages/*
+```
+
+That proposal is the 615 rule D-072 made possible, and it rests on a commit comment read earlier in
+the session which the workspace cannot produce. Before CON-79 that was invisible. It is now the
+second line of the entry.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_evidence_pointers.py` → **12 passed** (new file). Whole suite
+→ **1030 passed in 207s**, exit 0, with **no migration fixtures broken** — schema 13's table was
+registered in `helpers.TABLES_INTRODUCED_AT` before running it, which is the second time that map
+has paid for itself.
+
+The headline test is `test_the_pointer_survives_the_ticket_landing`: accept while pending, land the
+work, assert the ticket now contributes no evidence *and* the version still names its commit.
 
 ---
 

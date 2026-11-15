@@ -8,6 +8,53 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-073 · 2026-11-15 · A rule records the evidence it was accepted on, as a pointer
+
+**Decision.** A run writes down the commits whose evidence it read: SHA, identity-scrubbed subject,
+the repository's alias, and the repository's **identity** (its root commit, D-025). An accepted rule
+version resolves to them through the reading it was baselined from. The evidence itself is **not**
+copied into the workspace.
+
+**Context.** CON-79, found by re-reading 615 after it landed. The chain
+`rule_version -> rule_proposal -> run -> operation` ended at a summary line reading
+`pending: 1 commit(s)`. No table in the workspace held a commit SHA — not the proposal, not the
+version, not the operation — and once a ticket lands it contributes no evidence (D-031), so the
+document regenerates with no diffs. Both rules in the live catalogue had been accepted on evidence
+the workspace could no longer produce. Product rule 2 requires an important claim to point at a
+source commit; it was failing for every rule as soon as its ticket shipped.
+
+**A pointer rather than a copy.** Storing the redacted payload was the alternative and was rejected:
+a copy in the governance store becomes a second source of truth that can disagree with git — the
+failure D-002 avoids by shelling out to git rather than reimplementing it — and it grows without
+bound, every gather on every ticket with diff excerpts, forever.
+
+**The cost of that choice is a dangling SHA**, and it is accepted with its mitigation. A squash-merge
+or a force-push destroys the commit a rule points at. The subject is therefore stored beside the
+SHA, so a broken pointer still says *what* it pointed at and the gap is visible rather than blank.
+
+**Consequences.**
+
+- **Stored against the run, not copied onto each reading.** Every reading of one run read the same
+  evidence, and `run_commit` is itself append-only history: a reference to an immutable row is as
+  durable as a duplicate of it and does not create two places for one fact.
+- **The subject is scrubbed even though it never leaves the machine.** Identity in a store is a
+  disclosure waiting to happen (`ai/redaction.py`), a subject can carry an address, and over-masking
+  a pointer costs nothing because the SHA is what resolves it.
+- **Nothing is back-filled, and here that is not only principle.** The evidence those earlier runs
+  read is *gone*. There is nothing to recover, and inventing a SHA would be the worst possible lie
+  to tell in a governance record. Rules accepted before schema 13 report "evidence: not recorded".
+- **A run that read nothing records nothing, and says so.** The review queue prints "read from no
+  commits — this run gathered none", which is exactly the state D-072 made possible: a rule can now
+  be proposed for a landed ticket, and a reviewer must be able to see that its run had no evidence
+  behind it.
+- **`operation.payload` is untouched.** It looked like dead weight and is not: the scan-override
+  path writes it to keep a credential-scan override auditable. Dropping it was proposed and
+  withdrawn after reading the code.
+
+**Status.** accepted.
+
+---
+
 ## D-072 · 2026-11-15 · An anchor may be grounded in mainline, and which ground is recorded
 
 **Decision.** An anchor is grounded if it names a path in the ticket's evidence **or** a path that

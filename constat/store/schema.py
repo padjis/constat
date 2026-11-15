@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -94,6 +94,40 @@ CREATE TABLE run (
     kind        TEXT    NOT NULL,
     started_at  TEXT    NOT NULL
 );
+
+-- The commits whose evidence a run read (D-073, CON-79). Without this a rule
+-- is accepted on evidence the workspace cannot afterwards produce: the chain
+-- rule_version -> rule_proposal -> run -> operation ended at a summary line
+-- reading "pending: 1 commit(s)", and once the ticket landed the document
+-- regenerated with no diffs at all. Product rule 2 requires an important claim
+-- to point at a source commit; this is the pointer.
+--
+-- **A pointer, not a copy.** The payload is deliberately not stored: a copy in
+-- the governance store becomes a second source of truth that can disagree with
+-- git, which is the failure D-002 avoids by shelling out to git rather than
+-- reimplementing it, and it would grow without bound.
+--
+-- `repository_identity` is the root commit (D-025) rather than a path or an
+-- alias, so the pointer survives the repository being moved, renamed or
+-- re-cloned. `repository_id` is a convenience for joins and may be nulled by a
+-- repository being unregistered; the identity is what endures.
+--
+-- `subject` is stored because a SHA can dangle. A squash-merge or a force-push
+-- destroys the commit a rule points at, and a pointer that can still say
+-- *what* it pointed at leaves a visible gap rather than a blank one. It is
+-- already identity-scrubbed on the way in.
+CREATE TABLE run_commit (
+    id                  INTEGER PRIMARY KEY,
+    run_id              INTEGER NOT NULL REFERENCES run(id) ON DELETE CASCADE,
+    repository_id       INTEGER REFERENCES repository(id),
+    repository_identity TEXT,
+    repository_alias    TEXT,
+    sha                 TEXT    NOT NULL,
+    subject             TEXT    NOT NULL DEFAULT '',
+    UNIQUE (run_id, sha)
+);
+
+CREATE INDEX idx_run_commit_run ON run_commit(run_id);
 
 -- What ran, against which repository, and what it contributed. Without this a
 -- document becomes unattributable prose, which is the failure this product
@@ -612,5 +646,25 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
         "ALTER TABLE rule_proposal_anchor ADD COLUMN grounded_in TEXT",
         "ALTER TABLE anchor ADD COLUMN grounded_in TEXT",
         "ALTER TABLE rule_version_anchor ADD COLUMN grounded_in TEXT",
+    ),
+    # 12 -> 13: a run records the commits it read (D-073, CON-79).
+    #
+    # Nothing is back-filled, and for once that is not only a matter of
+    # principle: the evidence those runs read is **gone**. A landed ticket
+    # contributes no evidence, the documents were regenerated, and no SHA was
+    # ever written down — so there is nothing to recover and inventing one
+    # would be the worst possible lie to tell in a governance record. Rules
+    # accepted before schema 13 have no evidence pointer and say so.
+    12: (
+        "CREATE TABLE run_commit ("
+        " id INTEGER PRIMARY KEY,"
+        " run_id INTEGER NOT NULL REFERENCES run(id) ON DELETE CASCADE,"
+        " repository_id INTEGER REFERENCES repository(id),"
+        " repository_identity TEXT,"
+        " repository_alias TEXT,"
+        " sha TEXT NOT NULL,"
+        " subject TEXT NOT NULL DEFAULT '',"
+        " UNIQUE (run_id, sha))",
+        "CREATE INDEX idx_run_commit_run ON run_commit(run_id)",
     ),
 }

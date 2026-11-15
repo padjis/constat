@@ -163,7 +163,10 @@ every later addition, and three separate tests were each doing that by hand.
 The third new migration in a row broke all of them, which is what this exists
 to stop."""
 
-TABLES_INTRODUCED_AT: dict[int, tuple[str, ...]] = {8: ("setting",)}
+TABLES_INTRODUCED_AT: dict[int, tuple[str, ...]] = {
+    8: ("setting",),
+    13: ("run_commit",),
+}
 
 
 def rewind_workspace(db: Path, to_version: int) -> None:

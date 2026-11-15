@@ -37,6 +37,7 @@ from .ai import (
     scan,
 )
 from .ai import MCP_READER_NOTE
+from .ai.redaction import scrub_message
 from .ai import resolve as resolve_provider
 from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
@@ -898,6 +899,9 @@ def submit_reply(
     result = parse(text, payload, mainline_files(workspace))
 
     run_id = open_run(workspace, reference, "submit_reply")
+    # Before the readings are stored, so a proposal never exists with its
+    # evidence pointer missing (D-073).
+    record_run_evidence(workspace, run_id, findings)
     proposals = RuleProposals(workspace)
     stored = []
     candidates: dict[int, tuple[int, ...]] = {}
@@ -946,6 +950,112 @@ def _document_id(workspace: Workspace, reference: str) -> int:
         "WHERE t.reference = ?",
         (reference,),
     ).fetchone()["id"]
+
+
+@dataclass(frozen=True)
+class EvidenceCommit:
+    """A commit a run read, as the record keeps it (D-073)."""
+
+    sha: str
+    subject: str
+    repository_alias: str | None
+    repository_identity: str | None
+
+    @property
+    def short_sha(self) -> str:
+        return self.sha[:12]
+
+
+def record_run_evidence(
+    workspace: Workspace, run_id: int, findings: tuple[RepositoryFindings, ...]
+) -> int:
+    """Write down which commits this run read, and return how many.
+
+    Called once per run, because every reading of that run read the same
+    evidence. A rule version reaches it through
+    `rule_version -> rule_proposal -> run`, which is why this is stored against
+    the run rather than copied onto each proposal.
+
+    Nothing is stored for a run that read nothing — a landed ticket contributes
+    no evidence (D-031), and an empty pointer set is the honest record of that.
+    """
+    rows = [
+        (
+            run_id,
+            finding.repository.alias,
+            finding.repository.identity,
+            commit.sha,
+            # Scrubbed, even though this never leaves the machine. The
+            # redaction boundary exists because identity in a store is a
+            # disclosure waiting to happen (`ai/redaction.py`), and a subject
+            # can carry an address. Over-masking a pointer costs nothing; the
+            # SHA is what resolves it.
+            scrub_message(commit.subject),
+        )
+        for finding in findings
+        for commit in finding.commits
+    ]
+    if not rows:
+        return 0
+
+    with workspace.transaction() as ws:
+        for run, alias, identity, sha, subject in rows:
+            ws.execute(
+                "INSERT OR IGNORE INTO run_commit "
+                "(run_id, repository_id, repository_identity, repository_alias, "
+                " sha, subject) VALUES "
+                "(?, (SELECT id FROM repository WHERE alias = ?), ?, ?, ?, ?)",
+                (run, alias, identity, alias, sha, subject),
+            )
+    return len(rows)
+
+
+def evidence_for_run(workspace: Workspace, run_id: int) -> tuple[EvidenceCommit, ...]:
+    """The commits a run read. Empty when it read none, or predates D-073."""
+    rows = workspace.execute(
+        "SELECT sha, subject, repository_alias, repository_identity "
+        "FROM run_commit WHERE run_id = ? ORDER BY repository_alias, sha",
+        (run_id,),
+    ).fetchall()
+    return tuple(
+        EvidenceCommit(
+            sha=row["sha"],
+            subject=row["subject"],
+            repository_alias=row["repository_alias"],
+            repository_identity=row["repository_identity"],
+        )
+        for row in rows
+    )
+
+
+def evidence_for_proposal(
+    workspace: Workspace, proposal_id: int
+) -> tuple[EvidenceCommit, ...]:
+    """The commits behind one reading, through the run that gathered them."""
+    row = workspace.execute(
+        "SELECT run_id FROM rule_proposal WHERE id = ?", (proposal_id,)
+    ).fetchone()
+    return () if row is None else evidence_for_run(workspace, int(row["run_id"]))
+
+
+def evidence_for_version(
+    workspace: Workspace, rule_version_id: int
+) -> tuple[EvidenceCommit, ...]:
+    """The commits an accepted rule version rests on (D-073).
+
+    The question product rule 2 asks of a governance record: what evidence is
+    this claim based on. Resolved through the reading rather than copied onto
+    the version, because `run_commit` is itself append-only history — a
+    reference to an immutable row is as durable as a duplicate of it, and does
+    not create two places for the same fact to live.
+    """
+    row = workspace.execute(
+        "SELECT p.run_id FROM rule_version v "
+        "JOIN rule_proposal p ON p.id = v.from_rule_proposal_id "
+        "WHERE v.id = ?",
+        (rule_version_id,),
+    ).fetchone()
+    return () if row is None else evidence_for_run(workspace, int(row["run_id"]))
 
 
 def open_run(workspace: Workspace, reference: str, kind: str) -> int:
@@ -1119,6 +1229,7 @@ def gather(
 
     document_id = _document_id(workspace, reference)
     run_id = open_run(workspace, reference, "gather_evidence")
+    record_run_evidence(workspace, run_id, findings)
 
     # Stored *before* the document is rendered, so the body shows the queue a
     # reviewer actually faces — including what this run just proposed. Storing
