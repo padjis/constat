@@ -119,8 +119,14 @@ class Review:
             return int(row["id"]), False
 
         cursor = self._workspace.execute(
-            "INSERT INTO rule (name, statement, created_at) VALUES (?, ?, ?)",
-            (stored.proposal.name, stored.proposal.statement, utc_now()),
+            "INSERT INTO rule (name, statement, area, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (
+                stored.proposal.name,
+                stored.proposal.statement,
+                stored.proposal.area,
+                utc_now(),
+            ),
         )
         return int(cursor.lastrowid), True
 
@@ -140,13 +146,15 @@ class Review:
         with self._workspace.transaction() as ws:
             cursor = ws.execute(
                 "INSERT INTO rule_version "
-                "(rule_id, version_no, name, statement, from_rule_proposal_id, "
-                " previous_version_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "(rule_id, version_no, name, statement, area, "
+                " from_rule_proposal_id, previous_version_id, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     rule_id,
                     version_no,
                     stored.proposal.name,
                     stored.proposal.statement,
+                    stored.proposal.area,
                     stored.id,
                     previous_id,
                     now,
@@ -172,8 +180,13 @@ class Review:
             # the same reason `document` is: it is the working view, and the
             # durable record is the frozen version beside it.
             ws.execute(
-                "UPDATE rule SET name = ?, statement = ? WHERE id = ?",
-                (stored.proposal.name, stored.proposal.statement, rule_id),
+                "UPDATE rule SET name = ?, statement = ?, area = ? WHERE id = ?",
+                (
+                    stored.proposal.name,
+                    stored.proposal.statement,
+                    stored.proposal.area,
+                    rule_id,
+                ),
             )
             ws.execute("DELETE FROM behaviour WHERE rule_id = ?", (rule_id,))
             ws.execute("DELETE FROM anchor WHERE rule_id = ?", (rule_id,))
@@ -202,7 +215,7 @@ class Review:
         history wants what was recorded rather than a reconstructed object.
         """
         rows = self._workspace.execute(
-            "SELECT v.id, v.version_no, v.name, v.statement, v.created_at, "
+            "SELECT v.id, v.version_no, v.name, v.statement, v.area, v.created_at, "
             "       v.from_rule_proposal_id, d.decided_by, d.attribution, "
             "       d.decided_at "
             "FROM rule_version v "

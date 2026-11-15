@@ -663,7 +663,7 @@ def known_rules(workspace: Workspace) -> tuple[KnownRule, ...]:
     the failure CON-43 exists to prevent (D-050).
     """
     rows = workspace.execute(
-        "SELECT id, name, statement FROM rule ORDER BY id"
+        "SELECT id, name, statement, area FROM rule ORDER BY id"
     ).fetchall()
     rules = []
     for row in rows:
@@ -677,6 +677,7 @@ def known_rules(workspace: Workspace) -> tuple[KnownRule, ...]:
                 name=row["name"],
                 statement=row["statement"],
                 anchors=tuple(a["path_glob"] for a in anchors),
+                area=row["area"],
             )
         )
     return tuple(rules)

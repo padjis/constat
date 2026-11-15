@@ -148,6 +148,18 @@ class Rule(Frozen):
     created_at: datetime
     behaviours: tuple[Behaviour, ...] = ()
     anchors: tuple[Anchor, ...] = ()
+    area: str | None = None
+    """The business area this rule belongs to (D-070).
+
+    Structure rather than decoration: the catalogue is the product's business
+    documentation, and a documentation set with no organisation is a list
+    nobody reads. Grouping by repository or directory would organise it by
+    where the code lives, which is the one axis a business reader does not
+    care about.
+
+    None is a real value — "unplaced". A rule accepted before areas existed
+    has no area, and a reading that cannot see where a rule belongs should say
+    nothing rather than invent a heading."""
 
 
 class RuleProposal(Frozen):
@@ -172,6 +184,19 @@ class RuleProposal(Frozen):
     not a key: a human accepting the reading accepts the claim with it, and a
     wrong one is rejectable rather than a corrupted identity. None means the
     reading claims to be new."""
+    area: str | None = None
+    """The business area this rule belongs to (D-070).
+
+    Structure rather than decoration: the catalogue is the product's business
+    documentation, and a documentation set with no organisation is a list
+    nobody reads. Grouping by repository or directory would organise it by
+    where the code lives, which is the one axis a business reader does not
+    care about.
+
+    None is a real value — "unplaced". A rule accepted before areas existed
+    has no area, and a reading that cannot see where a rule belongs should say
+    nothing rather than invent a heading."""
+
     relation: Literal["establishes", "revises", "repairs"] = "establishes"
     """How this reading stands to the catalogue (D-065).
 

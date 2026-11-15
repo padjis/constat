@@ -8,6 +8,54 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-070 · 2026-11-15 · The catalogue is the business documentation, read as a current picture
+
+**Decision.** Four answers, taken together because they describe one thing.
+
+1. **The accepted rules *are* the business documentation.** Constat renders them; there is no second
+   editable artifact and nothing to approve twice. Approving a rule is approving the documentation.
+2. **The picture is product-level.** One view across every registered repository, each pinned at its
+   own mainline revision, with a per-repository filter rather than a per-repository primary form.
+3. **A rule never leaves the picture automatically.** When its anchored paths no longer exist in
+   mainline it is *flagged* as a retirement candidate. A person decides, as with everything else
+   that changes the catalogue (D-048).
+4. **A reading proposes the business area a rule belongs to.** The catalogue has structure rather
+   than being a flat list, and the area is a claim a human accepts with the rule.
+
+**Context.** Accepting a ticket's rules should expand the scope of the product's documentation, not
+just record that one ticket. Nothing in the product did that. Three things were called "baseline"
+and none was the state of the product: `rule accept` baselines a *rule version*, which has no
+repository and no revision column; `document_version` is per ticket; and `constat snapshot` prints
+a description of a revision and stores nothing — its own help says it is what a baseline is "made
+from". So `rule list` returned every rule ever accepted with nothing tying it to `main`, and "what
+applies now" was unanswerable. PRODUCT_SPEC § 6 has promised this since the first version.
+
+**It also reframes CON-71.** That ticket asked what grounding means when a rule is attested by
+evidence it is not anchored to — a real rule went unproposed on 615 because its home, `src/pages/`,
+was not in the commit's diff. The cause is that evidence is only ever a *ticket delta*. Against the
+state of mainline the rule is groundable, so the question may dissolve rather than need an answer.
+
+**Consequences.**
+
+- **Computed, not stored.** The picture is derived on demand, so nothing is frozen and nothing can
+  drift from it. **CON-15** — compare against the last approved baseline — therefore stays open and
+  still needs a stored baseline; drift cannot be measured against a view that is recomputed. Reading
+  the rendered picture first is the cheaper way to learn what is worth freezing.
+- **An area is a business statement.** D-066 applies to it unchanged: "advertising" is an area,
+  `DeviceProvisioningService` is a package. Same gate, no new machinery.
+- **The area is separately rejectable.** A sound rule in the wrong area must be answerable without
+  rejecting the rule, because it is a distinct claim.
+- **Taxonomy drift is expected and unsolved.** Successive readings will offer "advertising", then
+  "ads", then "monetisation". The payload already shows the catalogue, so the guidance requires
+  reusing an existing area where one fits, but nothing enforces it and a human will have to correct
+  it for a while. Stated now rather than discovered later.
+- **No retire decision yet.** Flagging only. If the flag proves to be ignored noise, that is the
+  evidence for adding one — not an assumption to build on first.
+
+**Status.** accepted.
+
+---
+
 ## D-069 · 2026-11-15 · Constat's own commits are not evidence, and the exclusion is stated
 
 **Decision.** A commit Constat made is left out of a ticket's evidence. It is identified by a

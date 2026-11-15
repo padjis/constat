@@ -40,6 +40,7 @@ from .ai.guidance import (
     ANCHORS,
     NOTHING_IS_ACCEPTED,
     REPLY_SHAPE,
+    AREAS,
     PENDING,
     RELATIONS,
     REVISION,
@@ -307,7 +308,8 @@ def build_server(workspace_home: str | None = None):
             "conclusions as JSON.\n"
             "4. Tell me what was stored and what was discarded, with the "
             "reasons.\n\n"
-            f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{RELATIONS}\n\n{REVISION}\n\n"
+            f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{AREAS}\n\n{RELATIONS}\n\n"
+            f"{REVISION}\n\n"
             f"{PENDING}\n\n"
             f"{NOTHING_IS_ACCEPTED}\n\n"
             "The reply for step 3 is JSON in this shape:\n\n"

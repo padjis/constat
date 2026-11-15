@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pytest
 
+from helpers import rewind_workspace
+
 from constat.cli import EXIT_OK, EXIT_PROVIDER, EXIT_USAGE, main
 from constat.errors import InvalidInput
 from constat.store import SCHEMA_VERSION, READER_MCP, READER_PROVIDER, Settings, TicketStore, Workspace
@@ -127,23 +129,11 @@ class TestMigrationDoesNotChangeBehaviour:
         main(["--workspace", ws, "init"])
         db = Path(ws) / "workspace.db"
 
-        # Rewind to schema 7 as a workspace created yesterday would be. Every
-        # later schema's additions have to go, or their migrations fail on
-        # columns that are already there.
-        connection = sqlite3.connect(db)
-        connection.execute("DROP TABLE setting")
-        connection.execute("ALTER TABLE rule_proposal_decision DROP COLUMN attribution")
-        connection.execute("DROP TRIGGER rule_proposal_is_append_only_update")
-        connection.execute("ALTER TABLE rule_proposal DROP COLUMN relation")
-        connection.execute(
-            "CREATE TRIGGER rule_proposal_is_append_only_update "
-            "BEFORE UPDATE ON rule_proposal BEGIN "
-            "SELECT RAISE(ABORT, 'rule_proposal is append-only: a reading "
-            "cannot be edited'); END"
-        )
-        connection.execute("UPDATE schema_meta SET schema_version = 7")
-        connection.commit()
-        connection.close()
+        # Rewound by the shared helper, which knows every later schema's
+        # additions. Doing it inline here meant three test files each undoing
+        # the same migrations by hand, and every new migration broke all of
+        # them.
+        rewind_workspace(db, 7)
 
         with Workspace.open(ws) as workspace:   # migrates 7 -> current
             # Asserted against SCHEMA_VERSION rather than a literal, so the

@@ -155,15 +155,16 @@ class RuleProposals:
         with self._workspace.transaction() as ws:
             cursor = ws.execute(
                 "INSERT INTO rule_proposal "
-                "(run_id, name, statement, revises_rule_id, relation, provider, "
-                " model, model_attested, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(run_id, name, statement, revises_rule_id, relation, area, "
+                " provider, model, model_attested, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     run_id,
                     proposal.name,
                     proposal.statement,
                     revises_rule_id,
                     proposal.relation,
+                    proposal.area,
                     provider,
                     model,
                     int(model_attested),
@@ -379,6 +380,7 @@ class RuleProposals:
                 anchors=anchors,
                 revises_rule_id=row["revises_rule_id"],
                 relation=_relation_of(row),
+                area=row["area"] if "area" in row.keys() else None,
             ),
             provider=row["provider"],
             model=row["model"],

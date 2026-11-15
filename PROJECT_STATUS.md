@@ -2,11 +2,12 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-15):** CON-75 closed (D-069) — Constat's own commits are not evidence,
-and the exclusion is stated. CON-76 closed before it (D-068). CON-73 (D-065, D-067), CON-74
-(D-066), CON-70 (D-064), CON-69 (D-062) and CON-64 (D-063) closed on 2026-11-14. Every one came out
-of reading tickets 615 and 628 through the MCP loop rather than out of reading the code — which is
-the clearest argument available for running the product before extending it.
+**Current session (2026-11-15):** CON-77 closed (D-070) — a rule carries a business area, the
+first half of making the catalogue the product's documentation. CON-75 (D-069) and CON-76 (D-068)
+closed before it today; CON-73 (D-065, D-067), CON-74 (D-066), CON-70 (D-064), CON-69 (D-062) and
+CON-64 (D-063) on 2026-11-14. Every one came out of reading tickets 615 and 628 through the MCP
+loop rather than out of reading the code — the clearest argument available for running the product
+before extending it.
 
 ---
 
@@ -390,21 +391,26 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-71 and CON-72 need a decision from you, and nothing else is blocked on code.** Both came out
-of the first real reading and both are cheap once answered:
+**CON-78 — the current picture of the product.** `constat state` renders the accepted rules by area
+across every registered repository, each pinned at its own mainline revision, flagging rules whose
+anchors no longer exist and paths no rule claims. D-070 settled the shape; CON-77 supplied the
+grouping.
 
-- **CON-71** — what grounding means when a rule is attested by evidence it is not anchored to. A
-  real rule went unproposed on 615 because its home was a path the commit never touched.
-- **CON-72** — whether a rule may be conditional on a transient business state. Rule 1 in your
-  catalogue is conditional ("while the site is not approved") and already immutable, so the answer
-  decides whether it should be superseded.
+It is also the only way to ground a rule once its ticket has landed, which is a defect today and
+not a nicety: a rule submitted for 628 is refused outright because a landed ticket contributes no
+evidence. **CON-71 should wait for it** — the grounding question may dissolve rather than need an
+answer.
 
-Then **CON-58 — read decisions back, with their channel and verification**, which is the larger
-piece and the half of acceptance that is still CLI-only.
+Then **CON-58 — read decisions back, with their channel and verification**, the half of acceptance
+that is still CLI-only.
 
-Also open, and unanswered rather than unbuilt: whether a merge commit should contribute evidence
-**at all** (noted on CON-75). A human merging a branch through a forge double-counts the same way
-and carries no trailer to filter on. Worth a real human merge as evidence before deciding.
+**CON-72 is answered** (a rule may be conditional on a transient state) and needs one guidance
+sentence saying so, plus a choice on whether the condition must be visible in the statement. Rule 1
+in the catalogue is conditional and already immutable, so the answer decides only what future
+readings do.
+
+Also unanswered rather than unbuilt: whether a merge commit should contribute evidence **at all**
+(noted on CON-75). Worth waiting for a real human merge as evidence.
 
 ~~Re-read ticket 628, now that a repair is sayable~~ **done 2026-11-14.** It worked: three
 proposals became one, relation `repairs`, and the concurrency clause is gone from the statement.
@@ -437,6 +443,55 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26), and `tryconstat.com`
 is unregistered (CON-21).
+
+---
+
+## CON-77 — done when: *a rule carries a business area* ✅
+
+`D-070` records the decision and the three answers that came with it. The catalogue is the product's
+business documentation, and documentation with no organisation is a list nobody reads.
+
+**What changed.**
+
+- `constat/store/schema.py` — schema **11**. `area` on `rule_proposal`, `rule` and `rule_version`.
+  Nullable everywhere and **no back-fill**: a rule accepted before areas existed was accepted
+  without one, and inventing an area for a frozen version would put a claim nobody made into a
+  governance record.
+- `constat/ai/parsing.py` — the area goes through **D-066's leakage gate unchanged**. "Advertising"
+  is an area; `DeviceProvisioningService`, `commons/src/main/java` and `device_provisioning` are
+  not. Plus a 60-character limit, because an area is a heading and a long one is a statement that
+  wandered into the wrong field.
+- `constat/ai/guidance.py`, `constat/mcp.py` — an `AREAS` block on both prompt paths, requiring
+  reuse of an existing area and permitting omission where the evidence does not show one.
+- `constat/ai/redaction.py`, `constat/operations.py` — `KnownRule.area`, so a reading can see the
+  areas already in use. Without it every reading coins a synonym.
+- `constat/store/acceptance.py` — the area reaches the rule *and* is frozen on the version, so a
+  later re-grouping cannot rewrite what an earlier reviewer accepted.
+- `constat/cli.py` — `rule list` groups by area with `(unplaced)` last, because unplaced is a gap
+  rather than a section; `rule show` and the review queue both name it.
+
+**Test infrastructure, fixed once.** This was the **third** migration in a row to break the same
+three fixtures: each winds a workspace back by version number and had to drop every later schema's
+columns by hand. `helpers.rewind_workspace` now owns that, with an `INTRODUCED_AT` map to extend
+when a migration lands. Three call sites, one place to maintain.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_rule_areas.py` → **22 passed** (new file). **Whole suite**,
+twice, because the schema changed: first run **5 failed, 981 passed** (all five the fixture problem
+above), then **986 passed in 177s**, exit 0.
+
+### A finding that makes CON-78 next
+
+Testing this against a copy of the live workspace, a rule submitted for 628 was discarded as
+**ungrounded** — 628 has landed, and a landed ticket contributes no evidence (D-031), so none of its
+paths are in the window to anchor against.
+
+**Once a ticket lands, no rule can be proposed for it at all.** That is the same root cause as
+CON-71 — evidence is only ever a ticket delta — and sharper than the 615 case that raised it: there
+one rule went unproposed, here every rule for the ticket is refused. Grounding against the state of
+mainline fixes both, so CON-78 should land before CON-71 is answered. CON-71 may have no answer left
+to give.
 
 ---
 

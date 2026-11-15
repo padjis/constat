@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -124,6 +124,7 @@ CREATE TABLE rule (
     id          INTEGER PRIMARY KEY,
     name        TEXT    NOT NULL,
     statement   TEXT    NOT NULL,
+    area        TEXT,
     created_at  TEXT    NOT NULL
 );
 
@@ -149,6 +150,7 @@ CREATE TABLE rule_proposal (
     statement       TEXT    NOT NULL,
     revises_rule_id INTEGER REFERENCES rule(id),
     relation        TEXT    CHECK (relation IN ('establishes', 'revises', 'repairs')),
+    area            TEXT,
     provider        TEXT    NOT NULL,
     model           TEXT,
     model_attested  INTEGER NOT NULL DEFAULT 0,
@@ -214,12 +216,16 @@ CREATE TABLE rule_proposal_decision (
 -- `from_rule_proposal_id` is what makes a rule traceable: every version points
 -- at the reading a human accepted to produce it, and that reading points at
 -- the run whose evidence it read.
+-- `area` is frozen here beside the name and statement (D-070). Which business
+-- area a rule was understood to belong to is part of what a human accepted,
+-- and a later re-grouping must not rewrite what an earlier reviewer agreed to.
 CREATE TABLE rule_version (
     id                    INTEGER PRIMARY KEY,
     rule_id               INTEGER NOT NULL REFERENCES rule(id),
     version_no            INTEGER NOT NULL,
     name                  TEXT    NOT NULL,
     statement             TEXT    NOT NULL,
+    area                  TEXT,
     from_rule_proposal_id INTEGER NOT NULL REFERENCES rule_proposal(id),
     previous_version_id   INTEGER REFERENCES rule_version(id),
     created_at            TEXT    NOT NULL,
@@ -575,5 +581,17 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     # by the same parse as a fresh one.
     9: (
         "ALTER TABLE rule_proposal ADD COLUMN relation TEXT",
+    ),
+    # 10 -> 11: a rule belongs to a business area (D-070, CON-77).
+    #
+    # Nullable everywhere, and no back-fill. A rule accepted before areas
+    # existed was accepted without one, and inventing an area for it would put
+    # a claim nobody made into a frozen version — the same reason schema 10
+    # left `relation` NULL on historical readings. An unplaced rule renders
+    # under "unplaced", which is accurate.
+    10: (
+        "ALTER TABLE rule_proposal ADD COLUMN area TEXT",
+        "ALTER TABLE rule ADD COLUMN area TEXT",
+        "ALTER TABLE rule_version ADD COLUMN area TEXT",
     ),
 }

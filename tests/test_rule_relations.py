@@ -41,6 +41,7 @@ from constat.store import Registry, Review, RuleProposals, TicketStore, Workspac
 from constat.store.schema import SCHEMA_VERSION
 from constat.store.workspace import utc_now
 
+from helpers import rewind_workspace
 from test_runs import distinct_subject
 
 
@@ -267,18 +268,7 @@ class TestMigrationFromSchema9:
             TicketStore(ws).add(REFERENCE)
             proposal_id = _record(ws, "establishes")
 
-        connection = sqlite3.connect(home / "workspace.db")
-        connection.execute("DROP TRIGGER rule_proposal_is_append_only_update")
-        connection.execute("ALTER TABLE rule_proposal DROP COLUMN relation")
-        connection.execute(
-            "CREATE TRIGGER rule_proposal_is_append_only_update "
-            "BEFORE UPDATE ON rule_proposal BEGIN "
-            "SELECT RAISE(ABORT, 'rule_proposal is append-only: a reading "
-            "cannot be edited'); END"
-        )
-        connection.execute("UPDATE schema_meta SET schema_version = 9 WHERE id = 1")
-        connection.commit()
-        connection.close()
+        rewind_workspace(home / "workspace.db", 9)
         return proposal_id
 
     def test_the_workspace_is_migrated_on_open(self, tmp_path: Path) -> None:

@@ -46,6 +46,10 @@ FENCE = re.compile(r"^\s*```(?:json)?\s*(?P<body>.*?)\s*```\s*$", re.DOTALL)
 pragmatism, not laxity: the content inside still has to parse, and anything
 that is not JSON is still refused."""
 
+MAX_AREA = 60
+"""An area is a heading, not a sentence. A long one is a statement that has
+wandered into the wrong field."""
+
 RELATIONS = ("establishes", "revises", "repairs")
 """How a reading may stand to the catalogue (D-065). Kept here beside the
 parse that enforces it: SQLite cannot add a CHECK to an existing column, so a
@@ -253,6 +257,29 @@ def parse(text: str, payload: ProviderPayload) -> ParseResult:
             rejections.append(Rejection(label, "duplicate name in one reply"))
             continue
 
+        area = raw.get("area")
+        area = area.strip() if isinstance(area, str) else ""
+        if area:
+            if len(area) > MAX_AREA:
+                rejections.append(
+                    Rejection(label, f"'area' is longer than {MAX_AREA} characters")
+                )
+                continue
+            # D-066 unchanged: "advertising" is an area, a package name is not.
+            # The same gate, because an area is a business statement too — the
+            # heading a business reader navigates by (D-070).
+            leak = code_leakage(area)
+            if leak is not None:
+                rejections.append(
+                    Rejection(
+                        label,
+                        f"'area' is not a business area — it contains {leak}. "
+                        "An area is what a business reader would call this part "
+                        "of the product (D-066, D-070).",
+                    )
+                )
+                continue
+
         relation = raw.get("relation")
         relation = relation.strip().lower() if isinstance(relation, str) else None
         if relation is not None and relation not in RELATIONS:
@@ -344,6 +371,7 @@ def parse(text: str, payload: ProviderPayload) -> ParseResult:
                 anchors=anchors,
                 revises_rule_id=revises,
                 relation=relation,
+                area=area or None,
             )
         )
 

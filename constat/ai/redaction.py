@@ -130,6 +130,11 @@ class KnownRule:
     name: str
     statement: str
     anchors: tuple[str, ...] = ()
+    area: str | None = None
+    """So a reading can reuse an area rather than coin a synonym for it. The
+    taxonomy drifts into "advertising", "ads" and "monetisation" otherwise —
+    stated in D-070 as expected and unsolved, and showing what exists is the
+    cheapest thing that helps."""
 
 
 @dataclass(frozen=True)

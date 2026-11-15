@@ -110,6 +110,7 @@ class Catalogue:
         return Rule(
             name=row["name"],
             statement=row["statement"],
+            area=row["area"] if "area" in row.keys() else None,
             created_at=datetime.fromisoformat(row["created_at"]),
             behaviours=behaviours,
             anchors=anchors,

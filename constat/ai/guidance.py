@@ -54,6 +54,23 @@ behaviour changed is for a reviewer to say. A proposal anchored to a path \
 nobody sent is discarded with a reason, so inventing one wastes the run.\
 """
 
+AREAS = """\
+Put each rule in a business area: the heading a business reader would look \
+under to find it. "Advertising", "device provisioning", "payouts". Not a \
+module, a package, a service or a directory — the area is for someone who \
+never opens the code, and an area naming code is refused the same way a \
+statement naming code is.
+
+**Reuse an area that already exists.** You are shown the catalogue, including \
+the area of every rule in it. If one of them fits, use its exact wording. \
+Coining "ads" when "advertising" is already there splits one part of the \
+product into two headings and a person then has to merge them.
+
+Leave the area out if the evidence does not show where the rule belongs. An \
+omitted area reads as unplaced, which is honest; a guessed one quietly \
+reorganises the documentation.\
+"""
+
 RELATIONS = """\
 Say how each rule stands to the catalogue, in `relation`:
 
@@ -98,6 +115,7 @@ REPLY_SHAPE = """\
             "behaviours": ["What the system does"],
             "anchors": [{"path_glob": "path/from/the/evidence.py",
                          "repository_alias": "alias"}],
+            "area": "advertising",
             "relation": "establishes",
             "revises": 3}]}\
 """
@@ -108,11 +126,13 @@ def for_system_prompt() -> str:
     return (
         "You are reading the evidence for one software ticket and identifying "
         "the business rules it touches.\n\n"
-        f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{RELATIONS}\n\n{REVISION}\n\n{PENDING}\n\n"
+        f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{AREAS}\n\n{RELATIONS}\n\n"
+        f"{REVISION}\n\n{PENDING}\n\n"
         f"{NOTHING_IS_ACCEPTED}\n\n"
         "Reply with JSON and nothing else, in exactly this shape:\n\n"
         f"{REPLY_SHAPE}\n\n"
-        '`relation` defaults to `establishes`; `revises` is required only for a '
+        '`area` and `relation` are optional; `relation` defaults to '
+        '`establishes`, and `revises` is required only for a '
         'revision and must be absent for a repair. Return {"rules": []} '
         "if the evidence supports none."
     )

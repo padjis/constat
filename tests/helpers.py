@@ -125,3 +125,76 @@ def _now() -> str:
     from constat.store.workspace import utc_now
 
     return utc_now()
+
+
+# -- winding a workspace back for migration tests -----------------------------
+
+APPEND_ONLY_TRIGGERS = {
+    "rule_proposal": (
+        "rule_proposal_is_append_only_update",
+        "BEFORE UPDATE ON rule_proposal BEGIN "
+        "SELECT RAISE(ABORT, 'rule_proposal is append-only: a reading "
+        "cannot be edited'); END",
+    ),
+}
+"""Triggers that must come off before a column can be dropped, and go back on
+after. Only the ones a rewind actually trips."""
+
+INTRODUCED_AT: dict[int, tuple[tuple[str, str], ...]] = {
+    8: (("rule_proposal_decision", "attribution"),),
+    10: (("rule_proposal", "relation"),),
+    11: (
+        ("rule_proposal", "area"),
+        ("rule", "area"),
+        ("rule_version", "area"),
+    ),
+}
+"""Columns each schema version added, keyed by the version they first exist in.
+
+**Add an entry here when you add a migration.** A migration test builds a real
+workspace and winds it back, because hand-written DDL for an old schema tests
+the transcription rather than the migration — but winding back means undoing
+every later addition, and three separate tests were each doing that by hand.
+The third new migration in a row broke all of them, which is what this exists
+to stop."""
+
+TABLES_INTRODUCED_AT: dict[int, tuple[str, ...]] = {8: ("setting",)}
+
+
+def rewind_workspace(db: Path, to_version: int) -> None:
+    """Make a current workspace look like one created at `to_version`.
+
+    Drops every column and table introduced after that version and sets
+    `schema_meta`, so opening it runs the real migrations.
+    """
+    import sqlite3
+
+    connection = sqlite3.connect(db)
+    try:
+        dropped_triggers: set[str] = set()
+        for version, columns in sorted(INTRODUCED_AT.items(), reverse=True):
+            if version <= to_version:
+                continue
+            for table, column in columns:
+                if table in APPEND_ONLY_TRIGGERS and table not in dropped_triggers:
+                    name, _ = APPEND_ONLY_TRIGGERS[table]
+                    connection.execute(f"DROP TRIGGER IF EXISTS {name}")
+                    dropped_triggers.add(table)
+                connection.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
+
+        for version, tables in sorted(TABLES_INTRODUCED_AT.items(), reverse=True):
+            if version <= to_version:
+                continue
+            for table in tables:
+                connection.execute(f"DROP TABLE IF EXISTS {table}")
+
+        for table in dropped_triggers:
+            name, body = APPEND_ONLY_TRIGGERS[table]
+            connection.execute(f"CREATE TRIGGER {name} {body}")
+
+        connection.execute(
+            "UPDATE schema_meta SET schema_version = ? WHERE id = 1", (to_version,)
+        )
+        connection.commit()
+    finally:
+        connection.close()

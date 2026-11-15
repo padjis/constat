@@ -577,7 +577,8 @@ def _report_proposals(proposals, reference: str, include_decided: bool) -> int:
         state = item.decision or "awaiting a decision"
         print(f"  [{item.id}] {item.proposal.name} — {state}")
         print(f"      {item.proposal.statement}")
-        print(f"      read by {item.attribution}, run {item.run_id}")
+        area = item.proposal.area or "(unplaced)"
+        print(f"      area: {area} — read by {item.attribution}, run {item.run_id}")
         if item.decided_by_description is not None:
             print(f"      {item.decision} by {item.decided_by_description}")
         if item.claims_to_revise:
@@ -595,6 +596,7 @@ def _report_proposals(proposals, reference: str, include_decided: bool) -> int:
 
 def _print_rule(rule) -> None:
     print(f"{rule.name}")
+    print(f"  area:       {rule.area or '(unplaced)'}")
     print(f"  statement:  {rule.statement}")
     if rule.behaviours:
         print(f"  behaviours ({len(rule.behaviours)}):")
@@ -632,9 +634,18 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                     print("nothing changing.")
                     return EXIT_OK
                 print(f"{len(rules)} rule(s):")
+                # Grouped by area (D-070): the catalogue is the product's
+                # business documentation, and a documentation set with no
+                # organisation is a list nobody reads. `(unplaced)` last,
+                # because it is a gap rather than a section.
+                by_area: dict[str, list] = {}
                 for rule in rules:
-                    unanchored = "" if rule.anchors else "  (no anchors)"
-                    print(f"  {rule.name}: {rule.statement}{unanchored}")
+                    by_area.setdefault(rule.area or "(unplaced)", []).append(rule)
+                for area in sorted(by_area, key=lambda a: (a == "(unplaced)", a)):
+                    print(f"  {area}:")
+                    for rule in by_area[area]:
+                        unanchored = "" if rule.anchors else "  (no anchors)"
+                        print(f"    {rule.name}: {rule.statement}{unanchored}")
                 return EXIT_OK
 
             if args.rule_action == "submit":
