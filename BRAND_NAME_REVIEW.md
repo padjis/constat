@@ -280,3 +280,65 @@ before spending money on a brand.
 - [Claudine (book series) — Wikipedia](https://en.wikipedia.org/wiki/Claudine_(book_series))
 - [Meaning of the name Claudine](https://www.wisdomlib.org/names/claudine)
 - [Claudine: Name Meaning and Origin — SheKnows](https://www.sheknows.com/baby-names/name/claudine/)
+
+---
+
+## 10. Knockout search attempt — 2026-11-16
+
+**Outcome: not performed. CON-22 stays open.** The trademark registers could not be reached from the
+working environment, and this section records what was and was not established so the attempt is
+not repeated blindly.
+
+### What could not be reached, and how it failed
+
+| Source | Result |
+| --- | --- |
+| USPTO search API (`tmsearch.uspto.gov/api-v1-0-0`) | HTTP 404 |
+| TMview (`tmdn.org/tmview/api`) | "Request Rejected" by the host |
+| Justia Trademarks (secondary US source) | HTTP 403 |
+| EUIPO eSearch, INPI DATA | JavaScript applications; no server-rendered results to read |
+
+A general web search is **not** a register search and must not be recorded as one. Nothing below
+constitutes clearance.
+
+### What was established
+
+**1. "Constat" is in active commercial use as a software name in France — in insurance.**
+`e-constat auto` is the official mobile app of the French insurance industry, published under the
+aegis of **France Assureurs** and promoted by individual insurers (MAIF, Groupama, Mutuelle de
+Poitiers among them). It lets a driver file a *constat amiable* — the standard European accident
+statement — from a phone.
+
+That is a different field from software-evolution governance, and a different Nice class from 9/42.
+It matters anyway, for two reasons: it is evidence that the word is *used as a product name* rather
+than only as a dictionary word, and any French-speaking audience hearing "Constat" in a software
+context will have that app as a reference point. Whether France Assureurs holds a registered mark is
+exactly the kind of fact only a register search answers.
+
+**2. No software company or SaaS product called "Constat" surfaced.** Weak evidence of availability
+in the target field, and nothing more: absence from a general web search is not absence from a
+register.
+
+**3. The § 8 descriptiveness question is now sharper, not resolved.** *Constat* is an ordinary French
+noun for a formal observation or finding — which is precisely what this product produces. In the
+EU/FR system a mark that merely describes the goods is refusable, and "a tool that produces
+constats, called Constat" is the textbook shape of that objection. The insurance usage above shows
+the word is already doing descriptive work in a software context, in the same language.
+
+### The brief for CON-23
+
+An attorney needs three questions answered, in this order, because the second and third only matter
+if the first clears:
+
+1. **Is `CONSTAT` registrable at all in FR/EU for classes 9 and 42**, or is it descriptive for
+   software that produces findings and reports? If descriptive, no amount of searching helps and the
+   name needs a decision, not a filing.
+2. **Conflicting or near marks** in classes 9 and 42 across USPTO, EUIPO and INPI — including
+   `e-constat` and other prefixed forms, since a prefix does not usually distinguish.
+3. **The French company register (INPI/RCS)** check, § 9 task 3.
+
+### What this changes
+
+Nothing about the product, and nothing about D-013 or D-075. It changes what the attorney engagement
+is *for*: question 1 is a go/no-go on the name, and it should be asked before paying for a full
+clearance search on a name that may be unregistrable.

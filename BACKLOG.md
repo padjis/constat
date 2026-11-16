@@ -86,7 +86,7 @@ forces them.
 | ID | Title | Done when | Status |
 | --- | --- | --- | --- |
 | CON-21 | The site has a home | The project site resolves somewhere its author controls. | ✅ D-075 — `constat.padjinou.com`, a subdomain of an owned domain. No domain bought: `tryconstat.com` stays the choice from D-014 for when there is something to put on it, and stays registerable by anyone until then |
-| CON-22 | Trademark knockout search on "Constat" | USPTO and EUIPO searched in Nice classes 9 and 42, plus an INPI/RCS check. | ⬜ before the first pilot conversation |
+| CON-22 | Trademark knockout search on "Constat" | USPTO and EUIPO searched in Nice classes 9 and 42, plus an INPI/RCS check. | ⬜ **attempted 2026-11-16 and not possible from here** — every register blocked or JavaScript-only (`BRAND_NAME_REVIEW.md` § 10). Needs a person with register access, or folding into CON-23 |
 | CON-23 | Trademark attorney review | A finalist cleared, including the FR/EU descriptiveness question. | ⬜ before the first pilot conversation |
 | CON-24 | Ratify the proposal unit (Q1) | A `D-NNN` entry fixes the unit of a proposal. | ✅ D-025 |
 | CON-25 | Decide the copyright holder | `LICENSE` and `NOTICE` name the intended holder. | ✅ D-074 — held personally; `LICENSE` and `NOTICE` were already correct, so this closes as recorded rather than implemented. A CLA is needed only if relicensing is intended |

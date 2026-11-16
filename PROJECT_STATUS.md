@@ -2,7 +2,11 @@
 
 **Last updated:** 2026-11-14
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-15):** CON-21 closed (D-075) — the site starts at
+**Current session (2026-11-16):** CON-22 attempted and recorded as not possible from here
+(`BRAND_NAME_REVIEW.md` § 10); the brief for CON-23 is written and its first question is whether the
+name is registrable at all.
+
+**2026-11-15:** CON-21 closed (D-075) — the site starts at
 `constat.padjinou.com` and no domain is bought, amending D-014's timing. CON-25 closed before it
 (D-074) — copyright held personally, with the triggers that would reopen it named. CON-61 closed before it — a frozen version's behaviours and
 anchors are readable, completing CON-14's recoverability criterion and unblocking CON-67. Rule 3
@@ -399,10 +403,20 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-22 — the trademark knockout search on "Constat".** Not a code task either, and that is
-the argument for it: the product moved a long way over 2026-11-14 and 15 while the non-code side
-did not move at all. CON-22 and CON-23 are both marked "before the first pilot conversation", and
-the repository has been public throughout. CON-26 is still at zero discovery conversations.
+**CON-23 — the trademark attorney review, asked in the right order.** CON-22 was attempted on
+2026-11-16 and **cannot be done from this environment**: every register is either blocked or a
+JavaScript application with nothing server-rendered to read (`BRAND_NAME_REVIEW.md` § 10). It needs
+a person with register access — or folding into CON-23, which is the recommendation.
+
+§ 10 writes the brief, and its first question is the one that matters: **is `CONSTAT` registrable at
+all in FR/EU for classes 9 and 42, or is it descriptive** for software that produces findings? That
+is a go/no-go on the name, and it should be asked before paying for a clearance search on a name
+that may be unregistrable. The two things § 10 did establish: `e-constat auto` is the French
+insurance industry's official app, so the word is already in use as a software product name in
+French; and no software company called Constat surfaced, which is weak evidence of availability and
+nothing more.
+
+CON-26 is still at zero discovery conversations, and the repository has been public throughout.
 
 CON-25 is now closed (D-074): the copyright is held personally, which `LICENSE` and `NOTICE`
 already said — the ticket needed a recorded decision, not an edit. CON-21 is closed too (D-075):
