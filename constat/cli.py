@@ -27,6 +27,7 @@ from .evidence import collect_evidence, describe_commit
 from .mapping import change_proposal, commit_record, state_proposal
 from .store import OFF, ON, READER_MCP, READERS, SWITCH, Settings
 from .store import (
+    Areas,
     Catalogue,
     Review,
     Registry,
@@ -456,6 +457,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="emit the structured state instead of the rendered document",
     )
 
+    area = subparsers.add_parser(
+        "area",
+        help="list or declare business areas",
+        description=(
+            "Business areas are the headings the catalogue is organised under. "
+            "Most are declared by accepting a rule that carries one — that is "
+            "what makes an area exist. This command lists them, and declares "
+            "one ahead of its first rule, which is what documenting a new area "
+            "needs."
+        ),
+    )
+    area_actions = area.add_subparsers(dest="area_action", metavar="ACTION")
+    area_actions.add_parser("list", help="list every declared area")
+    area_add = area_actions.add_parser(
+        "add", help="declare an area before it has a rule"
+    )
+    area_add.add_argument("name", metavar="NAME")
+    area_add.add_argument(
+        "--by",
+        default=None,
+        metavar="NAME",
+        help=(
+            "who is declaring it. Inferred from git config when omitted, and "
+            "recorded as inferred rather than stated (D-061)."
+        ),
+    )
+
     analyse = subparsers.add_parser(
         "analyse",
         help="examine a revision range in one repository",
@@ -583,6 +611,22 @@ def _report_submission(result) -> int:
         print("  Collapse them before accepting either, or the catalogue gets")
         print("  one rule twice. `rule reject` records the other as")
         print("  inconclusive, which is what a duplicate is.")
+
+    if result.new_areas:
+        print()
+        print(
+            f"{len(result.new_areas)} rule proposal(s) name a business area "
+            "the catalogue does not have:"
+        )
+        for proposal_id, (area, declared) in sorted(result.new_areas.items()):
+            print(f"    [{proposal_id}] new area: {area!r}")
+            if declared:
+                known = ", ".join(repr(a) for a in declared)
+                print(f"        the catalogue has {known}")
+        print("  A new area is often right — the product grows. What it must not")
+        print("  be is a synonym: nothing afterwards can tell 'ads' from")
+        print("  'advertising', and merging two areas means renaming across")
+        print("  frozen versions. Accepting the rule declares the area with it.")
 
     if result.stored_count:
         print()
@@ -1145,6 +1189,61 @@ def _decider(args: argparse.Namespace) -> tuple[str, str]:
             "than recording an account name: a decision needs a person."
         )
     return inferred, "inferred"
+
+
+def _run_area(args: argparse.Namespace) -> int:
+    """List the declared areas, or declare one ahead of its first rule."""
+    try:
+        with Workspace.open(args.workspace) as workspace:
+            catalogue = Catalogue(workspace)
+
+            if args.area_action == "add":
+                declared_by, attribution = _decider(args)
+                area = Areas(workspace).declare(args.name, declared_by)
+                print(f"declared: {area.name}")
+                if attribution == "inferred":
+                    print(
+                        f"  recorded as: {declared_by} (inferred from git config)"
+                    )
+                print()
+                print("Declaring an area does not document it. A rule enters an")
+                print("area only as an accepted rule proposal (D-048).")
+                return EXIT_OK
+
+            areas = catalogue.areas()
+            if not areas:
+                print("No business areas yet.")
+                print()
+                print("An area exists once a rule carries it, so this is empty")
+                print("until the first rule is accepted. It is not a statement")
+                print("that the product has no structure.")
+                return EXIT_OK
+
+            # Which are only declared matters: an area with no rule is an
+            # intention, and reading it beside documented ones as though they
+            # were alike would overstate the catalogue.
+            with_rules = {
+                row["area"]
+                for row in workspace.execute(
+                    "SELECT DISTINCT area FROM rule WHERE area IS NOT NULL"
+                ).fetchall()
+            }
+            print(f"{len(areas)} business area(s):")
+            for name in areas:
+                count = len(
+                    [r for r in catalogue.list() if r.area == name]
+                )
+                if name in with_rules:
+                    print(f"  {name} — {count} rule(s)")
+                else:
+                    print(f"  {name} — declared, no rules yet")
+    except InvalidInput as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    except WorkspaceError as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_WORKSPACE
+    return EXIT_OK
 
 
 def _run_state(args: argparse.Namespace) -> int:
@@ -1712,6 +1811,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "publish":
         return _run_publish(args)
+
+    if args.command == "area":
+        if args.area_action is None:
+            args.area_action = "list"
+        return _run_area(args)
 
     if args.command == "state":
         return _run_state(args)

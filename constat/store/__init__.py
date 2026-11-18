@@ -5,6 +5,7 @@ immutable record of approvals (D-027, D-029).
 """
 
 from .acceptance import Acceptance, Review
+from .areas import Areas, DeclaredArea
 from .catalogue import Catalogue
 from .proposals import RuleProposals, StoredRuleProposal
 from .registry import Registry
@@ -32,7 +33,9 @@ __all__ = [
     "SWITCH",
     "Settings",
     "Acceptance",
+    "Areas",
     "Catalogue",
+    "DeclaredArea",
     "Review",
     "RuleProposals",
     "StoredRuleProposal",

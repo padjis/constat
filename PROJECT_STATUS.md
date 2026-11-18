@@ -2,9 +2,10 @@
 
 **Last updated:** 2026-11-18
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-18):** **CON-67 closed (D-078)** — a detail's identity is its text,
-numbered at acceptance, schema 15. Before it, **CON-80 closed (D-077)** — a rule carries worked
-examples, schema 14. Earlier the same day, with no code: the catalogue was reviewed against a worked
+**Current session (2026-11-18):** **CON-88 and CON-90 closed (D-079)** — an area is declared by
+accepting a rule, and coverage is counted in areas, schema 16. Before them, **CON-67 (D-078)** — a
+detail's identity is its text, numbered at acceptance, schema 15 — and **CON-80 (D-077)** — a rule
+carries worked examples, schema 14. Earlier the same day, with no code: the catalogue was reviewed against a worked
 implementation of the same idea, producing **D-076** (Constat assumes trunk-based development, and
 product rule 6 is unmet), a decision to acquire a **release concept**, and **16 tickets**
 (CON-80…CON-98).
@@ -430,11 +431,12 @@ already said — the ticket needed a recorded decision, not an edit. CON-21 is c
 the site starts at `constat.padjinou.com` and no domain is bought, which accepts rather than solves
 the risk that `tryconstat.com` stays registerable by anyone.
 
-The next code task is **CON-88 → CON-89 — declare business areas, then document an area from its
-current behaviour with no ticket.** It is the highest adoption value left: a new workspace has an
-empty catalogue and no route into it except ticket by ticket, and D-072's mainline grounding is
-already the machinery CON-89 needs. CON-88 comes first because an area has to be declarable before
-a baseline can file rules under one.
+The next code task is **CON-89 — document an area from its current behaviour, with no ticket**,
+which D-079 just unblocked by letting an area be opened before it has rules. It is the highest
+adoption value left: a new workspace has an empty catalogue and no route into it except ticket by
+ticket, and D-072's mainline grounding is already the machinery it needs. The open question is what
+such a reading is *grounded in* — mainline rather than a ticket's delta — and whether it needs a
+run at all, since there is no ticket to attach one to.
 
 The cluster CON-80 and CON-67 belong to has one piece left — **CON-81, a citable rule identifier**,
 and with it **CON-82, messages as catalogue entries**. CON-81 needs a decision from you on the
@@ -483,6 +485,82 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## CON-88 — done when: *an area is declared before a rule can claim it* ✅ · CON-90 ✅
+
+`D-079` records both, and **amends D-070**, which made an area free text and called the drift into
+"advertising / ads / monetisation" expected and unsolved.
+
+**The ticket asked for less than it looked like.** Reading the code first: an area is *already*
+declared by a human accepting a rule that carries it, because acceptance freezes the area onto the
+version. So the register is **derived**, and the new table holds only areas named ahead of their
+first rule — which is exactly what CON-89 needs. A table a human had to fill first would have forced
+a refusal at acceptance, blocking a person mid-decision over a heading, and created two sources of
+truth for one fact.
+
+**What changed.** Schema **16** (one `area` table), `Catalogue.areas` unioning both sources,
+`store/areas.py` for the write, `constat area list|add`, `SubmitResult.new_areas`, and the coverage
+section of `render_state`.
+
+**Live output.** A coined synonym, reported and still stored:
+
+```
+1 rule proposal(s) name a business area the catalogue does not have:
+    [2] new area: 'ads'
+        the catalogue has 'advertising', 'payouts'
+  A new area is often right — the product grows. What it must not
+  be is a synonym: nothing afterwards can tell 'ads' from
+  'advertising', and merging two areas means renaming across
+  frozen versions. Accepting the rule declares the area with it.
+```
+
+And coverage, now in areas:
+
+```
+**1 of 2 declared business area(s) hold a rule.**
+
+Declared and undocumented: *payouts*. An area with no rule is an intention, not documentation.
+
+This counts only areas somebody has named. Parts of the product nobody has declared are not
+counted here at all, and that is the larger gap: the catalogue cannot measure what it has never
+been told about.
+
+As a technical figure, 0 of 1 file(s) ... A low share is expected and is not itself a gap ...
+```
+
+That third paragraph is the part that matters. Counting declared areas flatters a catalogue that has
+declared two of twenty, so the view states what it cannot measure rather than letting the number
+imply completeness (D-038's posture).
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_areas.py` → **22 passed** (new file). **Whole suite**, because
+the schema changed: **1 failed, 1110 passed**, then **1111 passed in 220s**, exit 0.
+
+**Mutation-checked.** Making `areas()` read only the declared table fails **eight** tests across all
+three concerns — the derived register, the coined-area report, and coverage.
+
+### The failure was worth having
+
+`test_the_storage_api_has_no_writes_at_all` asserts `Catalogue`'s **exact** public surface, and
+adding `areas` broke it. That is the test working: it exists so `add_rule` cannot come back as a
+convenience. Two things followed rather than a quick edit to the list:
+
+- **`area_is_declared` was dead code** — written, exported, called by nothing — and was deleted
+  instead of being added to the allowlist.
+- **The allowlist stayed exact.** Loosening it to a pattern (`not name.startswith("add_")`) would
+  have been weakening an integrity test to land a change, which `CLAUDE.md` forbids. `areas` was
+  added by name, and the docstring now says a read may be added and a writer may not.
+
+### Deliberately not done
+
+- **No vocabulary and no refusal of a name**, beyond the 60-character bound the parse already
+  applies. A test declares an area in French to hold that open.
+- **No merging of two areas.** That is a rename across frozen versions — a harder ticket, and the
+  reason the coined-area report exists at all.
+- **Declaring an area does not document it.** `area add` says so in its own output.
 
 ---
 

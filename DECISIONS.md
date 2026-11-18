@@ -8,6 +8,62 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-079 · 2026-11-18 · An area is declared by accepting a rule, and coverage is counted in areas
+
+**Closes CON-88 and CON-90. Amends D-070**, which made an area free text with no vocabulary and
+recorded the drift into "advertising / ads / monetisation" as *expected and unsolved*. This is what
+solves it, and the solution is deliberately not a vocabulary.
+
+**Decision.** The declared set of business areas is **the areas on accepted rules**, because
+acceptance freezes the area onto the version (D-070) — the catalogue already is the register. A
+separate `area` table holds only areas named **ahead of their first rule**, which is what
+documenting a new area needs (CON-89). `Catalogue.areas` unions the two and is the single answer to
+"which areas exist".
+
+A reading proposing an area the catalogue does not have is **reported, never refused** (D-064's
+posture). Coverage in `constat state` is counted in **areas**; the file count stays as a stated
+technical figure rather than the headline.
+
+**Why the register is derived.** The alternative — a table a human fills before any rule can be
+filed — forces a refusal path, and a refusal at acceptance would block a person mid-decision over a
+heading. Worse, it creates two sources of truth for one fact: a rule carrying an area the register
+has never heard of is a contradiction the store would have to adjudicate. Deriving the set means
+there is nothing to reconcile. Mutation-checked: reading only the table fails eight tests.
+
+**Why a coined area is reported rather than refused.** A new area is often correct — products grow —
+and refusing one would make Constat the authority on how somebody's business is organised, which
+nothing here is entitled to be. What it must not do is let "ads" in beside "advertising" unremarked:
+nothing afterwards can tell a synonym from a distinction, and merging two areas is a rename across
+frozen versions. So the report names the coined area *and the areas already declared*, and the
+decision stays the reviewer's — accepting the rule declares the area with it.
+
+**Why coverage moves to areas.** Files are the wrong denominator for business documentation. A
+product can be wholly described by thirty rules over a thousand files, and "970 files are claimed by
+no rule" reports that as a permanent failure — a number that cannot be improved by doing the work
+well. Areas are the denominator a reader has an opinion about. **The honest caveat is printed with
+it:** counting declared areas flatters a catalogue that has declared two of twenty, so the view says
+that parts nobody has declared are not counted at all, and that this is the larger gap.
+
+**Consequences.**
+
+- **Schema 16:** one `area` table, nothing migrated into it. Every area already in use is on an
+  accepted rule, and copying them in would create the second source of truth this avoids.
+- **`constat area list` distinguishes documented from declared** — "payouts — declared, no rules
+  yet". An area with no rule is an intention, and rendering it like a documented one would overstate
+  the catalogue.
+- **Declaring is a write, so it is not on `Catalogue`.** That class stays read-only (D-048) with a
+  test asserting its exact surface; `store/areas.py` owns the write, as `acceptance.py` owns its own.
+- **No vocabulary, no CHECK, no refusal of a name** beyond the 60-character bound the parse already
+  applies. A test declares an area in French to hold that open.
+- **Merging two areas is deliberately not built.** It is a rename across frozen versions, which is a
+  different ticket and a harder one.
+- **CON-89 is unblocked**, and this was its prerequisite: an area can now be opened before it has
+  rules.
+
+**Status.** accepted
+
+---
+
 ## D-078 · 2026-11-18 · A detail's identity is its text, recorded as a number at acceptance
 
 **Closes CON-67**, whose open question was what identifies a detail across versions.

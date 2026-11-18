@@ -848,6 +848,15 @@ class SubmitResult:
     differs: an overlapping catalogue rule may want a revision, an overlapping
     pending proposal wants one of the two collapsed before either is
     accepted."""
+    new_areas: dict[int, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
+    """Rule proposal id -> (the area it coined, the areas already declared).
+
+    Reported, never refused (CON-88, D-064's posture). A new area is often
+    correct — the product grows — and refusing one would make Constat the
+    authority on how someone's business is organised. What it must not do is
+    let "ads" slip in beside "advertising" unremarked, because nothing
+    afterwards can tell a synonym from a distinction, and merging two areas is
+    a rename across frozen versions."""
 
     @property
     def stored_count(self) -> int:
@@ -912,6 +921,8 @@ def submit_reply(
     stored = []
     candidates: dict[int, tuple[int, ...]] = {}
     pending_candidates: dict[int, tuple[int, ...]] = {}
+    new_areas: dict[int, tuple[str, tuple[str, ...]]] = {}
+    declared = Catalogue(workspace).areas()
     for proposal in result.proposals:
         proposal_id = proposals.record(
             run_id=run_id,
@@ -941,12 +952,18 @@ def submit_reply(
             if also_pending:
                 pending_candidates[proposal_id] = also_pending
 
+        # Checked for every reading, revision or not: a revision can coin a
+        # synonym just as easily as a new rule can.
+        if proposal.area is not None and proposal.area not in declared:
+            new_areas[proposal_id] = (proposal.area, declared)
+
     return SubmitResult(
         run_id=run_id,
         stored=tuple(stored),
         rejections=result.rejections,
         candidates=candidates,
         pending_candidates=pending_candidates,
+        new_areas=new_areas,
     )
 
 
@@ -1558,6 +1575,13 @@ class ProductState:
 
     repositories: tuple[RepositoryState, ...] = ()
     rules: tuple[RuleState, ...] = ()
+    areas: tuple[str, ...] = ()
+    """Every declared business area (CON-88), including those with no rule yet.
+
+    Carried on the state because it is the denominator coverage is measured
+    against (CON-90): an area somebody declared and never documented is a
+    stated gap, and counting only areas that already hold rules would make
+    coverage always read 100%."""
 
     @property
     def holding(self) -> tuple[RuleState, ...]:
@@ -1651,6 +1675,7 @@ def product_state(
     return ProductState(
         repositories=tuple(repositories),
         rules=tuple(RuleState(rule=rule, matched=matches[rule.name]) for rule in rules),
+        areas=catalogue.areas(),
     )
 
 
@@ -1791,13 +1816,51 @@ def render_state(state: ProductState) -> str:
 
     claimed = sum(r.claimed_files for r in readable)
     total = sum(r.file_count for r in readable)
+    documented = {s.rule.area for s in state.holding if s.rule.area}
+    empty = tuple(a for a in state.areas if a not in documented)
+
+    lines += ["## What this does not describe", ""]
+
+    # Areas first, files second, and the order is the point (CON-90). Coverage
+    # in files measures the catalogue against the code, which is the wrong
+    # denominator for business documentation: a product can be fully described
+    # by thirty rules over a thousand files, and "970 files are claimed by no
+    # rule" would report that as a failure for ever. Areas are the denominator
+    # a reader actually has an opinion about.
+    if state.areas:
+        lines.append(
+            f"**{len(documented)} of {len(state.areas)} declared business "
+            f"area(s) hold a rule.**"
+        )
+        if empty:
+            named = ", ".join(f"*{a}*" for a in empty)
+            lines.append("")
+            lines.append(
+                f"Declared and undocumented: {named}. An area with no rule is "
+                "an intention, not documentation."
+            )
+        lines.append("")
+        lines.append(
+            "This counts only areas somebody has named. Parts of the product "
+            "nobody has declared are not counted here at all, and that is the "
+            "larger gap: the catalogue cannot measure what it has never been "
+            "told about."
+        )
+    else:
+        lines.append(
+            "No business areas are declared, so there is no structure to "
+            "measure coverage against. This is not a statement that the "
+            "product has none."
+        )
+
     lines += [
-        "## What this does not describe",
         "",
-        f"{total - claimed} of {total} file(s) across the registered "
-        "repositories are claimed by no rule. The catalogue only knows the "
-        "rules it holds, so this is where it is incomplete rather than where "
-        "nothing happens (D-038).",
+        f"As a technical figure, {total - claimed} of {total} file(s) across "
+        "the registered repositories are claimed by no rule. A low share is "
+        "expected and is not itself a gap — most files implement no business "
+        "rule of their own — but the catalogue only knows the rules it holds, "
+        "so this is where it is incomplete rather than where nothing happens "
+        "(D-038).",
         "",
     ]
     return "\n".join(lines)

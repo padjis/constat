@@ -48,6 +48,27 @@ class Catalogue:
         rows = self._workspace.execute("SELECT * FROM rule ORDER BY name").fetchall()
         return tuple(self._hydrate(row) for row in rows)
 
+    def areas(self) -> tuple[str, ...]:
+        """Every declared business area, in order (CON-88).
+
+        **Mostly derived rather than stored.** An area is declared by a human
+        accepting a rule that carries it, because acceptance freezes the area
+        on the version (D-070) — so the catalogue already *is* the register,
+        and a separate table would be a second source of truth for the same
+        fact. The `area` table holds only the areas named ahead of their first
+        rule, which is what a baseline needs in order to open an area and then
+        file rules under it (CON-89).
+
+        This is what makes a coined synonym visible: a reading proposing "ads"
+        can be told the catalogue says "advertising" (D-064's posture — report,
+        never refuse).
+        """
+        rows = self._workspace.execute(
+            "SELECT DISTINCT area AS name FROM rule WHERE area IS NOT NULL "
+            "UNION SELECT name FROM area ORDER BY name"
+        ).fetchall()
+        return tuple(row["name"] for row in rows)
+
     def rules_matching(
         self, repository_alias: str, paths: tuple[str, ...]
     ) -> dict[str, tuple[str, ...]]:

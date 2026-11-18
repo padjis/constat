@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -145,6 +145,24 @@ CREATE TABLE operation (
     ran_at        TEXT    NOT NULL,
     summary       TEXT    NOT NULL DEFAULT '',
     payload       TEXT
+);
+
+-- A business area declared ahead of its first rule (CON-88).
+--
+-- Most declared areas are not here. An area is declared by a human accepting a
+-- rule that carries it — acceptance freezes the area on the version (D-070) —
+-- so the declared set is derived from the catalogue, and this table holds only
+-- the areas named *before* they have a rule. A baseline needs that: it opens an
+-- area, then files rules under it (CON-89).
+--
+-- No CHECK and no vocabulary. This records what a person called a part of their
+-- product, and refusing a heading because it is not in a list would be Constat
+-- deciding how someone's business is organised.
+CREATE TABLE area (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT    NOT NULL UNIQUE,
+    declared_by TEXT    NOT NULL,
+    created_at  TEXT    NOT NULL
 );
 
 -- A business rule. Under D-035 a rule is a business statement, and no code
@@ -763,6 +781,19 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     # time. They were not: the match would be made today, by this code, and
     # presented as what a reviewer saw. NULL reads as "not numbered", and the
     # diff says so rather than comparing.
+    # 15 -> 16: an area can be declared before its first rule (CON-88).
+    #
+    # Nothing is migrated into it, and nothing needs to be: every area already
+    # in use is on an accepted rule, and `Catalogue.areas` reads those. Copying
+    # them in would create a second source of truth for the same fact, which
+    # could then disagree with the catalogue.
+    15: (
+        "CREATE TABLE area ("
+        " id INTEGER PRIMARY KEY,"
+        " name TEXT NOT NULL UNIQUE,"
+        " declared_by TEXT NOT NULL,"
+        " created_at TEXT NOT NULL)",
+    ),
     14: (
         "ALTER TABLE behaviour ADD COLUMN behaviour_no INTEGER",
         "ALTER TABLE example ADD COLUMN example_no INTEGER",

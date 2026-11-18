@@ -76,13 +76,23 @@ class TestTheCatalogueCannotBeEmptied:
         nothing else, so the catalogue has no door for anything to write
         through — not a convention, an absence. This is the test that stops
         `add_rule` coming back as a convenience.
+
+        An exact list, not a pattern. A read may be added to it — `areas`
+        arrived with CON-88 — but every addition has to be argued for here,
+        which is the point: a writer cannot slip in as "just another method".
         """
         surface = [
             name
             for name in dir(Catalogue)
             if not name.startswith("_")
         ]
-        assert sorted(surface) == ["find", "list", "rules_matching", "unmatched_paths"]
+        assert sorted(surface) == [
+            "areas",
+            "find",
+            "list",
+            "rules_matching",
+            "unmatched_paths",
+        ]
 
     def test_the_schema_no_longer_makes_a_name_unique(self, workspace: Workspace):
         """`rule.name` lost UNIQUE (D-050): a name is a label that may change
