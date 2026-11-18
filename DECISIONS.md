@@ -8,6 +8,74 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-077 · 2026-11-18 · A rule carries worked examples, and nothing checks whether they are right
+
+**Closes CON-80.** The catalogue held statements and nothing a reader could disagree with.
+
+**Decision.** A rule and a rule proposal both carry **examples**: ordered pairs of a `situation` and
+an `outcome`, stored on the reading, frozen on the accepted version, and rendered wherever a rule is
+shown. Two columns, not a per-rule table of input columns. Examples are **optional**, and what is
+checked at parse time is their *shape*, never their truth.
+
+**Why two columns.** The richer form — each rule defining its own input columns — reads better when
+a person writes it once. A reading gets re-run, twice on ticket 615 already, and a per-rule column
+schema comes back different each time: one rule accumulates three shapes of table, and nothing can
+diff them. Two columns compose, render in every surface, and survive re-reading.
+
+**What is checked, and what is deliberately not.**
+
+| Checked at parse time | Not checked, ever |
+| --- | --- |
+| Both halves present | Whether the outcome is what the code does |
+| Each half within 200 characters | Whether the cases are the *interesting* ones |
+| Neither half leaks code (D-066) | Whether the examples are complete |
+| The example is not the statement restated | |
+| No repeated situation in one reading | |
+
+The second column is the point. Deciding whether "a transfer of 600 against a 500 limit is refused"
+is *true* is the reviewer's entire job, and a gate that guessed at it would manufacture the
+certainty product rule 1 forbids. A test asserts that a plausible-but-wrong example is stored, with
+a docstring saying why, so the test file cannot later be mistaken for a correctness guarantee — the
+posture CON-74 set for `code_leakage`.
+
+**A bad example rejects the whole reading.** Not itself. Dropping one example from three would store
+a reading that says something the reader did not, which is the failure `parsing.py` exists to
+prevent, one level down. `_examples` therefore returns a reason rather than a filtered tuple.
+
+**The restatement check errs toward allowing.** A real example shares most of the statement's
+vocabulary by construction — it is a case *of* it — so the threshold is high (85% of non-filler
+words) and a near-restatement with one added clause passes. A false refusal discards a case a person
+might have wanted and the reader cannot argue back. Half the new tests assert that direction.
+
+**A revision replaces a rule's examples, and the payload now shows them.** Acceptance rewrites the
+live table from the reading, so a revision that omits examples *deletes* cases a human accepted.
+`KnownRule` therefore carries the accepted examples, and `REVISION` in the guidance says so. This
+hazard already existed for behaviours; examples make it expensive, because they are the part a
+person actually checked.
+
+**Consequences.**
+
+- **Schema 14:** `rule_proposal_example`, `rule_version_example`, `example`. Nothing is back-filled,
+  and here that is not even a choice of principle: no reading before this could propose an example,
+  and deriving one from a stored statement would be Constat inventing the evidence a reviewer is
+  meant to check.
+- **Absence has two meanings and the renderers claim neither** — a rule accepted before schema 14,
+  and a reading that proposed none. Neither is "this rule has no cases".
+- **`constat state` says when a rule has no examples**, rather than printing nothing. A rule nobody
+  can check is a gap in the documentation, and the view that exists to state coverage should state
+  this too.
+- **One renderer**, `operations.example_table`, used by the ticket document and the product state, so
+  a reviewer comparing them never reads two formats. Pipes are escaped; an unescaped one would move
+  half a sentence into a column that does not exist.
+- **CON-67 is next and is now worth more**: tracking which *details* changed between versions has a
+  shape worth tracking, and examples are where a diff between two versions will be read.
+- **CON-81 is unaffected and still blocked.** An example is addressed by position within its rule;
+  giving examples their own citable identifiers waits for the rule identifier decision.
+
+**Status.** accepted
+
+---
+
 ## D-076 · 2026-11-18 · Constat assumes trunk-based development, and says so
 
 **Names an assumption that was already in the code.** D-028 made mainline the reference point,

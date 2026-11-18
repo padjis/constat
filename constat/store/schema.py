@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -211,6 +211,21 @@ CREATE TABLE rule_proposal_behaviour (
     description      TEXT    NOT NULL
 );
 
+-- A worked example: one situation and what the product does with it (CON-80).
+--
+-- Two columns, not a per-rule table of input columns. A reading is re-run, and
+-- a per-rule column schema would come back different each time, leaving one
+-- rule with three shapes of table and nobody able to diff them.
+--
+-- Nothing here says the outcome is *right*. That is the reviewer's whole job,
+-- and the examples exist to give them something to be right or wrong about.
+CREATE TABLE rule_proposal_example (
+    id               INTEGER PRIMARY KEY,
+    rule_proposal_id INTEGER NOT NULL REFERENCES rule_proposal(id) ON DELETE CASCADE,
+    situation        TEXT    NOT NULL,
+    outcome          TEXT    NOT NULL
+);
+
 -- `grounded_in` says which ground supports the anchor (D-072): `evidence` if
 -- the ticket changed the path, `mainline` if the path exists in the product but
 -- this ticket did not touch it. Both are verifiable; they are different claims,
@@ -277,6 +292,13 @@ CREATE TABLE rule_version_behaviour (
     description     TEXT    NOT NULL
 );
 
+CREATE TABLE rule_version_example (
+    id              INTEGER PRIMARY KEY,
+    rule_version_id INTEGER NOT NULL REFERENCES rule_version(id) ON DELETE CASCADE,
+    situation       TEXT    NOT NULL,
+    outcome         TEXT    NOT NULL
+);
+
 CREATE TABLE rule_version_anchor (
     id              INTEGER PRIMARY KEY,
     rule_version_id INTEGER NOT NULL REFERENCES rule_version(id) ON DELETE CASCADE,
@@ -294,6 +316,17 @@ CREATE TABLE behaviour (
     UNIQUE (rule_id, description)
 );
 
+-- The worked examples of a rule in the catalogue (CON-80). Rewritten on each
+-- acceptance, like `behaviour`: the frozen copy is `rule_version_example`.
+CREATE TABLE example (
+    id         INTEGER PRIMARY KEY,
+    rule_id    INTEGER NOT NULL REFERENCES rule(id) ON DELETE CASCADE,
+    situation  TEXT    NOT NULL,
+    outcome    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL,
+    UNIQUE (rule_id, situation)
+);
+
 -- Where a rule is believed to be implemented. A ticket's evidence touching an
 -- anchor makes the rule impacted. `repository_id` is nullable so a rule can
 -- span repositories by path pattern alone.
@@ -308,6 +341,7 @@ CREATE TABLE anchor (
 );
 
 CREATE INDEX idx_behaviour_rule ON behaviour(rule_id);
+CREATE INDEX idx_example_rule ON example(rule_id);
 CREATE INDEX idx_anchor_rule ON anchor(rule_id);
 CREATE INDEX idx_document_version_document ON document_version(document_id);
 CREATE INDEX idx_operation_document ON operation(document_id);
@@ -316,10 +350,12 @@ CREATE INDEX idx_run_document ON run(document_id);
 CREATE INDEX idx_rule_proposal_run ON rule_proposal(run_id);
 CREATE INDEX idx_rule_proposal_revises ON rule_proposal(revises_rule_id);
 CREATE INDEX idx_rule_proposal_behaviour ON rule_proposal_behaviour(rule_proposal_id);
+CREATE INDEX idx_rule_proposal_example ON rule_proposal_example(rule_proposal_id);
 CREATE INDEX idx_rule_proposal_anchor ON rule_proposal_anchor(rule_proposal_id);
 CREATE INDEX idx_rule_proposal_decision ON rule_proposal_decision(rule_proposal_id);
 CREATE INDEX idx_rule_version_rule ON rule_version(rule_id);
 CREATE INDEX idx_rule_version_behaviour ON rule_version_behaviour(rule_version_id);
+CREATE INDEX idx_rule_version_example ON rule_version_example(rule_version_id);
 CREATE INDEX idx_rule_version_anchor ON rule_version_anchor(rule_version_id);
 
 -- History is durable (product rule 5), enforced here rather than trusted to
@@ -666,5 +702,41 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
         " subject TEXT NOT NULL DEFAULT '',"
         " UNIQUE (run_id, sha))",
         "CREATE INDEX idx_run_commit_run ON run_commit(run_id)",
+    ),
+    # 13 -> 14: a rule carries worked examples (CON-80).
+    #
+    # Three new tables and no back-fill, which here is not even a choice: an
+    # example is something a reading proposed and a human accepted, and no
+    # reading before this could propose one. Deriving examples from a stored
+    # statement would be Constat inventing the evidence a reviewer is meant to
+    # check — the failure D-046 refuses at the trust boundary, committed
+    # instead by the migration.
+    #
+    # Rules accepted before schema 14 therefore have no examples, and the
+    # renderers say so rather than showing an empty table, because "nobody
+    # proposed examples" and "this rule has no cases" are different claims.
+    13: (
+        "CREATE TABLE rule_proposal_example ("
+        " id INTEGER PRIMARY KEY,"
+        " rule_proposal_id INTEGER NOT NULL REFERENCES rule_proposal(id) ON DELETE CASCADE,"
+        " situation TEXT NOT NULL,"
+        " outcome TEXT NOT NULL)",
+        "CREATE TABLE rule_version_example ("
+        " id INTEGER PRIMARY KEY,"
+        " rule_version_id INTEGER NOT NULL REFERENCES rule_version(id) ON DELETE CASCADE,"
+        " situation TEXT NOT NULL,"
+        " outcome TEXT NOT NULL)",
+        "CREATE TABLE example ("
+        " id INTEGER PRIMARY KEY,"
+        " rule_id INTEGER NOT NULL REFERENCES rule(id) ON DELETE CASCADE,"
+        " situation TEXT NOT NULL,"
+        " outcome TEXT NOT NULL,"
+        " created_at TEXT NOT NULL,"
+        " UNIQUE (rule_id, situation))",
+        "CREATE INDEX idx_rule_proposal_example"
+        " ON rule_proposal_example(rule_proposal_id)",
+        "CREATE INDEX idx_rule_version_example"
+        " ON rule_version_example(rule_version_id)",
+        "CREATE INDEX idx_example_rule ON example(rule_id)",
     ),
 }

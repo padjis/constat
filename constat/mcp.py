@@ -38,6 +38,7 @@ from typing import Any
 
 from .ai.guidance import (
     ANCHORS,
+    EXAMPLES,
     NOTHING_IS_ACCEPTED,
     REPLY_SHAPE,
     AREAS,
@@ -308,7 +309,8 @@ def build_server(workspace_home: str | None = None):
             "conclusions as JSON.\n"
             "4. Tell me what was stored and what was discarded, with the "
             "reasons.\n\n"
-            f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{AREAS}\n\n{RELATIONS}\n\n"
+            f"{WHAT_A_RULE_IS}\n\n{EXAMPLES}\n\n{ANCHORS}\n\n{AREAS}\n\n"
+            f"{RELATIONS}\n\n"
             f"{REVISION}\n\n"
             f"{PENDING}\n\n"
             f"{NOTHING_IS_ACCEPTED}\n\n"

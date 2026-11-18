@@ -130,6 +130,16 @@ class KnownRule:
     name: str
     statement: str
     anchors: tuple[str, ...] = ()
+    examples: tuple[tuple[str, str], ...] = ()
+    """The rule's accepted examples, as (situation, outcome) (CON-80).
+
+    Shown for a reason sharper than reuse: accepting a revision **rewrites** a
+    rule's examples from the reading, so a revision that does not mention them
+    deletes cases a human had already accepted. A reading that cannot see them
+    cannot carry them forward, and the loss would be invisible.
+
+    Pairs rather than `Example`, matching how `anchors` here are plain strings:
+    this is the provider's view of a rule, not the stored model."""
     area: str | None = None
     """So a reading can reuse an area rather than coin a synonym for it. The
     taxonomy drifts into "advertising", "ads" and "monetisation" otherwise —

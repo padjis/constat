@@ -26,7 +26,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from ..errors import NotRegistered
-from ..models import Anchor, Behaviour, RuleProposal
+from ..models import Anchor, Behaviour, Example, RuleProposal
 from .workspace import Workspace, utc_now
 
 
@@ -178,6 +178,12 @@ class RuleProposals:
                     "INSERT INTO rule_proposal_behaviour "
                     "(rule_proposal_id, description) VALUES (?, ?)",
                     (proposal_id, behaviour.description),
+                )
+            for example in proposal.examples:
+                ws.execute(
+                    "INSERT INTO rule_proposal_example "
+                    "(rule_proposal_id, situation, outcome) VALUES (?, ?, ?)",
+                    (proposal_id, example.situation, example.outcome),
                 )
             for anchor in proposal.anchors:
                 repository_id = None
@@ -355,6 +361,14 @@ class RuleProposals:
                 (row["id"],),
             ).fetchall()
         )
+        examples = tuple(
+            Example(situation=r["situation"], outcome=r["outcome"])
+            for r in self._workspace.execute(
+                "SELECT situation, outcome FROM rule_proposal_example "
+                "WHERE rule_proposal_id = ? ORDER BY id",
+                (row["id"],),
+            ).fetchall()
+        )
         anchors = tuple(
             Anchor(
                 path_glob=r["path_glob"],
@@ -385,6 +399,7 @@ class RuleProposals:
                 name=row["name"],
                 statement=row["statement"],
                 behaviours=behaviours,
+                examples=examples,
                 anchors=anchors,
                 revises_rule_id=row["revises_rule_id"],
                 relation=_relation_of(row),

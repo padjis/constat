@@ -53,6 +53,28 @@ business knowledge. No rules is far better than a plausible guess, because \
 every proposal costs a person a decision.\
 """
 
+EXAMPLES = """\
+Give worked examples: a situation, and what the product does with it. This is \
+what makes a rule checkable. A reviewer can read a statement and agree with it \
+without learning anything; shown "a 64 MB upload → refused" they can say "no, \
+the limit is 100" — and that correction is the entire point of the review.
+
+Each example is two fields, `situation` and `outcome`, and both are required. \
+Be specific: a quantity, a name, a state. An example that repeats the \
+statement in different words is refused, because a reviewer cannot disagree \
+with it.
+
+Cover the interesting cases rather than every case. The ones that earn their \
+place are the boundary either side of a limit, the refusal and its reason, and \
+the case a reader would assume works and does not. Use invented data — never a \
+real customer, supplier, person or account.
+
+The same language test as the statement applies to both halves: an example \
+naming a file, a class or a status code is refused. Examples are optional, so \
+offer none rather than inventing cases the evidence does not show — but a rule \
+with no examples is a rule nobody can check, so look for them.\
+"""
+
 ANCHORS = """\
 An anchor says where a rule lives, not that its behaviour changed — whether \
 the behaviour changed is for a reviewer to say.
@@ -108,7 +130,12 @@ proposing it, and belongs in `relation`, not in the sentence.\
 REVISION = """\
 You are shown the rules already in the catalogue. If what you identify is a \
 revision of one of them, name its id in `revises` rather than proposing it \
-again — that appends a new version instead of duplicating the rule.\
+again — that appends a new version instead of duplicating the rule.
+
+**A revision replaces the rule's examples with yours.** You are shown the \
+examples each rule already carries, so repeat the ones that still hold and \
+change only what the evidence changes. Omitting them deletes cases a person \
+already accepted.\
 """
 
 PENDING = """\
@@ -129,6 +156,8 @@ REPLY_SHAPE = """\
 {"rules": [{"name": "kebab-case-name",
             "statement": "One sentence a business reader would recognise.",
             "behaviours": ["What the system does"],
+            "examples": [{"situation": "An upload of 64 MB",
+                          "outcome": "Refused, and nothing is processed"}],
             "anchors": [{"path_glob": "path/from/the/evidence.py",
                          "repository_alias": "alias"}],
             "area": "advertising",
@@ -142,13 +171,14 @@ def for_system_prompt() -> str:
     return (
         "You are reading the evidence for one software ticket and identifying "
         "the business rules it touches.\n\n"
-        f"{WHAT_A_RULE_IS}\n\n{ANCHORS}\n\n{AREAS}\n\n{RELATIONS}\n\n"
+        f"{WHAT_A_RULE_IS}\n\n{EXAMPLES}\n\n{ANCHORS}\n\n{AREAS}\n\n{RELATIONS}\n\n"
         f"{REVISION}\n\n{PENDING}\n\n"
         f"{NOTHING_IS_ACCEPTED}\n\n"
         "Reply with JSON and nothing else, in exactly this shape:\n\n"
         f"{REPLY_SHAPE}\n\n"
-        '`area` and `relation` are optional; `relation` defaults to '
-        '`establishes`, and `revises` is required only for a '
-        'revision and must be absent for a repair. Return {"rules": []} '
+        '`examples`, `area` and `relation` are optional; `relation` defaults '
+        'to `establishes`, and `revises` is required only for a '
+        'revision and must be absent for a repair. An example needs both '
+        '`situation` and `outcome`. Return {"rules": []} '
         "if the evidence supports none."
     )

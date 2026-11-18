@@ -2,10 +2,10 @@
 
 **Last updated:** 2026-11-18
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-18):** no code. The catalogue was reviewed against a worked
-implementation of the same idea, which produced **D-076** (Constat assumes trunk-based development,
-and product rule 6 is unmet), a decision to acquire a **release concept**, and **16 tickets**
-(CON-80…CON-98). Documentation only: `README.md`, `DECISIONS.md`, `PRODUCT_SPEC.md`, `BACKLOG.md`.
+**Current session (2026-11-18):** **CON-80 closed (D-077)** — a rule carries worked examples, schema
+14. Earlier the same day, with no code: the catalogue was reviewed against a worked implementation
+of the same idea, producing **D-076** (Constat assumes trunk-based development, and product rule 6
+is unmet), a decision to acquire a **release concept**, and **16 tickets** (CON-80…CON-98).
 
 **2026-11-16:** CON-22 attempted and recorded as not possible from here
 (`BRAND_NAME_REVIEW.md` § 10); the brief for CON-23 is written and its first question is whether the
@@ -428,12 +428,16 @@ already said — the ticket needed a recorded decision, not an edit. CON-21 is c
 the site starts at `constat.padjinou.com` and no domain is bought, which accepts rather than solves
 the risk that `tryconstat.com` stays registerable by anyone.
 
-The next code task is **CON-80 — a rule carries worked examples**, which replaces CON-67 as the
-recommendation after 2026-11-18. Both are about a rule's substance, and CON-80 comes first because
-it adds the thing a business reader checks a rule *with*: a table of situations and their outcomes.
-A rule with a statement and no examples is readable and not checkable, which is the business half of
-product rule 8. It needs no release concept, no schema decision beyond where examples hang, and
-CON-67 still follows it with the same tracking problem, now over a shape worth tracking.
+The next code task is **CON-67 — track which details changed between versions**, which CON-80 has
+just made worth more: a version now carries examples, so the diff between two versions is a diff of
+the cases a reviewer checked rather than of two sentences. It still needs a decision on **detail
+identity** — an example is addressed by position today, and position is not an identity a diff can
+rely on, so "the second example changed" and "an example was inserted above it" are
+indistinguishable. That decision is the ticket's real content.
+
+The alternative worth weighing against it is **CON-89 — document an area from its current
+behaviour, with no ticket**, which needs CON-88 first and is the higher adoption value: a new
+workspace still has no route into the catalogue except ticket by ticket.
 
 Then **CON-58 — read decisions back, with their channel and verification**, the half of acceptance
 that is still CLI-only.
@@ -474,6 +478,75 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## CON-80 — done when: *a rule carries worked examples* ✅
+
+`D-077` records the decision. The catalogue held statements and nothing a reader could disagree
+with: a business reader could read a rule and agree without learning anything.
+
+**What changed.** An `Example(situation, outcome)` on `Rule` and `RuleProposal`, and schema **14** —
+`rule_proposal_example`, `rule_version_example`, `example`. It is a fourth instance of a pattern the
+store already had three of, which is why it was one session: behaviours and anchors each exist as
+the same triple, so storage, freezing and the live rewrite were all shaped before this started.
+
+**Live output, on a throwaway workspace:**
+
+```
+  [1] daily-transfer-limit — awaiting a decision
+      A transfer above the daily limit is refused and the limit is shown.
+      area: payments — read by external, self-reported, run 2
+      examples (3):
+        - A transfer of 240 euros against a 500 limit  →  Accepted
+        - A transfer of 600 euros against a 500 limit  →  Refused, and the limit is shown
+        - Two transfers of 300 euros on one day  →  The second is refused
+```
+
+The examples are in the **review queue**, not only in `rule show`. A queue that asked for a decision
+while withholding the cases the decision is about would be asking for agreement rather than review.
+
+**Three things worth keeping straight.**
+
+1. **Shape is checked; truth never is.** Both halves required, 200 characters each, no code leakage
+   (D-066), not a restatement of the statement, no repeated situation. Whether the outcome is what
+   the code does is the reviewer's whole job, and a test stores a plausible-but-wrong example on
+   purpose, with a docstring saying why.
+2. **A bad example rejects the whole reading**, never itself. Two good examples and one broken one
+   store nothing — dropping the third would leave a reading claiming something the reader did not
+   say, which is what `parsing.py` exists to prevent.
+3. **A revision would have deleted examples silently.** Acceptance rewrites the live table from the
+   reading, so a `revises` reading that omitted examples erased cases a human had accepted.
+   `KnownRule` now carries them and the guidance says a revision replaces them. The same hazard was
+   already true of behaviours; examples made it expensive.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_rule_examples.py` → **33 passed** (new file). The affected
+files — parsing, submit, ai, mcp, provider_anthropic, operations, cli, models, business statements,
+product state, evidence pointers, pending duplicates, rule relations, rule areas, proposal storage,
+acceptance, catalogue, version substance — → **386 passed**. **Whole suite**, because the schema
+changed: **1070 passed in 216s**, exit 0, with no migration fixture broken — schema 14's tables were
+registered in `helpers.TABLES_INTRODUCED_AT` before the migration tests ran, the third time that map
+has paid for itself.
+
+**Mutation-checked.** Pointing `version_examples` at the live `example` table fails exactly one
+test, `test_an_earlier_version_keeps_its_own_examples`, and nothing else — CON-61's property, which
+matters more for examples than for behaviours: showing version 1 the examples of version 3
+misattributes the very thing a reviewer agreed to.
+
+**Verified by hand** end to end on a throwaway subject: submit → queue → accept → `rule show` →
+`rule history` → `constat state` → `document --payload`. The payload's `catalogue` entry carries the
+accepted examples, which is what makes the revision path safe.
+
+### Deliberately not done
+
+- **No identifiers for examples.** An example is addressed by position within its rule. Citable
+  identifiers wait for CON-81's decision on the rule identifier form.
+- **No diffing of examples across versions** — that is CON-67, which this makes worth more: there is
+  now a shape worth tracking.
+- **No completeness claim.** Nothing says a rule's examples cover its cases, and nothing should
+  without a way to know.
 
 ---
 

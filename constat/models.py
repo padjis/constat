@@ -121,6 +121,30 @@ class Behaviour(Frozen):
     description: str = Field(min_length=1)
 
 
+class Example(Frozen):
+    """One situation and what the product does with it (CON-80).
+
+    This is what a business reader checks a rule *with*. A statement can be
+    read and agreed with; an example can be disagreed with, which is the
+    difference between documentation someone skims and documentation someone
+    verifies. It is the business half of product rule 8, expressed as data.
+
+    Two fields, deliberately, rather than a per-rule table of input columns. A
+    reading gets re-run — twice on ticket 615 already — and a per-rule column
+    schema would come back different each time, so one rule would accumulate
+    three shapes of table that nobody could diff.
+
+    **Nothing in Constat checks that `outcome` is correct.** Deciding that is
+    the reviewer's entire job, and a gate that pretended to do it would be
+    manufacturing the certainty product rule 1 forbids. What is checked is that
+    both halves are present, that neither leaks code (D-066) and that the
+    example is not the statement restated.
+    """
+
+    situation: str = Field(min_length=1)
+    outcome: str = Field(min_length=1)
+
+
 class Anchor(Frozen):
     """Where a rule is believed to be implemented.
 
@@ -162,6 +186,12 @@ class Rule(Frozen):
     statement: str = Field(min_length=1)
     created_at: datetime
     behaviours: tuple[Behaviour, ...] = ()
+    examples: tuple[Example, ...] = ()
+    """Worked cases, in the order they were proposed (CON-80).
+
+    Empty is a real value and has two meanings a renderer must not conflate: a
+    rule accepted before schema 14, which could not carry examples, and a rule
+    whose reading proposed none. Neither is "this rule has no cases"."""
     anchors: tuple[Anchor, ...] = ()
     area: str | None = None
     """The business area this rule belongs to (D-070).
@@ -193,6 +223,12 @@ class RuleProposal(Frozen):
     name: str = Field(min_length=1)
     statement: str = Field(min_length=1)
     behaviours: tuple[Behaviour, ...] = ()
+    examples: tuple[Example, ...] = ()
+    """Worked cases this reading proposes (CON-80).
+
+    Optional, like `area`: a reading that offers none is weaker rather than
+    invalid, and refusing it would discard a rule a human might have accepted.
+    The guidance asks for them; the parse does not require them."""
     anchors: tuple[Anchor, ...] = ()
     revises_rule_id: int | None = None
     """Which catalogue rule this reading claims to revise (D-050). A claim,

@@ -78,6 +78,46 @@ patterns run rather than exempted inside them, which would make every pattern
 carry a clause about English."""
 
 
+def restates(example_text: str, statement: str) -> bool:
+    """Whether an example is the statement said again rather than a case of it.
+
+    An example earns its place by being **specific**: a situation concrete
+    enough that a business reader can say "no, that's not what happens". A
+    model asked for examples will sometimes return the statement with the
+    words shuffled, which costs a reviewer a line to read and tells them
+    nothing new.
+
+    Mechanical and deliberately blunt: compare the two as word sets, ignoring
+    order and the commonest function words. Near-identity is a restatement;
+    anything else is left alone.
+
+    **Errs toward allowing**, like `code_leakage` and for the same reason — a
+    false refusal discards a case a person might have wanted, and the reader
+    cannot argue back. An example that shares most of the statement's words
+    while adding a real quantity, name or condition keeps those extra words and
+    so falls under the threshold.
+    """
+    def shape(text: str) -> frozenset[str]:
+        words = re.findall(r"[a-z0-9]+", text.lower())
+        return frozenset(w for w in words if w not in _FILLER)
+
+    left, right = shape(example_text), shape(statement)
+    if not left or not right:
+        return False
+    overlap = len(left & right) / len(left | right)
+    return overlap >= 0.85
+
+
+_FILLER = frozenset(
+    "a an the is are was were be been being do does did not no of to in on at "
+    "for with by from and or but if then than that this these those it its as "
+    "when while which who whom whose into over under".split()
+)
+"""Function words, removed before comparing. Left in, they inflate the overlap
+of any two English sentences and a real example starts looking like a
+restatement."""
+
+
 def code_leakage(text: str) -> str | None:
     """What kind of code `text` leaks, or None if it reads as prose.
 

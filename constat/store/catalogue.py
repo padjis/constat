@@ -26,7 +26,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from ..globs import matches_path
-from ..models import Anchor, Behaviour, Rule
+from ..models import Anchor, Behaviour, Example, Rule
 from .workspace import Workspace
 
 
@@ -98,6 +98,19 @@ class Catalogue:
                 (rule_id,),
             )
         )
+        # Ordered by id, not by text: the order a reading proposed cases in
+        # carries meaning — accepted first, then the boundary, then the
+        # refusal — and sorting alphabetically would scramble it. Behaviours
+        # above sort by description because they are a set of statements with
+        # no inherent sequence.
+        examples = tuple(
+            Example(situation=e["situation"], outcome=e["outcome"])
+            for e in self._workspace.execute(
+                "SELECT situation, outcome FROM example WHERE rule_id = ? "
+                "ORDER BY id",
+                (rule_id,),
+            )
+        )
         anchors = tuple(
             Anchor(
                 path_glob=a["path_glob"],
@@ -117,5 +130,6 @@ class Catalogue:
             area=row["area"] if "area" in row.keys() else None,
             created_at=datetime.fromisoformat(row["created_at"]),
             behaviours=behaviours,
+            examples=examples,
             anchors=anchors,
         )

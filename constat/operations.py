@@ -475,6 +475,7 @@ def _render_rules(
             for behaviour in proposal.behaviours:
                 lines.append(f"- {behaviour.description}")
             lines.append("")
+        lines += example_table(proposal.examples)
         if proposal.anchors:
             lines.append("Anchors:")
             lines.append("")
@@ -672,12 +673,17 @@ def known_rules(workspace: Workspace) -> tuple[KnownRule, ...]:
             "SELECT path_glob FROM anchor WHERE rule_id = ? ORDER BY path_glob",
             (row["id"],),
         ).fetchall()
+        examples = workspace.execute(
+            "SELECT situation, outcome FROM example WHERE rule_id = ? ORDER BY id",
+            (row["id"],),
+        ).fetchall()
         rules.append(
             KnownRule(
                 rule_id=row["id"],
                 name=row["name"],
                 statement=row["statement"],
                 anchors=tuple(a["path_glob"] for a in anchors),
+                examples=tuple((e["situation"], e["outcome"]) for e in examples),
                 area=row["area"],
             )
         )
@@ -1648,6 +1654,38 @@ def product_state(
     )
 
 
+def example_table(examples, heading: str = "Examples") -> list[str]:
+    """A rule's worked cases as a Markdown table (CON-80).
+
+    One function, because the ticket document and the product state both show
+    examples and a reviewer comparing them must not be reading two formats.
+
+    Returns `[]` when there are none, deliberately rather than an empty table
+    with a "none" row: the callers say what an absence *means*, and they do not
+    all mean the same thing. On a rule proposal it means the reading offered
+    none; on a rule accepted before schema 14 it means examples did not exist
+    yet. Neither means the rule has no cases.
+    """
+    rows = tuple(examples)
+    if not rows:
+        return []
+    out = [f"{heading}:", "", "| Situation | Outcome |", "| --- | --- |"]
+    for example in rows:
+        out.append(f"| {_cell(example.situation)} | {_cell(example.outcome)} |")
+    out.append("")
+    return out
+
+
+def _cell(text: str) -> str:
+    """Make text safe inside a Markdown table cell.
+
+    A pipe in a situation would split the row and silently move the rest of the
+    sentence into a column that does not exist — a rendering bug that reads as
+    Constat having dropped half the example.
+    """
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
 def render_state(state: ProductState) -> str:
     """Render the current picture as Markdown.
 
@@ -1717,6 +1755,20 @@ def render_state(state: ProductState) -> str:
                     shown = ", ".join(f"`{path}`" for path in paths[:5])
                     more = "" if len(paths) <= 5 else f" and {len(paths) - 5} more"
                     lines.append(f"  - in {alias}: {shown}{more}")
+                if item.rule.examples:
+                    lines.append("")
+                    lines += [
+                        f"  {line}" if line else ""
+                        for line in example_table(item.rule.examples)
+                    ]
+                else:
+                    # Said rather than left blank. A rule nobody can check is a
+                    # gap in the documentation, and a reader scanning for
+                    # verifiable rules should see which ones are not.
+                    lines.append(
+                        "  - no examples, so nothing here can be checked "
+                        "case by case"
+                    )
             lines.append("")
 
     if state.unanchored:

@@ -614,6 +614,15 @@ def _report_proposals(
         print(f"      {item.proposal.statement}")
         area = item.proposal.area or "(unplaced)"
         print(f"      area: {area} — read by {item.attribution}, run {item.run_id}")
+        if item.proposal.examples:
+            # In the queue, not only in `rule show`: the examples are what a
+            # reviewer decides *on*, so a queue that hid them would be asking
+            # for a decision while withholding the evidence for it.
+            print(f"      examples ({len(item.proposal.examples)}):")
+            for example in item.proposal.examples:
+                print(f"        - {example.situation}  →  {example.outcome}")
+        else:
+            print("      no examples — this reading offers nothing to check")
         if evidence is not None:
             commits = evidence.get(item.run_id, ())
             if commits:
@@ -659,6 +668,15 @@ def _print_rule(rule) -> None:
             print(f"    - {behaviour.description}")
     else:
         print("  behaviours: none declared yet")
+    if rule.examples:
+        print(f"  examples ({len(rule.examples)}):")
+        for example in rule.examples:
+            print(f"    - {example.situation}  →  {example.outcome}")
+    else:
+        # Two states this cannot tell apart, so it claims neither: a rule
+        # accepted before examples existed (schema 14), and one whose reading
+        # proposed none. Saying "none proposed" would assert the second.
+        print("  examples: none recorded — nothing here can be checked case by case")
     if rule.anchors:
         print(f"  anchors ({len(rule.anchors)}):")
         for anchor in rule.anchors:
@@ -806,6 +824,15 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                             print(f"        - {description}")
                     else:
                         print("      behaviours: none recorded in this version")
+                    if v["examples"]:
+                        print(f"      examples ({len(v['examples'])}):")
+                        for example in v["examples"]:
+                            print(
+                                f"        - {example.situation}  →  "
+                                f"{example.outcome}"
+                            )
+                    else:
+                        print("      examples: none recorded in this version")
                     if v["anchors"]:
                         print(f"      anchors ({len(v['anchors'])}):")
                         for anchor in v["anchors"]:

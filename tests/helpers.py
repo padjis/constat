@@ -166,6 +166,7 @@ to stop."""
 TABLES_INTRODUCED_AT: dict[int, tuple[str, ...]] = {
     8: ("setting",),
     13: ("run_commit",),
+    14: ("rule_proposal_example", "rule_version_example", "example"),
 }
 
 

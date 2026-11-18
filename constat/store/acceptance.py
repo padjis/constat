@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..errors import InvalidInput, NotRegistered
-from ..models import Anchor
+from ..models import Anchor, Example
 from .proposals import RuleProposals, StoredRuleProposal
 from .workspace import Workspace, utc_now
 
@@ -169,6 +169,12 @@ class Review:
                     "(rule_version_id, description) VALUES (?, ?)",
                     (version_id, behaviour.description),
                 )
+            for example in stored.proposal.examples:
+                ws.execute(
+                    "INSERT INTO rule_version_example "
+                    "(rule_version_id, situation, outcome) VALUES (?, ?, ?)",
+                    (version_id, example.situation, example.outcome),
+                )
             for anchor in stored.proposal.anchors:
                 ws.execute(
                     "INSERT INTO rule_version_anchor "
@@ -195,12 +201,20 @@ class Review:
                 ),
             )
             ws.execute("DELETE FROM behaviour WHERE rule_id = ?", (rule_id,))
+            ws.execute("DELETE FROM example WHERE rule_id = ?", (rule_id,))
             ws.execute("DELETE FROM anchor WHERE rule_id = ?", (rule_id,))
             for behaviour in stored.proposal.behaviours:
                 ws.execute(
                     "INSERT INTO behaviour (rule_id, description, created_at) "
                     "VALUES (?, ?, ?)",
                     (rule_id, behaviour.description, now),
+                )
+            for example in stored.proposal.examples:
+                ws.execute(
+                    "INSERT INTO example "
+                    "(rule_id, situation, outcome, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (rule_id, example.situation, example.outcome, now),
                 )
             for anchor in stored.proposal.anchors:
                 ws.execute(
@@ -249,6 +263,7 @@ class Review:
         for row in rows:
             version = dict(row)
             version["behaviours"] = self.version_behaviours(row["id"])
+            version["examples"] = self.version_examples(row["id"])
             version["anchors"] = self.version_anchors(row["id"])
             versions.append(version)
         return tuple(versions)
@@ -261,6 +276,24 @@ class Review:
             (rule_version_id,),
         ).fetchall()
         return tuple(row["description"] for row in rows)
+
+    def version_examples(self, rule_version_id: int) -> tuple[Example, ...]:
+        """The worked cases this version was accepted with, as frozen (CON-80).
+
+        Read from `rule_version_example` for CON-61's reason, which applies
+        here with more force than it does to behaviours: examples are the part
+        of a rule a reviewer actually checked, so showing version 1 the
+        examples of version 3 would misattribute the very thing they agreed to.
+        """
+        rows = self._workspace.execute(
+            "SELECT situation, outcome FROM rule_version_example "
+            "WHERE rule_version_id = ? ORDER BY id",
+            (rule_version_id,),
+        ).fetchall()
+        return tuple(
+            Example(situation=row["situation"], outcome=row["outcome"])
+            for row in rows
+        )
 
     def version_anchors(self, rule_version_id: int) -> tuple[Anchor, ...]:
         """Where this version said the rule lived, as it was frozen.

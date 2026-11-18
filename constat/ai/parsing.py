@@ -39,9 +39,9 @@ from dataclasses import dataclass
 
 from ..errors import MalformedResponse
 from ..globs import matches_path
-from ..models import Anchor, Behaviour, RuleProposal
+from ..models import Anchor, Behaviour, Example, RuleProposal
 from .redaction import ProviderPayload
-from .statements import code_leakage
+from .statements import code_leakage, restates
 
 FENCE = re.compile(r"^\s*```(?:json)?\s*(?P<body>.*?)\s*```\s*$", re.DOTALL)
 """Models wrap JSON in a code fence more often than not. Unwrapping it is
@@ -56,6 +56,10 @@ RELATIONS = ("establishes", "revises", "repairs")
 """How a reading may stand to the catalogue (D-065). Kept here beside the
 parse that enforces it: SQLite cannot add a CHECK to an existing column, so a
 migrated workspace relies on this gate exactly as a fresh one does."""
+
+MAX_EXAMPLE = 200
+"""Each half of an example. A case is a sentence, not a scenario document; past
+this length it is prose that belongs in the statement or nowhere."""
 
 MAX_NAME = 120
 MAX_STATEMENT = 600
@@ -169,6 +173,76 @@ def _behaviours(raw: object) -> tuple[Behaviour, ...]:
         for item in raw
         if isinstance(item, str) and item.strip()
     )
+
+
+def _examples(raw: object, statement: str) -> tuple[Example, ...] | str:
+    """Parsed examples, or a reason to reject the whole proposal (CON-80).
+
+    Returns a string rather than dropping a bad example, because a silently
+    dropped one is the "eight rules in, two out, nothing said" failure this
+    module exists to prevent — applied one level down. A reading that offered
+    three cases and had one quietly removed has been edited, not parsed.
+
+    Absent or empty is fine and returns `()`: examples are optional, and a
+    rule without them is weaker rather than invalid.
+    """
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        return "'examples' is not a list"
+
+    examples: list[Example] = []
+    seen: set[str] = set()
+    for position, item in enumerate(raw, start=1):
+        if not isinstance(item, dict):
+            return f"example {position} is not an object with a situation and an outcome"
+
+        situation = item.get("situation")
+        outcome = item.get("outcome")
+        situation = situation.strip() if isinstance(situation, str) else ""
+        outcome = outcome.strip() if isinstance(outcome, str) else ""
+
+        # Both halves, always. A situation with no outcome is a case nobody
+        # answered, and an outcome with no situation is an assertion with
+        # nothing to check it against. Either one alone would render as a table
+        # row with a blank cell, which reads as an omission by Constat rather
+        # than by the reading.
+        if not situation:
+            return f"example {position} has no situation"
+        if not outcome:
+            return f"example {position} has no outcome"
+        if len(situation) > MAX_EXAMPLE or len(outcome) > MAX_EXAMPLE:
+            return (
+                f"example {position} is longer than {MAX_EXAMPLE} characters; "
+                "an example is a case, not a scenario"
+            )
+
+        # The same test as the statement and the behaviours (D-066). An example
+        # is read by the same person, in the same table, and a rule whose
+        # statement is clean and whose examples name files is still technical.
+        for half, text in (("situation", situation), ("outcome", outcome)):
+            leak = code_leakage(text)
+            if leak is not None:
+                return (
+                    f"the {half} of example {position} is not business "
+                    f"language — it contains {leak} (D-066)"
+                )
+
+        if restates(f"{situation} {outcome}", statement):
+            return (
+                f"example {position} restates the statement instead of giving "
+                "a case of it; an example has to be specific enough to "
+                "disagree with"
+            )
+
+        key = situation.lower()
+        if key in seen:
+            return f"example {position} repeats an earlier situation"
+        seen.add(key)
+
+        examples.append(Example(situation=situation, outcome=outcome))
+
+    return tuple(examples)
 
 
 def _anchors(
@@ -398,6 +472,11 @@ def parse(
             # fact the reply already stated, read a second way.
             relation = "revises" if revises is not None else "establishes"
 
+        examples = _examples(raw.get("examples"), statement)
+        if isinstance(examples, str):
+            rejections.append(Rejection(label, examples))
+            continue
+
         anchors = _anchors(raw.get("anchors"), paths, aliases, mainline)
         if not anchors:
             # Deliberately fatal for the proposal. An unanchored rule can
@@ -418,6 +497,7 @@ def parse(
                 name=name,
                 statement=statement,
                 behaviours=behaviours,
+                examples=examples,
                 anchors=anchors,
                 revises_rule_id=revises,
                 relation=relation,
