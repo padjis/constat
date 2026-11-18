@@ -1966,7 +1966,10 @@ def render_state(state: ProductState) -> str:
         for area, states in grouped.items():
             lines += [f"### {area}", ""]
             for item in states:
-                lines.append(f"- **{item.rule.name}** — {item.rule.statement}")
+                cite = f"`{item.rule.ref}` " if item.rule.ref else ""
+                lines.append(
+                    f"- {cite}**{item.rule.name}** — {item.rule.statement}"
+                )
                 for alias, paths in sorted(item.matched.items()):
                     shown = ", ".join(f"`{path}`" for path in paths[:5])
                     more = "" if len(paths) <= 5 else f" and {len(paths) - 5} more"
@@ -2000,7 +2003,10 @@ def render_state(state: ProductState) -> str:
         ]
         for item in state.unanchored:
             area = item.rule.area or UNPLACED
-            lines.append(f"- **{item.rule.name}** ({area}) — {item.rule.statement}")
+            cite = f"`{item.rule.ref}` " if item.rule.ref else ""
+            lines.append(
+                f"- {cite}**{item.rule.name}** ({area}) — {item.rule.statement}"
+            )
             anchors = ", ".join(f"`{a.path_glob}`" for a in item.rule.anchors)
             lines.append(f"  - anchored to {anchors or '(nothing)'}")
         lines.append("")

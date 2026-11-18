@@ -219,10 +219,22 @@ class Review:
                 )
             return int(row["id"]), False
 
+        # The citation is assigned here because this is the one place a rule
+        # comes into being (D-048). The high-water mark is `rule` itself, which
+        # is sound without qualification: a rule can never be deleted (the
+        # trigger aborts it), so the table *is* the whole history and a
+        # citation can never be reused.
+        highest = self._workspace.execute(
+            "SELECT MAX(CAST(SUBSTR(ref, 3) AS INTEGER)) AS top FROM rule "
+            "WHERE ref LIKE 'R-%'"
+        ).fetchone()
+        ref = f"R-{(highest['top'] or 0) + 1}"
+
         cursor = self._workspace.execute(
-            "INSERT INTO rule (name, statement, area, created_at) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO rule (ref, name, statement, area, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
             (
+                ref,
                 stored.proposal.name,
                 stored.proposal.statement,
                 stored.proposal.area,

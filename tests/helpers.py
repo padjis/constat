@@ -153,6 +153,7 @@ INTRODUCED_AT: dict[int, tuple[tuple[str, str], ...]] = {
         ("anchor", "grounded_in"),
         ("rule_version_anchor", "grounded_in"),
     ),
+    17: (("rule", "ref"),),
     15: (
         ("behaviour", "behaviour_no"),
         ("example", "example_no"),
@@ -196,6 +197,16 @@ def rewind_workspace(db: Path, to_version: int) -> None:
                     name, _ = APPEND_ONLY_TRIGGERS[table]
                     connection.execute(f"DROP TRIGGER IF EXISTS {name}")
                     dropped_triggers.add(table)
+                # SQLite refuses to drop an indexed column, so any index
+                # mentioning it comes off first. Discovered rather than listed:
+                # a map of index names would be one more thing to remember on
+                # the next migration, which is what this helper exists to stop.
+                for (index_name,) in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'index' "
+                    "AND tbl_name = ? AND sql LIKE ?",
+                    (table, f"%{column}%"),
+                ).fetchall():
+                    connection.execute(f"DROP INDEX IF EXISTS {index_name}")
                 connection.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
 
         for version, tables in sorted(TABLES_INTRODUCED_AT.items(), reverse=True):

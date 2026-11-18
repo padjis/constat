@@ -88,6 +88,7 @@ class TestTheCatalogueCannotBeEmptied:
         ]
         assert sorted(surface) == [
             "areas",
+            "by_id",
             "find",
             "list",
             "rules_matching",

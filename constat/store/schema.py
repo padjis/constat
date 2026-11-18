@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -172,8 +172,20 @@ CREATE TABLE area (
 -- `name` is not UNIQUE (D-050). A name is a label that may change between
 -- versions; identity is this surrogate id, which survives renames,
 -- restatements and anchor drift. Anchors only *match* a rule.
+--
+-- `ref` is the citable identifier a person writes down — `R-14` (CON-81).
+-- Flat, not area-prefixed: an area is mutable by design (D-079 left it free
+-- text), and an identifier that encodes a mutable fact becomes a false claim
+-- the moment that fact changes. CON-67 taught that about positions; the same
+-- applies here.
+--
+-- Stored rather than derived from `id`. `R-{id}` would be free and is a trap:
+-- a public citation would then depend on rowids surviving every future table
+-- rebuild, and `rule` has already been rebuilt once (migration 4 -> 5). A
+-- citation that can shift is not a citation.
 CREATE TABLE rule (
     id          INTEGER PRIMARY KEY,
+    ref         TEXT,
     name        TEXT    NOT NULL,
     statement   TEXT    NOT NULL,
     area        TEXT,
@@ -374,6 +386,12 @@ CREATE TABLE anchor (
     UNIQUE (rule_id, repository_id, path_glob)
 );
 
+-- Uniqueness as an explicit index rather than an inline constraint, so a
+-- freshly created workspace is structurally identical to a migrated one:
+-- ALTER TABLE cannot add an inline UNIQUE, so the migration has to use an
+-- index, and two shapes of the same table is a difference waiting to surprise
+-- somebody.
+CREATE UNIQUE INDEX idx_rule_ref ON rule(ref);
 CREATE INDEX idx_behaviour_rule ON behaviour(rule_id);
 CREATE INDEX idx_example_rule ON example(rule_id);
 CREATE INDEX idx_anchor_rule ON anchor(rule_id);
@@ -781,6 +799,21 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     # time. They were not: the match would be made today, by this code, and
     # presented as what a reviewer saw. NULL reads as "not numbered", and the
     # diff says so rather than comparing.
+    # 16 -> 17: a rule has a citable identifier (CON-81).
+    #
+    # **Back-filled, unlike every migration before it, and the difference is
+    # the point.** The others refused to back-fill because they would have been
+    # inventing a claim nobody made — an area, a number, an example. A citation
+    # invents nothing: the rules exist, and naming them is not asserting
+    # anything about them. Refusing here would leave the catalogue with rules
+    # nobody can cite, which is the defect this closes.
+    #
+    # Assigned in id order so the result is stable and reproducible.
+    16: (
+        "ALTER TABLE rule ADD COLUMN ref TEXT",
+        "UPDATE rule SET ref = 'R-' || id WHERE ref IS NULL",
+        "CREATE UNIQUE INDEX idx_rule_ref ON rule(ref)",
+    ),
     # 15 -> 16: an area can be declared before its first rule (CON-88).
     #
     # Nothing is migrated into it, and nothing needs to be: every area already

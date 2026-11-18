@@ -202,6 +202,20 @@ class Rule(Frozen):
     name: str = Field(min_length=1)
     statement: str = Field(min_length=1)
     created_at: datetime
+    ref: str | None = None
+    """The citable identifier — `R-14` (CON-81).
+
+    What a person writes in a comment, an email or a pull request. The row id
+    is an implementation detail that means nothing to a business reader, and
+    `name` is a label that may change between versions (D-050), so neither
+    could serve.
+
+    Flat rather than area-prefixed: an area is mutable by design (D-079), and
+    an identifier encoding a mutable fact becomes a false claim the moment that
+    fact changes.
+
+    None only for a rule read back from a workspace older than schema 17,
+    before the back-fill has run."""
     behaviours: tuple[Behaviour, ...] = ()
     examples: tuple[Example, ...] = ()
     """Worked cases, in the order they were proposed (CON-80).

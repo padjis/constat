@@ -797,7 +797,10 @@ def _print_diff(diff) -> None:
 
 
 def _print_rule(rule) -> None:
-    print(f"{rule.name}")
+    # The citation leads, because it is what a reader takes away and quotes
+    # elsewhere (CON-81). None only for a workspace older than schema 17.
+    cite = f"{rule.ref}  " if rule.ref else ""
+    print(f"{cite}{rule.name}")
     print(f"  area:       {rule.area or '(unplaced)'}")
     print(f"  statement:  {rule.statement}")
     if rule.behaviours:
@@ -859,7 +862,10 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                     print(f"  {area}:")
                     for rule in by_area[area]:
                         unanchored = "" if rule.anchors else "  (no anchors)"
-                        print(f"    {rule.name}: {rule.statement}{unanchored}")
+                        cite = f"{rule.ref} " if rule.ref else ""
+                        print(
+                            f"    {cite}{rule.name}: {rule.statement}{unanchored}"
+                        )
                 return EXIT_OK
 
             if args.rule_action == "submit":
@@ -886,8 +892,17 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                     attribution=attribution,
                 )
                 verb = "created" if result.created_rule else "revised"
+                # The citation, not just the row id: this is the moment a
+                # person learns what to call the rule they just accepted
+                # (CON-81).
+                accepted_rule = Catalogue(workspace).by_id(result.rule_id)
+                cite = (
+                    accepted_rule.ref
+                    if accepted_rule is not None and accepted_rule.ref
+                    else f"rule {result.rule_id}"
+                )
                 print(
-                    f"accepted: rule {result.rule_id} {verb}, "
+                    f"accepted: {cite} {verb}, "
                     f"version {result.version_no} baselined"
                 )
                 if attribution == "inferred":

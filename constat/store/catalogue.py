@@ -39,8 +39,29 @@ class Catalogue:
     # -- reading -----------------------------------------------------------
 
     def find(self, name: str) -> Rule | None:
+        """Find a rule by name or by citation (CON-81).
+
+        Both, because a citation is only useful if it resolves: a person who
+        wrote `R-14` in a comment should be able to type it back. Name first,
+        so nothing about existing lookups changes.
+        """
         row = self._workspace.execute(
             "SELECT * FROM rule WHERE name = ?", (name,)
+        ).fetchone()
+        if row is None:
+            row = self._workspace.execute(
+                "SELECT * FROM rule WHERE ref = ?", (name,)
+            ).fetchone()
+        return self._hydrate(row) if row else None
+
+    def by_id(self, rule_id: int) -> Rule | None:
+        """A rule by its row id.
+
+        Needed because decisions are addressed by id — a proposal names the
+        rule it revises that way (D-050) — while people are shown the citation.
+        """
+        row = self._workspace.execute(
+            "SELECT * FROM rule WHERE id = ?", (rule_id,)
         ).fetchone()
         return self._hydrate(row) if row else None
 
@@ -149,7 +170,9 @@ class Catalogue:
                 (rule_id,),
             )
         )
+        keys = row.keys()
         return Rule(
+            ref=row["ref"] if "ref" in keys else None,
             name=row["name"],
             statement=row["statement"],
             area=row["area"] if "area" in row.keys() else None,

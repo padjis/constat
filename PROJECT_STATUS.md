@@ -2,7 +2,8 @@
 
 **Last updated:** 2026-11-18
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-18):** **CON-89 closed (D-080)** — a baseline documents an area with no
+**Current session (2026-11-18):** **CON-81 closed (D-081)** — a rule's citation is flat (`R-14`),
+stored and never reused, schema 17. Before it, **CON-89 (D-080)** — a baseline documents an area with no
 evidence from Constat, under a reference, and with no schema change. Before it, **CON-88 and CON-90
 (D-079)** — an area is declared by accepting a rule, and coverage is counted in areas, schema 16. Before them, **CON-67 (D-078)** — a
 detail's identity is its text, numbered at acceptance, schema 15 — and **CON-80 (D-077)** — a rule
@@ -432,9 +433,10 @@ already said — the ticket needed a recorded decision, not an edit. CON-21 is c
 the site starts at `constat.padjinou.com` and no domain is bought, which accepts rather than solves
 the risk that `tryconstat.com` stays registerable by anyone.
 
-The next code task is **CON-81 — a citable rule identifier** — and it **needs a decision from you
-first**: area-prefixed (`BR-UPL-006`) or flat (`R-14`). CON-82, messages as catalogue entries,
-cannot start until it lands.
+The next code task is **CON-82 — a user-facing message is a catalogue entry a rule refers to**,
+which D-081 just unblocked: a message takes the same flat form (`M-7`). It is the last of the §1
+cluster, and the one that most changes what a business reader can check, since a quoted message is
+the most verifiable thing a rule can carry.
 
 Two smaller things are now reachable and unblocked: **an MCP tool for `baseline`**, which would be a
 thin wrapper over `baseline_area` (D-080 left it unbuilt deliberately), and **CON-15**, comparing
@@ -490,6 +492,74 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## CON-81 — done when: *a rule has a permanent, citable identifier* ✅
+
+`D-081` records the decision you made: **flat**, `R-14`, not area-prefixed.
+
+**Why flat was right, in one line:** an area is mutable by design (D-079 left it free text), and an
+identifier encoding a mutable fact becomes a false claim the moment that fact changes — which is
+exactly what D-078 established about positions, two tickets ago.
+
+**Live:**
+
+```
+accepted: R-1 created, version 1 baselined
+
+1 rule(s):
+  advertising:
+    R-1 install-pages-carry-no-advertising: The install pages carry no third-party advertising.
+
+$ constat rule show R-1
+R-1  install-pages-carry-no-advertising
+```
+
+The citation resolves as a lookup argument, because one nobody can look up is decoration.
+
+**Back-filled — the first migration here that does.** D-070, D-072, D-077 and D-078 all refused,
+because each would have invented a claim nobody made. A citation invents nothing: the rules exist,
+and naming them asserts nothing about them. Refusing would leave a catalogue whose rules nobody can
+cite, which is the defect being closed.
+
+### Two mutations survived before the property was pinned
+
+Worth writing down, because the first two attempts being wrong is the useful part.
+
+Replacing the high-water mark (`MAX` of the citations) with a **count of rules** passed every test
+in the new file. The first test written to catch it inserted an *uncited* rule — and that does not
+distinguish the two, since a NULL ref is counted by neither. What distinguishes them is a **gap** in
+the citations, which the back-fill can produce because it derives from row ids and row ids can have
+gaps. With a gap, counting returns a number already in use, the unique index refuses the insert, and
+an acceptance is lost to a numbering bug.
+
+**A mutation that survives means the test did not pin the property — not that the property holds.**
+The third attempt fails the mutation, as it should have the first time.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_rule_citation.py` → **16 passed** (new file). **Whole
+suite**, because the schema changed: **1148 passed in 234s**, exit 0.
+
+### Two things the tests forced
+
+- **`rewind_workspace` now drops indexes** before dropping a column, discovered rather than listed —
+  a map of index names would be one more thing to remember at the next migration, which is what that
+  helper exists to stop.
+- **Uniqueness is an explicit index, not an inline constraint.** `ALTER TABLE` cannot add an inline
+  `UNIQUE`, so a migrated workspace would have had a different shape from a fresh one. Now both run
+  the same `CREATE UNIQUE INDEX`.
+
+`test_the_storage_api_has_no_writes_at_all` caught `by_id` as well, for the second time in two
+sessions. It is doing its job: both additions were reads, added to the allowlist by name.
+
+### Deliberately not done
+
+- **The payload is unchanged.** `revises` still names the integer id, checked against the ids a
+  reading was shown (D-050). A reading has no use for a citation — a statement must not contain
+  identifiers at all (D-066).
+- **No column on `rule_version`.** A citation names the rule, not a version, and never changes.
 
 ---
 

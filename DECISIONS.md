@@ -8,6 +8,62 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-081 · 2026-11-18 · A rule's citable identifier is flat, stored, and never reused
+
+**Closes CON-81.** A rule could be identified two ways and neither was citable: the row id is an
+implementation detail that means nothing to a business reader, and `name` is a label that may change
+between versions (D-050). There was nothing to write in a comment, an email or a pull request.
+
+**Decision.** Every rule carries `ref` — `R-14` — assigned at acceptance, stored, unique, and never
+reused. It is shown wherever a rule is rendered and resolves as a lookup argument
+(`constat rule show R-1`).
+
+**Flat rather than area-prefixed.** `BR-PAY-001` reads better and encodes the area, which is
+*mutable by design*: D-079 deliberately left an area as free text, and a rule may be re-grouped. An
+identifier encoding a mutable fact becomes a false claim the moment that fact changes — what D-078
+established about positions, applied to areas. A flat citation cannot go wrong, and the area is one
+field away in every rendering.
+
+**Stored rather than derived from the row id.** `R-{id}` would be free and is a trap: a public
+citation would then depend on rowids surviving every future table rebuild, and `rule` has already
+been rebuilt once (migration 4 → 5). A citation that can shift is not a citation.
+
+**Back-filled, unlike every migration before it, and the difference is the point.** D-070, D-072,
+D-077 and D-078 all refused to back-fill because they would have been inventing a claim nobody
+made — an area, a ground, an example, a number standing for an identity. A citation invents nothing:
+the rules exist, and naming them asserts nothing about them. Refusing here would leave a catalogue
+whose rules nobody can cite, which is the defect this closes.
+
+**Never reused holds without qualification here**, unlike D-078's details: a rule can never be
+deleted (the trigger aborts it), so `rule` *is* the whole history and the greatest citation in it is
+the high-water mark.
+
+**Two mutations survived before the property was pinned.** Replacing the high-water mark with a
+count of rules passed every test, including a first attempt at catching it that inserted an
+*uncited* rule — which does not distinguish the two, since a NULL ref is counted by neither. The
+case that does distinguish them is a **gap** in the citations, which the back-fill can produce
+because it derives from row ids and row ids can have gaps. Recorded because the first two attempts
+being wrong is the useful part: a mutation that survives means the test did not pin the property,
+not that the property holds.
+
+**Consequences.**
+
+- **Schema 17**, with uniqueness as an explicit index rather than an inline constraint, so a freshly
+  created workspace is structurally identical to a migrated one — `ALTER TABLE` cannot add an inline
+  `UNIQUE`, and two shapes of one table is a difference waiting to surprise somebody.
+- **No column on `rule_version`.** A citation names the rule, not a version of it, and never
+  changes; storing it per version would duplicate an immutable fact.
+- **The payload is unchanged.** `revises` still names the integer id, which is checked against the
+  ids a reading was shown (D-050). The citation is a human-facing name, and a reading has no use for
+  one — a statement must not contain identifiers at all (D-066).
+- **`Catalogue.find` resolves a name or a citation**, name first. A citation nobody can look up is
+  decoration.
+- **CON-82 is unblocked:** messages as catalogue entries need the same scheme, and now have one.
+
+**Status.** accepted
+
+---
+
 ## D-080 · 2026-11-18 · A baseline documents an area with no evidence from Constat, under a reference
 
 **Closes CON-89.** A new workspace had an empty catalogue and no route into it but one ticket at a

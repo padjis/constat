@@ -395,7 +395,9 @@ class TestTheCommandLine:
 
         assert main(["--workspace", ws, "rule", "accept", "1", "--by", "e"]) == 0
         out = capsys.readouterr().out
-        assert "rule 1 created" in out
+        # The citation, not the row id (CON-81): this is the moment a person
+        # learns what to call the rule they just accepted.
+        assert "R-1 created" in out
         assert "version 1 baselined" in out
 
     def test_accept_always_records_a_decider(self, tmp_path):
