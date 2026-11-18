@@ -1,8 +1,13 @@
 # Project status
 
-**Last updated:** 2026-11-14
+**Last updated:** 2026-11-18
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-16):** CON-22 attempted and recorded as not possible from here
+**Current session (2026-11-18):** no code. The catalogue was reviewed against a worked
+implementation of the same idea, which produced **D-076** (Constat assumes trunk-based development,
+and product rule 6 is unmet), a decision to acquire a **release concept**, and **16 tickets**
+(CON-80…CON-98). Documentation only: `README.md`, `DECISIONS.md`, `PRODUCT_SPEC.md`, `BACKLOG.md`.
+
+**2026-11-16:** CON-22 attempted and recorded as not possible from here
 (`BRAND_NAME_REVIEW.md` § 10); the brief for CON-23 is written and its first question is whether the
 name is registrable at all.
 
@@ -423,9 +428,12 @@ already said — the ticket needed a recorded decision, not an edit. CON-21 is c
 the site starts at `constat.padjinou.com` and no domain is bought, which accepts rather than solves
 the risk that `tryconstat.com` stays registerable by anyone.
 
-The next code task is **CON-67 — track which details changed between versions**, which CON-61 just
-unblocked: a version's behaviours and anchors are now readable, so the diff between two versions can
-be computed rather than guessed.
+The next code task is **CON-80 — a rule carries worked examples**, which replaces CON-67 as the
+recommendation after 2026-11-18. Both are about a rule's substance, and CON-80 comes first because
+it adds the thing a business reader checks a rule *with*: a table of situations and their outcomes.
+A rule with a statement and no examples is readable and not checkable, which is the business half of
+product rule 8. It needs no release concept, no schema decision beyond where examples hang, and
+CON-67 still follows it with the same tracking problem, now over a shape worth tracking.
 
 Then **CON-58 — read decisions back, with their channel and verification**, the half of acceptance
 that is still CLI-only.
@@ -466,6 +474,67 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## 2026-11-18 — a divergence review, D-076, and sixteen tickets
+
+Not a ticket. Constat was compared against a worked implementation of the same idea — business
+documentation generated from merged code, reviewed and approved by a business audience, in daily use
+on a real product. The comparison was the source of the whole session; **no code changed**.
+
+**The headline finding.** That implementation documents *a product* — a living tree of rules by area
+plus what each release changes — while Constat documents *tickets*, one document per ticket,
+published a page at a time. Most of the sixteen tickets follow from that one difference.
+
+**What changed in the repository.**
+
+| File | Change |
+| --- | --- |
+| `DECISIONS.md` | **D-076** — Constat assumes trunk-based development, and says so |
+| `README.md` | "What Constat assumes about your branching model", with the four models that break |
+| `PRODUCT_SPEC.md` | § 6 scope line; a status note under product rule 6 |
+| `BACKLOG.md` | CON-80…CON-98 added; CON-47 and CON-58 **amended** rather than duplicated |
+
+**Three decisions came out of it.**
+
+1. **D-076 — the branching model is named.** One mainline per repository, and mainline means
+   shipped. The sharp part is that under Git Flow the answer depends on where
+   `refs/remotes/origin/HEAD` points: at `develop`, "already landed" means merged to `develop` and
+   `constat state` presents unreleased behaviour as current — product rule 1 breached in the one
+   command whose purpose is to state the present. The same project yields either answer from a
+   repository setting, which is why it could not stay implicit.
+2. **Product rule 6 is unmet, and recorded as unmet.** "Release streams are distinct" is an
+   invariant the product intends and the code does not hold. **The release concept does not
+   discharge it** — several open releases ahead of one trunk are several staging sets, not parallel
+   production lines. Noted in D-076 and beside the rule itself, so the release work cannot later be
+   read as having satisfied it.
+3. **Constat acquires a release concept**, decided in four parts: declared in the workspace spanning
+   the registered set, rather than derived from tags; several may be open at once; accepting agrees
+   a version *for* a release and closing the release puts it into effect; the ship is recorded by a
+   human. Optional and nullable throughout — a workspace declaring no release behaves exactly as
+   today, and the three accepted rules keep none. Carried on CON-85/86/96/87; **no `D-NNN` yet**, by
+   choice: it is written up when CON-85 starts, so the entry can record what the schema really did.
+
+**A defect found, not yet fixed.** `rule accept` has no pending/landed guard, so a rule accepted
+from unmerged work renders in `constat state` as the product's current behaviour. Raised as
+**CON-96**, and it is the reason the two-state model is worth the cost: the fix is a state, not a
+refusal.
+
+**Tests run: none, and that is the honest report.** Nothing executable changed, so there was nothing
+to run. No claim in this entry is backed by a test; the branching claims were read off
+`constat/git/adapter.py` (`resolve_mainline`, `resolve_default_branch`), D-028/D-030/D-031, and the
+`rule proposals` renderer in `constat/cli.py`.
+
+**Deliberately left undone.**
+
+- **CON-81's identifier form is undecided** — area-prefixed (`BR-UPL-006`) or flat — and CON-82
+  depends on it. Neither can start until that is settled.
+- **CON-58's blocker stands.** Whether an approval taken on the published surface may count as a
+  decision at all is a change to D-048/D-055 and needs its own decision. The ticket was widened to
+  state the question, not to answer it.
+- **No `D-NNN` for the release concept yet**, as above.
+- **Nothing committed.** The four changed files are uncommitted, per the working agreement.
 
 ---
 

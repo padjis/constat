@@ -8,6 +8,61 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-076 · 2026-11-18 · Constat assumes trunk-based development, and says so
+
+**Names an assumption that was already in the code.** D-028 made mainline the reference point,
+D-068 made it the remote-tracking ref, and D-031 bounded the search to what is ahead of it. None of
+the three said which *branching model* those choices commit to. This one does, so that a team can
+tell before adopting Constat rather than after reading a wrong answer.
+
+**Decision.** Constat supports **trunk-based development**: exactly one mainline per repository,
+and that mainline is the product as shipped. Mainline is the default branch's remote-tracking ref
+(D-028, D-068). Work ahead of mainline may sit anywhere — `develop`, `release/*`, an open ticket
+branch — because D-031's window is `git log --all --not <mainline>` and names no integration
+branch. Git Flow, long-lived parallel release lines, environment branches and fork-based workflows
+are **not supported**, and the limit is documented in `README.md` rather than detected.
+
+**Context.** The assumption is one line of configuration away from producing a confident wrong
+answer. Under Git Flow, if `refs/remotes/origin/HEAD` points at `develop`, "already landed" means
+*merged to develop* and `constat state` renders unreleased behaviour as the product's current
+behaviour — a direct breach of product rule 1 in a command whose entire purpose is to state the
+present. If it points at `master` instead, the whole `develop` tree reads as never landed. **The
+same project yields either answer depending on a repository setting**, which is why this cannot be
+left implicit.
+
+What is *not* assumed is worth recording, because it was designed for deliberately: D-031 refused
+to configure an integration branch, so the staging topology above mainline is free-form; and D-030
+established that rebase- and squash-heavy histories are supported, having found 3 merge commits in
+Subject A's last 200 and none in Subject B's.
+
+**Product rule 6 is aspiration, not code.** "Release streams are distinct — do not assume every
+branch or release follows one linear timeline" is a stated invariant, and the implementation
+assumes exactly one linear timeline per repository. That contradiction is recorded here rather
+than resolved. In particular, **the release concept decided alongside this does not discharge
+rule 6**: declared releases spanning the registered set, several open at once, are several staging
+sets ahead of one trunk. Coherent trunk-based development, and still not parallel production
+lines. Anyone reading the release work as satisfying rule 6 would be wrong.
+
+**Consequences.**
+
+- **`README.md` states the limit** before the getting-started section, with the four models that
+  break and how each breaks. `PRODUCT_SPEC.md` § 6 carries one line of it, since it bounds the MVP.
+- **Partly detectable, so partly detected — later.** CON-97 names the resolved mainline back at
+  `repo add` and warns on a Git Flow shape (a default branch called `develop`; a
+  `master`/`main`/`production` branch ahead of the default). A warning, never a refusal: the signal
+  is a naming convention, and refusing on a convention would reject a legitimate repository that
+  happens to use the word.
+- **Supporting parallel production lines is a schema question, not a flag.** A rule version would
+  need to be in effect on one line and not another, which the single `rule`/`rule_version` shape
+  cannot express. It is therefore out of scope until a pilot asks for it, and rule 6 stays unmet
+  until then.
+- **Nothing in the code changes.** This records what is already true; the only edits are
+  documentation and CON-97's row.
+
+**Status.** accepted
+
+---
+
 ## D-075 · 2026-11-15 · The site starts at `constat.padjinou.com`, and no domain is bought yet
 
 **Amends D-014**, which chose `tryconstat.com` and treated registering it as securing the name. That

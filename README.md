@@ -43,6 +43,26 @@ The MVP workflow:
 | 5 | Baseline | Store the approved version without overwriting history. |
 | 6 | Compare later | Show what changed since the previous approved baseline. |
 
+## What Constat assumes about your branching model
+
+**Constat assumes trunk-based development: one mainline per repository, and that mainline is what
+is shipped.** Mainline is the default branch's remote-tracking ref, resolved per repository and
+never assumed to be `main` (D-028, D-068). Everything ahead of it is work in progress, whatever it
+sits on — `develop`, `release/*` or an open ticket branch are all read the same way (D-031).
+Rebasing and squash-merging are fine; neither is assumed against.
+
+If your default branch is not your production line, Constat will draw a confident wrong picture:
+
+| Your model | What goes wrong |
+| --- | --- |
+| **Git Flow** (`develop` for integration, `master`/`main` for production) | If `origin/HEAD` points at `develop`, "already landed" means merged to `develop`, and `constat state` presents unreleased behaviour as current product behaviour. If it points at `master`, the whole `develop` tree reads as never landed. Which you get depends on a repository setting, not on your workflow. |
+| **Long-lived parallel release lines** (1.x and 2.x both supported) | There is one mainline, so behaviour shipped only in 1.x is either invisible or reads as unlanded. Those branches are treated as staging ahead of trunk, not as parallel production. |
+| **Environment branches** (a `production` branch downstream of `main`) | The same inversion as Git Flow. |
+| **Fork-based or patch/email workflows** | A ticket's work is not reachable from any ref in the registered clone, so it reads as matching nothing. |
+
+This is a stated limit, not a bug to report. See
+[D-076](DECISIONS.md) for the reasoning, including what it means for product rule 6.
+
 ## Explicitly out of scope for the MVP
 
 Web dashboard, multi-tenant SaaS, authentication, billing, Kubernetes, Kafka, graph database,

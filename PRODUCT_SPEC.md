@@ -66,7 +66,10 @@ set → accumulate that into one living document per ticket → let a person edi
 freeze an immutable, versioned baseline.
 
 **Every comparison is against the repository's default branch** (D-028), resolved per repository
-and never assumed to be `main`. Two shapes of question remain:
+and never assumed to be `main`. This commits the MVP to **trunk-based development** — one mainline
+per repository, and that mainline is what is shipped (D-076). Git Flow, long-lived parallel release
+lines, environment branches and fork-based workflows are out of scope; `README.md` states how each
+one breaks. Two shapes of question remain:
 
 | Shape | Question answered |
 | --- | --- |
@@ -151,6 +154,11 @@ These are invariants. A change that breaks one of them is a defect, not a trade-
    traceable.
 6. **Release streams are distinct.** Do not assume every branch or release follows one linear
    timeline.
+   **Not yet met, recorded 2026-11-18 (D-076):** the implementation assumes exactly one mainline
+   per repository, so this is an invariant the product intends and the code does not hold. Stated
+   here rather than left to be discovered. Supporting parallel production lines is a schema
+   question — a rule version in effect on one line and not another — and waits for a pilot that
+   asks for it.
 7. **Security by design.** Start read-only, minimise permissions, never store credentials in project
    files.
    **Amended 2026-11-14 (D-062):** one path now writes to a subject repository. With the
