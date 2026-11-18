@@ -91,10 +91,10 @@ class Catalogue:
     def _hydrate(self, row) -> Rule:
         rule_id = row["id"]
         behaviours = tuple(
-            Behaviour(description=b["description"])
+            Behaviour(description=b["description"], number=b["behaviour_no"])
             for b in self._workspace.execute(
-                "SELECT description FROM behaviour WHERE rule_id = ? "
-                "ORDER BY description",
+                "SELECT description, behaviour_no FROM behaviour "
+                "WHERE rule_id = ? ORDER BY description",
                 (rule_id,),
             )
         )
@@ -104,10 +104,14 @@ class Catalogue:
         # above sort by description because they are a set of statements with
         # no inherent sequence.
         examples = tuple(
-            Example(situation=e["situation"], outcome=e["outcome"])
+            Example(
+                situation=e["situation"],
+                outcome=e["outcome"],
+                number=e["example_no"],
+            )
             for e in self._workspace.execute(
-                "SELECT situation, outcome FROM example WHERE rule_id = ? "
-                "ORDER BY id",
+                "SELECT situation, outcome, example_no FROM example "
+                "WHERE rule_id = ? ORDER BY id",
                 (rule_id,),
             )
         )

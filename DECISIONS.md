@@ -8,6 +8,63 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-078 · 2026-11-18 · A detail's identity is its text, recorded as a number at acceptance
+
+**Closes CON-67**, whose open question was what identifies a detail across versions.
+
+**Decision.** Each of a rule's details — a behaviour, an example — carries a **number** that is
+durable within its rule. The number is assigned **at acceptance** by matching the detail's text: a
+behaviour's `description`, an example's `situation`. A detail whose text the rule has carried before
+keeps its number; a new one takes the next number the rule has **never** used. Two versions are
+compared by number, never by position.
+
+**Position cannot be identity**, which is the whole reason this ticket existed. "The second example
+changed" means something different the moment an earlier one is removed: under a positional
+comparison, dropping example 1 makes example 2 slide up and read as changed — a wrong claim about a
+case nobody touched. D-043 already required durable identities rather than positions in text for
+comment anchors; this is the same requirement arriving for details, and CON-47 will use it.
+
+**An example's outcome is compared but is not part of its identity.** That asymmetry is the
+feature: a changed outcome under an unchanged situation is the case a reviewer most needs to see, and
+it is visible only because identity excludes it. Mutation-checked — folding the outcome into the key
+makes a changed outcome read as one example removed and another added, and four tests fail.
+
+**The cost, stated and printed.** A *reworded* situation is a different example: one removed, one
+added, not an edit. The alternative was to let a reading name the id it is amending, which would
+have made identity a model claim — unverified, like `revises`, and attachable to anything. Text
+identity is checkable by reading the two versions. So the limit is accepted, and `rule history`
+**prints it** whenever a diff contains both a removal and an addition, rather than leaving it in a
+decision entry nobody reads at the terminal.
+
+**The high-water mark comes from the version tables, not the live ones.** `example` and `behaviour`
+are deleted and rewritten on every acceptance, so their maximum forgets every detail a rule ever
+dropped — and the next acceptance would hand a retired number to something unrelated, making the
+diff claim a case had been *edited* when it had been replaced. The version tables are append-only,
+so their maximum is the rule's whole history. Mutation-checked: reading the live table fails exactly
+the test written for it.
+
+**Consequences.**
+
+- **Schema 15:** `behaviour_no`, `example_no`, on both the live and the frozen detail tables.
+  Nullable, **nothing back-filled** — a detail accepted earlier was never numbered, and matching it
+  today would let `rule history` present this code's guess as what a reviewer saw. Such details are
+  reported as `unnumbered` and are **not compared**.
+- **A number is spent at acceptance, never at submission.** A reading carries no numbers: numbering
+  a proposal would commit an identity to something that may be rejected.
+- **Behaviours and examples number independently.** Sharing a counter would make a behaviour's
+  number depend on how many examples happened to be accepted first.
+- **A restored situation gets its old number back**, which is not a contradiction of "never reused":
+  identity is the text, so the same situation returning *is* the same example, and giving it a fresh
+  number would claim a replacement where there was a reinstatement.
+- **The first version prints no diff.** It has nothing to differ from, and "4 added" there would
+  read as a change when it is the rule arriving.
+- **CON-81 is still blocked and still separate.** This numbers details *within* a rule; a citable
+  identifier for the rule itself needs the decision on form.
+
+**Status.** accepted
+
+---
+
 ## D-077 · 2026-11-18 · A rule carries worked examples, and nothing checks whether they are right
 
 **Closes CON-80.** The catalogue held statements and nothing a reader could disagree with.

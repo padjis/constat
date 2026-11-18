@@ -23,9 +23,109 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..errors import InvalidInput, NotRegistered
-from ..models import Anchor, Example
+from ..models import Anchor, Behaviour, Example
 from .proposals import RuleProposals, StoredRuleProposal
 from .workspace import Workspace, utc_now
+
+
+def _compare(before, after, text) -> tuple[DetailChange, ...]:
+    """Match two versions' details by number and say what moved.
+
+    Identity is the number, which acceptance assigned by matching the
+    detail's text — a behaviour's description, an example's situation. `text`
+    renders the whole detail, so an example's *outcome* is compared but is not
+    part of its identity. That asymmetry is the point: a changed outcome under
+    an unchanged situation is the case a reviewer most needs to see, and it is
+    only visible if identity excludes it.
+    """
+    changes: list[DetailChange] = []
+    earlier = {d.number: d for d in (before or ()) if d.number is not None}
+    later = {d.number: d for d in after if d.number is not None}
+
+    for detail in after:
+        if detail.number is None:
+            # Accepted before schema 15 and never numbered. Reported, not
+            # compared: a match made today is this code's guess, not history.
+            changes.append(
+                DetailChange(number=None, status="unnumbered", text=text(detail))
+            )
+            continue
+        was = earlier.get(detail.number)
+        if was is None:
+            changes.append(
+                DetailChange(
+                    number=detail.number, status="added", text=text(detail)
+                )
+            )
+        elif text(was) != text(detail):
+            changes.append(
+                DetailChange(
+                    number=detail.number,
+                    status="changed",
+                    text=text(detail),
+                    was=text(was),
+                )
+            )
+        else:
+            changes.append(
+                DetailChange(
+                    number=detail.number, status="unchanged", text=text(detail)
+                )
+            )
+
+    for number, detail in earlier.items():
+        if number not in later:
+            changes.append(
+                DetailChange(number=number, status="removed", text=text(detail))
+            )
+
+    return tuple(sorted(changes, key=lambda c: (c.number is None, c.number or 0)))
+
+
+@dataclass(frozen=True)
+class DetailChange:
+    """What happened to one numbered detail between two versions (CON-67).
+
+    `number` is None only for a detail accepted before schema 15, which was
+    never numbered. Such a detail is reported as `unnumbered` rather than
+    compared: matching it today and presenting the result as history would be
+    this code's guess wearing the costume of a record.
+    """
+
+    number: int | None
+    status: str
+    """`added`, `removed`, `changed`, `unchanged`, or `unnumbered`."""
+    text: str
+    """The detail as the later version has it, or as the earlier one did when
+    it was removed."""
+    was: str | None = None
+    """What it said before, set only when `status` is `changed`."""
+
+
+@dataclass(frozen=True)
+class VersionDiff:
+    """How one version differs from the one before it."""
+
+    version_no: int
+    behaviours: tuple[DetailChange, ...] = ()
+    examples: tuple[DetailChange, ...] = ()
+    is_first: bool = False
+    """The first version has nothing to differ from. Its details are reported
+    as `added` and the renderer says so, because "everything was added" and
+    "everything changed" are different claims."""
+
+    @property
+    def rewording_is_indistinguishable(self) -> bool:
+        """Whether this diff contains both a removal and an addition.
+
+        When it does, the output has to say that a reworded situation reads as
+        a replacement: identity comes from the text (D-078), so a reviewer
+        cannot otherwise tell a dropped case from a rephrased one. The limit is
+        printed rather than left in a decision entry nobody reads at the
+        terminal.
+        """
+        statuses = {c.status for c in self.examples + self.behaviours}
+        return "removed" in statuses and "added" in statuses
 
 
 @dataclass(frozen=True)
@@ -163,17 +263,38 @@ class Review:
             )
             version_id = int(cursor.lastrowid)
 
-            for behaviour in stored.proposal.behaviours:
+            # Durable numbers, assigned here and nowhere else (CON-67). A
+            # reading carries none: numbering a proposal would spend an
+            # identity on something that may be rejected.
+            behaviour_nos = self._assign_numbers(
+                ws,
+                rule_id,
+                keys=[b.description for b in stored.proposal.behaviours],
+                table="rule_version_behaviour",
+                column="behaviour_no",
+                key_column="description",
+            )
+            example_nos = self._assign_numbers(
+                ws,
+                rule_id,
+                keys=[e.situation for e in stored.proposal.examples],
+                table="rule_version_example",
+                column="example_no",
+                key_column="situation",
+            )
+
+            for behaviour, number in zip(stored.proposal.behaviours, behaviour_nos):
                 ws.execute(
                     "INSERT INTO rule_version_behaviour "
-                    "(rule_version_id, description) VALUES (?, ?)",
-                    (version_id, behaviour.description),
+                    "(rule_version_id, behaviour_no, description) VALUES (?, ?, ?)",
+                    (version_id, number, behaviour.description),
                 )
-            for example in stored.proposal.examples:
+            for example, number in zip(stored.proposal.examples, example_nos):
                 ws.execute(
                     "INSERT INTO rule_version_example "
-                    "(rule_version_id, situation, outcome) VALUES (?, ?, ?)",
-                    (version_id, example.situation, example.outcome),
+                    "(rule_version_id, example_no, situation, outcome) "
+                    "VALUES (?, ?, ?, ?)",
+                    (version_id, number, example.situation, example.outcome),
                 )
             for anchor in stored.proposal.anchors:
                 ws.execute(
@@ -203,18 +324,19 @@ class Review:
             ws.execute("DELETE FROM behaviour WHERE rule_id = ?", (rule_id,))
             ws.execute("DELETE FROM example WHERE rule_id = ?", (rule_id,))
             ws.execute("DELETE FROM anchor WHERE rule_id = ?", (rule_id,))
-            for behaviour in stored.proposal.behaviours:
+            for behaviour, number in zip(stored.proposal.behaviours, behaviour_nos):
                 ws.execute(
-                    "INSERT INTO behaviour (rule_id, description, created_at) "
-                    "VALUES (?, ?, ?)",
-                    (rule_id, behaviour.description, now),
+                    "INSERT INTO behaviour "
+                    "(rule_id, behaviour_no, description, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (rule_id, number, behaviour.description, now),
                 )
-            for example in stored.proposal.examples:
+            for example, number in zip(stored.proposal.examples, example_nos):
                 ws.execute(
                     "INSERT INTO example "
-                    "(rule_id, situation, outcome, created_at) "
-                    "VALUES (?, ?, ?, ?)",
-                    (rule_id, example.situation, example.outcome, now),
+                    "(rule_id, example_no, situation, outcome, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (rule_id, number, example.situation, example.outcome, now),
                 )
             for anchor in stored.proposal.anchors:
                 ws.execute(
@@ -231,6 +353,64 @@ class Review:
                 )
 
         return version_id, version_no
+
+    @staticmethod
+    def _assign_numbers(
+        ws,
+        rule_id: int,
+        keys: list[str],
+        table: str,
+        column: str,
+        key_column: str,
+    ) -> list[int]:
+        """Durable numbers for a rule's details, by matching their text (CON-67).
+
+        A detail whose text this rule has carried before keeps the number it
+        had; a new one takes the next number the rule has never used. That is
+        what lets two versions be compared: the same number in both means the
+        same detail, so a changed outcome reads as *changed* rather than as one
+        detail removed and another added.
+
+        **The high-water mark comes from the version table, not the live one.**
+        The live table is deleted and rewritten on every acceptance, so its
+        maximum forgets every detail a rule ever dropped — and the next
+        acceptance would hand a retired number to something unrelated, silently
+        making a diff claim that a case had been edited when it had been
+        replaced. The version tables are append-only, so their maximum is the
+        whole history.
+
+        Why text and not a claim: see D-078. The cost is that a reworded
+        situation is a different detail, which the history states rather than
+        papers over.
+        """
+        known = {
+            row[key_column]: row[column]
+            for row in ws.execute(
+                f"SELECT DISTINCT d.{key_column}, d.{column} FROM {table} d "
+                f"JOIN rule_version v ON v.id = d.rule_version_id "
+                f"WHERE v.rule_id = ? AND d.{column} IS NOT NULL",
+                (rule_id,),
+            ).fetchall()
+        }
+        highest = ws.execute(
+            f"SELECT MAX(d.{column}) AS top FROM {table} d "
+            f"JOIN rule_version v ON v.id = d.rule_version_id "
+            f"WHERE v.rule_id = ?",
+            (rule_id,),
+        ).fetchone()
+        nxt = (highest["top"] or 0) + 1
+
+        numbers: list[int] = []
+        for key in keys:
+            if key in known:
+                numbers.append(int(known[key]))
+                continue
+            numbers.append(nxt)
+            # Recorded as we go: two new details in one acceptance must not
+            # both take the same number.
+            known[key] = nxt
+            nxt += 1
+        return numbers
 
     # -- reading -----------------------------------------------------------
 
@@ -263,10 +443,46 @@ class Review:
         for row in rows:
             version = dict(row)
             version["behaviours"] = self.version_behaviours(row["id"])
+            version["behaviour_details"] = self.version_behaviour_details(row["id"])
             version["examples"] = self.version_examples(row["id"])
             version["anchors"] = self.version_anchors(row["id"])
             versions.append(version)
         return tuple(versions)
+
+    def diffs(self, rule_id: int) -> tuple[VersionDiff, ...]:
+        """How each version of a rule differs from the one before it (CON-67).
+
+        Compared by number, never by position. A positional comparison reports
+        "the second example changed" when an earlier one was removed and
+        everything shifted up — a wrong claim about what a reviewer agreed to,
+        and the reason D-043 requires durable identities.
+
+        Read from the frozen version tables, so this is history rather than a
+        reconstruction from the live catalogue (CON-61).
+        """
+        versions = self.versions(rule_id)
+        diffs: list[VersionDiff] = []
+        previous: dict | None = None
+
+        for version in versions:
+            diffs.append(
+                VersionDiff(
+                    version_no=int(version["version_no"]),
+                    behaviours=_compare(
+                        None if previous is None else previous["behaviour_details"],
+                        version["behaviour_details"],
+                        text=lambda b: b.description,
+                    ),
+                    examples=_compare(
+                        None if previous is None else previous["examples"],
+                        version["examples"],
+                        text=lambda e: f"{e.situation} → {e.outcome}",
+                    ),
+                    is_first=previous is None,
+                )
+            )
+            previous = version
+        return tuple(diffs)
 
     def version_behaviours(self, rule_version_id: int) -> tuple[str, ...]:
         """What this version said the system does, as it was frozen."""
@@ -277,6 +493,26 @@ class Review:
         ).fetchall()
         return tuple(row["description"] for row in rows)
 
+    def version_behaviour_details(
+        self, rule_version_id: int
+    ) -> tuple[Behaviour, ...]:
+        """The same behaviours, carrying their numbers (CON-67).
+
+        Separate from `version_behaviours`, which returns bare strings and is
+        what the existing callers want. A diff needs the numbers, and widening
+        the old return type would have changed every caller to gain a field
+        most of them ignore.
+        """
+        rows = self._workspace.execute(
+            "SELECT behaviour_no, description FROM rule_version_behaviour "
+            "WHERE rule_version_id = ? ORDER BY id",
+            (rule_version_id,),
+        ).fetchall()
+        return tuple(
+            Behaviour(description=row["description"], number=row["behaviour_no"])
+            for row in rows
+        )
+
     def version_examples(self, rule_version_id: int) -> tuple[Example, ...]:
         """The worked cases this version was accepted with, as frozen (CON-80).
 
@@ -286,12 +522,16 @@ class Review:
         examples of version 3 would misattribute the very thing they agreed to.
         """
         rows = self._workspace.execute(
-            "SELECT situation, outcome FROM rule_version_example "
+            "SELECT example_no, situation, outcome FROM rule_version_example "
             "WHERE rule_version_id = ? ORDER BY id",
             (rule_version_id,),
         ).fetchall()
         return tuple(
-            Example(situation=row["situation"], outcome=row["outcome"])
+            Example(
+                situation=row["situation"],
+                outcome=row["outcome"],
+                number=row["example_no"],
+            )
             for row in rows
         )
 

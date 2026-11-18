@@ -119,6 +119,13 @@ class Behaviour(Frozen):
     """A distinct way the application handles a business case (D-035)."""
 
     description: str = Field(min_length=1)
+    number: int | None = None
+    """This behaviour's durable identity within its rule (CON-67).
+
+    None on a reading — a number is assigned at acceptance, because numbering
+    something nobody has accepted would spend an identity on a proposal that
+    may be rejected. Also None on anything accepted before schema 15, which
+    reads as "not numbered" rather than as any particular number."""
 
 
 class Example(Frozen):
@@ -143,6 +150,16 @@ class Example(Frozen):
 
     situation: str = Field(min_length=1)
     outcome: str = Field(min_length=1)
+    number: int | None = None
+    """This example's durable identity within its rule (CON-67).
+
+    Keyed on `situation`: the same situation in a later version is the same
+    example, keeping its number, and its outcome may have changed. A *reworded*
+    situation is therefore a different example — one removed, one added — which
+    is the stated cost of taking identity from the text rather than from a
+    claim nobody can check.
+
+    None on a reading, and on anything accepted before schema 15."""
 
 
 class Anchor(Frozen):

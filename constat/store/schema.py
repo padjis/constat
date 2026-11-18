@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -289,12 +289,19 @@ CREATE TABLE rule_version (
 CREATE TABLE rule_version_behaviour (
     id              INTEGER PRIMARY KEY,
     rule_version_id INTEGER NOT NULL REFERENCES rule_version(id) ON DELETE CASCADE,
+    behaviour_no    INTEGER,
     description     TEXT    NOT NULL
 );
 
+-- The frozen numbers are what makes a diff between two versions possible, and
+-- they are the high-water mark too: this table is append-only, so the next free
+-- number for a rule is max(example_no) + 1 across its whole history. No counter
+-- to keep in step, and reuse is structurally impossible even though the live
+-- `example` table is deleted and rewritten on every acceptance.
 CREATE TABLE rule_version_example (
     id              INTEGER PRIMARY KEY,
     rule_version_id INTEGER NOT NULL REFERENCES rule_version(id) ON DELETE CASCADE,
+    example_no      INTEGER,
     situation       TEXT    NOT NULL,
     outcome         TEXT    NOT NULL
 );
@@ -308,22 +315,31 @@ CREATE TABLE rule_version_anchor (
 );
 
 -- A distinct way the application handles a business case under its rule.
+-- `behaviour_no` is this detail's durable identity within its rule (CON-67).
+-- Assigned on acceptance by matching `description`, and never reused: the next
+-- number comes from the high-water mark across every version the rule ever had,
+-- so a removed detail's number cannot come back attached to something else.
+-- Positions cannot serve as identity — D-043 requires durable identities rather
+-- than positions in text, and "the second example" changes meaning the moment
+-- the first one is removed.
 CREATE TABLE behaviour (
-    id          INTEGER PRIMARY KEY,
-    rule_id     INTEGER NOT NULL REFERENCES rule(id) ON DELETE CASCADE,
-    description TEXT    NOT NULL,
-    created_at  TEXT    NOT NULL,
+    id           INTEGER PRIMARY KEY,
+    rule_id      INTEGER NOT NULL REFERENCES rule(id) ON DELETE CASCADE,
+    behaviour_no INTEGER,
+    description  TEXT    NOT NULL,
+    created_at   TEXT    NOT NULL,
     UNIQUE (rule_id, description)
 );
 
 -- The worked examples of a rule in the catalogue (CON-80). Rewritten on each
 -- acceptance, like `behaviour`: the frozen copy is `rule_version_example`.
 CREATE TABLE example (
-    id         INTEGER PRIMARY KEY,
-    rule_id    INTEGER NOT NULL REFERENCES rule(id) ON DELETE CASCADE,
-    situation  TEXT    NOT NULL,
-    outcome    TEXT    NOT NULL,
-    created_at TEXT    NOT NULL,
+    id          INTEGER PRIMARY KEY,
+    rule_id     INTEGER NOT NULL REFERENCES rule(id) ON DELETE CASCADE,
+    example_no  INTEGER,
+    situation   TEXT    NOT NULL,
+    outcome     TEXT    NOT NULL,
+    created_at  TEXT    NOT NULL,
     UNIQUE (rule_id, situation)
 );
 
@@ -738,5 +754,19 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
         "CREATE INDEX idx_rule_version_example"
         " ON rule_version_example(rule_version_id)",
         "CREATE INDEX idx_example_rule ON example(rule_id)",
+    ),
+    # 14 -> 15: a detail has a durable number within its rule (CON-67).
+    #
+    # Nullable, no back-fill. A rule accepted before this has details that were
+    # never numbered, and assigning numbers now would let `rule history` report
+    # a diff between two versions as though the numbers had been recorded at the
+    # time. They were not: the match would be made today, by this code, and
+    # presented as what a reviewer saw. NULL reads as "not numbered", and the
+    # diff says so rather than comparing.
+    14: (
+        "ALTER TABLE behaviour ADD COLUMN behaviour_no INTEGER",
+        "ALTER TABLE example ADD COLUMN example_no INTEGER",
+        "ALTER TABLE rule_version_behaviour ADD COLUMN behaviour_no INTEGER",
+        "ALTER TABLE rule_version_example ADD COLUMN example_no INTEGER",
     ),
 }

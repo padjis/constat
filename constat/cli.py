@@ -658,6 +658,46 @@ def _report_proposals(
     return EXIT_OK
 
 
+def _print_diff(diff) -> None:
+    """What this version changed against the one before it (CON-67).
+
+    Silent on the first version: it has nothing to differ from, and printing
+    "4 added" there would read as a change when it is the rule arriving.
+    """
+    if diff is None or diff.is_first:
+        return
+
+    for label, changes in (("behaviours", diff.behaviours), ("examples", diff.examples)):
+        moved = [c for c in changes if c.status not in ("unchanged", "unnumbered")]
+        unnumbered = [c for c in changes if c.status == "unnumbered"]
+        if not moved and not unnumbered:
+            continue
+        print(f"      changes to {label} since the previous version:")
+        for change in moved:
+            where = f"[{change.number}] "
+            if change.status == "changed":
+                print(f"        {where}changed: {change.was}")
+                print(f"        {' ' * len(where)}     now: {change.text}")
+            else:
+                print(f"        {where}{change.status}: {change.text}")
+        if unnumbered:
+            # Honest about what cannot be compared, rather than comparing it
+            # anyway: these were accepted before details were numbered.
+            print(
+                f"        {len(unnumbered)} detail(s) are not numbered "
+                "(accepted before Constat numbered them) and are not compared"
+            )
+
+    if diff.rewording_is_indistinguishable:
+        print(
+            "      note: a detail's identity is its text, so a reworded one "
+            "reads here as"
+        )
+        print(
+            "      one removed and one added rather than as an edit (D-078)."
+        )
+
+
 def _print_rule(rule) -> None:
     print(f"{rule.name}")
     print(f"  area:       {rule.area or '(unplaced)'}")
@@ -790,10 +830,12 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                 return EXIT_OK
 
             if args.rule_action == "history":
-                versions = Review(workspace).versions(args.rule_id)
+                review = Review(workspace)
+                versions = review.versions(args.rule_id)
                 if not versions:
                     print(f"rule {args.rule_id} has no accepted versions.")
                     return EXIT_OK
+                diffs = {d.version_no: d for d in review.diffs(args.rule_id)}
                 print(f"{len(versions)} version(s) of rule {args.rule_id}:")
                 for v in versions:
                     who = v["decided_by"] or "(unknown)"
@@ -827,8 +869,13 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                     if v["examples"]:
                         print(f"      examples ({len(v['examples'])}):")
                         for example in v["examples"]:
+                            label = (
+                                f"[{example.number}] "
+                                if example.number is not None
+                                else ""
+                            )
                             print(
-                                f"        - {example.situation}  →  "
+                                f"        - {label}{example.situation}  →  "
                                 f"{example.outcome}"
                             )
                     else:
@@ -867,6 +914,10 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                             "reading's run gathered none, or it predates "
                             "evidence pointers"
                         )
+                    # Last in the version's block: it is a statement about the
+                    # whole version, so it reads as a summary rather than as
+                    # another field among the substance.
+                    _print_diff(diffs.get(int(v["version_no"])))
                 return EXIT_OK
 
             if args.rule_action == "proposals":

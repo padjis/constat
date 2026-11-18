@@ -2,10 +2,12 @@
 
 **Last updated:** 2026-11-18
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-18):** **CON-80 closed (D-077)** — a rule carries worked examples, schema
-14. Earlier the same day, with no code: the catalogue was reviewed against a worked implementation
-of the same idea, producing **D-076** (Constat assumes trunk-based development, and product rule 6
-is unmet), a decision to acquire a **release concept**, and **16 tickets** (CON-80…CON-98).
+**Current session (2026-11-18):** **CON-67 closed (D-078)** — a detail's identity is its text,
+numbered at acceptance, schema 15. Before it, **CON-80 closed (D-077)** — a rule carries worked
+examples, schema 14. Earlier the same day, with no code: the catalogue was reviewed against a worked
+implementation of the same idea, producing **D-076** (Constat assumes trunk-based development, and
+product rule 6 is unmet), a decision to acquire a **release concept**, and **16 tickets**
+(CON-80…CON-98).
 
 **2026-11-16:** CON-22 attempted and recorded as not possible from here
 (`BRAND_NAME_REVIEW.md` § 10); the brief for CON-23 is written and its first question is whether the
@@ -428,16 +430,19 @@ already said — the ticket needed a recorded decision, not an edit. CON-21 is c
 the site starts at `constat.padjinou.com` and no domain is bought, which accepts rather than solves
 the risk that `tryconstat.com` stays registerable by anyone.
 
-The next code task is **CON-67 — track which details changed between versions**, which CON-80 has
-just made worth more: a version now carries examples, so the diff between two versions is a diff of
-the cases a reviewer checked rather than of two sentences. It still needs a decision on **detail
-identity** — an example is addressed by position today, and position is not an identity a diff can
-rely on, so "the second example changed" and "an example was inserted above it" are
-indistinguishable. That decision is the ticket's real content.
+The next code task is **CON-88 → CON-89 — declare business areas, then document an area from its
+current behaviour with no ticket.** It is the highest adoption value left: a new workspace has an
+empty catalogue and no route into it except ticket by ticket, and D-072's mainline grounding is
+already the machinery CON-89 needs. CON-88 comes first because an area has to be declarable before
+a baseline can file rules under one.
 
-The alternative worth weighing against it is **CON-89 — document an area from its current
-behaviour, with no ticket**, which needs CON-88 first and is the higher adoption value: a new
-workspace still has no route into the catalogue except ticket by ticket.
+The cluster CON-80 and CON-67 belong to has one piece left — **CON-81, a citable rule identifier**,
+and with it **CON-82, messages as catalogue entries**. CON-81 needs a decision from you on the
+*form* (area-prefixed like `BR-UPL-006`, or flat), and CON-82 cannot start until it lands.
+
+**CON-15** (compare against the last approved baseline) is now reachable for the first time: CON-67
+supplies a per-detail diff between two versions, which is most of what comparing against a baseline
+needs.
 
 Then **CON-58 — read decisions back, with their channel and verification**, the half of acceptance
 that is still CLI-only.
@@ -478,6 +483,80 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## CON-67 — done when: *`rule history` shows which details changed between versions* ✅
+
+`D-078` records the decision, and the question it answered was yours: **position is not an
+identity.** "The second example changed" means something different the moment an earlier one is
+removed, so a positional comparison would claim a case was edited when it had merely moved up.
+
+**What changed.** A `number` on `Behaviour` and `Example`, schema **15** (`behaviour_no`,
+`example_no` on both the live and the frozen tables), assignment in `Review._baseline`, a
+`Review.diffs` comparison, and `_print_diff` in the CLI. Identity is the detail's **text** — a
+behaviour's description, an example's situation — matched at acceptance.
+
+**Live output, after accepting two versions on a throwaway workspace:**
+
+```
+      examples (3):
+        - [1] A transfer of 240 euros  →  Accepted
+        - [2] A transfer of 600 euros  →  Refused, and the daily limit is shown
+        - [4] Two transfers of 300 euros on one day  →  The second is refused
+      ...
+      changes to examples since the previous version:
+        [2] changed: A transfer of 600 euros → Refused
+                 now: A transfer of 600 euros → Refused, and the daily limit is shown
+        [3] removed: A refund of 400 euros → Accepted, refunds are not limited
+        [4] added: Two transfers of 300 euros on one day → The second is refused
+      note: a detail's identity is its text, so a reworded one reads here as
+      one removed and one added rather than as an edit (D-078).
+```
+
+The new case took **4**, not the retired **3**. That is the property the design rests on.
+
+**Three things worth keeping straight.**
+
+1. **An example's outcome is compared but is not part of its identity.** The asymmetry is the
+   feature: a changed outcome under an unchanged situation is the case a reviewer most needs to see,
+   and it is visible only because identity excludes it.
+2. **The high-water mark comes from the version tables.** The live tables are deleted and rewritten
+   on every acceptance, so their maximum forgets every detail a rule ever dropped — and the next
+   acceptance would hand a retired number to something unrelated, making the diff claim an edit
+   where there was a replacement.
+3. **The limit is printed, not filed.** A reworded situation reads as one removed and one added, and
+   `rule history` says so whenever a diff contains both. The alternative — letting a reading name
+   the id it is amending — would have made identity an unverified model claim.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_detail_tracking.py` → **19 passed** (new file). The affected
+files — detail tracking, rule examples, version substance, acceptance, catalogue, cli, models, rule
+areas, rule relations, merge on accept, product state, evidence pointers — → **300 passed**. **Whole
+suite**, because the schema changed: **1089 passed in 214s**, exit 0, with no migration fixture
+broken (schema 15's columns were registered in `helpers.INTRODUCED_AT` first).
+
+**Mutation-checked twice**, which is what the two load-bearing properties deserved:
+
+| Mutation | Result |
+| --- | --- |
+| High-water mark read from the live `example` table | Fails exactly `test_a_removed_number_does_not_come_back` |
+| An example's identity includes its outcome | Fails 4 tests, including `test_a_changed_outcome_reads_as_changed` |
+
+The first attempt at the second mutation was **invalid** — it referenced `d.outcome` on the
+behaviour table, so it errored instead of changing the semantics, and the failures it produced were
+meaningless. Redone properly before being believed.
+
+### Deliberately not done
+
+- **No numbers on a reading.** A number is spent at acceptance: numbering a proposal would commit an
+  identity to something that may be rejected.
+- **Nothing back-filled.** A detail accepted before schema 15 was never numbered, reads as
+  `unnumbered`, and is **not compared** — matching it today would present this code's guess as what
+  a reviewer saw.
+- **No citable rule identifier.** This numbers details *within* a rule; CON-81 is separate and still
+  needs a decision on form.
 
 ---
 

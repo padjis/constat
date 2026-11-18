@@ -153,6 +153,12 @@ INTRODUCED_AT: dict[int, tuple[tuple[str, str], ...]] = {
         ("anchor", "grounded_in"),
         ("rule_version_anchor", "grounded_in"),
     ),
+    15: (
+        ("behaviour", "behaviour_no"),
+        ("example", "example_no"),
+        ("rule_version_behaviour", "behaviour_no"),
+        ("rule_version_example", "example_no"),
+    ),
 }
 """Columns each schema version added, keyed by the version they first exist in.
 
