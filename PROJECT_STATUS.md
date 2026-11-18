@@ -2,8 +2,9 @@
 
 **Last updated:** 2026-11-18
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-18):** **CON-88 and CON-90 closed (D-079)** — an area is declared by
-accepting a rule, and coverage is counted in areas, schema 16. Before them, **CON-67 (D-078)** — a
+**Current session (2026-11-18):** **CON-89 closed (D-080)** — a baseline documents an area with no
+evidence from Constat, under a reference, and with no schema change. Before it, **CON-88 and CON-90
+(D-079)** — an area is declared by accepting a rule, and coverage is counted in areas, schema 16. Before them, **CON-67 (D-078)** — a
 detail's identity is its text, numbered at acceptance, schema 15 — and **CON-80 (D-077)** — a rule
 carries worked examples, schema 14. Earlier the same day, with no code: the catalogue was reviewed against a worked
 implementation of the same idea, producing **D-076** (Constat assumes trunk-based development, and
@@ -431,12 +432,16 @@ already said — the ticket needed a recorded decision, not an edit. CON-21 is c
 the site starts at `constat.padjinou.com` and no domain is bought, which accepts rather than solves
 the risk that `tryconstat.com` stays registerable by anyone.
 
-The next code task is **CON-89 — document an area from its current behaviour, with no ticket**,
-which D-079 just unblocked by letting an area be opened before it has rules. It is the highest
-adoption value left: a new workspace has an empty catalogue and no route into it except ticket by
-ticket, and D-072's mainline grounding is already the machinery it needs. The open question is what
-such a reading is *grounded in* — mainline rather than a ticket's delta — and whether it needs a
-run at all, since there is no ticket to attach one to.
+The next code task is **CON-81 — a citable rule identifier** — and it **needs a decision from you
+first**: area-prefixed (`BR-UPL-006`) or flat (`R-14`). CON-82, messages as catalogue entries,
+cannot start until it lands.
+
+Two smaller things are now reachable and unblocked: **an MCP tool for `baseline`**, which would be a
+thin wrapper over `baseline_area` (D-080 left it unbuilt deliberately), and **CON-15**, comparing
+against the last approved baseline, which CON-67's per-detail diff supplies most of.
+
+Still at zero: **CON-26**, discovery conversations. Nine tickets have closed in two days and the
+validation track has not moved.
 
 The cluster CON-80 and CON-67 belong to has one piece left — **CON-81, a citable rule identifier**,
 and with it **CON-82, messages as catalogue entries**. CON-81 needs a decision from you on the
@@ -485,6 +490,83 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## CON-89 — done when: *an area can be documented from its current behaviour, with no ticket* ✅
+
+`D-080` records the decision, including the one you chose against my recommendation and the
+correction that followed.
+
+**What it does.** `constat baseline <AREA>` stores a reading describing an area as it already
+behaves. Constat supplies **no evidence**: there is no delta, so the reader works from the
+repository directly, and what Constat does is ground every anchor, record which revision was
+described, and store proposals nobody has accepted.
+
+**Live, on a throwaway product:**
+
+```
+baseline of 'advertising', recorded under 'baseline-advertising'
+  opened 'baseline-advertising' as a reference — it is not a unit of work, and will appear in `ticket list`
+
+Described the product at:
+  ui at f1206bc00f86
+
+1 reading(s) were out of scope:
+    `payout-threshold` — names area 'payouts', but this is a baseline of 'advertising'.
+```
+
+**No schema change, and that was the finding.** The chain `ticket → document → run → rule_proposal`
+is `NOT NULL` at every link. Letting a run belong to an area would mean rebuilding **nine** tables —
+SQLite cannot drop `NOT NULL` without a rebuild, `run`'s children cascade on delete, and
+`PRAGMA foreign_keys=OFF` is a no-op inside the transaction migrations run in. So a baseline is
+recorded under a reference instead, and the cost is announced rather than buried: a cold-start
+reference appears in `ticket list` without being a unit of work.
+
+### A correction I made to my own argument
+
+I first told you the agent-driven shape violated **D-045**. It does not. D-045's invariant is that a
+rule proposed over MCP and the same rule proposed by a provider must *mean* the same thing, which
+the shared guidance enforces — `for_baseline` reuses `WHAT_A_RULE_IS`, `EXAMPLES` and `ANCHORS`
+unchanged. A command being unavailable on one path is a **capability** asymmetry, not a meaning one.
+Your choice was better founded than my framing of it, and D-080 records the real trade: a baseline
+cannot be produced on the provider path.
+
+### Two defects the by-hand run caught, after the tests passed
+
+1. **An out-of-scope reading was reported twice**, the second time as "ungrounded or malformed" —
+   a false label. It travels on its own field now, and a test asserts the parse's rejections stay
+   empty.
+2. **"anchored in mainline, not in this ticket's changes"** implied a deficiency on a baseline,
+   where mainline is the only ground there can be. The ground stays visible; the clause goes.
+
+Neither was visible from the test suite. Both came from reading real output.
+
+### A fixture that was wrong, and the code was right
+
+The first fixture committed a file and never pushed, so every grounding test failed — because
+mainline is the remote-tracking ref (CON-76) and an unpushed commit is not shipped. The fixture was
+fixed to push, which is the same correction CON-76's own write-up describes making to two tests.
+It then hit `DefaultBranchUnknown`, because cloning an empty bare repository leaves `origin/HEAD`
+unset — D-028 refusing to guess. Both were the code being right.
+
+**One real gap the tests found:** a baseline's payload carries no repositories, so a
+repository-scoped anchor was refused as naming an unknown alias. The mainline map's keys *are* the
+registered aliases, so that is now the second source for the alias check — loosening only toward
+repositories Constat actually has.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_baseline.py` → **21 passed** (new file). **Whole suite**,
+because the parse change touches every grounding path: **1131 passed in 230s**, exit 0.
+
+### Deliberately not done
+
+- **No MCP tool.** It would be a thin wrapper over `baseline_area`, which ARCHITECTURE § 2 requires
+  of every tool; worth adding, not needed to close this.
+- **No provider-path baseline.** Stated, not worked around.
+- **Nothing is accepted.** A baseline documents existing behaviour, which makes it tempting to treat
+  as uncontroversial; a test asserts the catalogue stays empty until a human decides.
 
 ---
 

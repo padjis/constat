@@ -40,6 +40,7 @@ from .ai import MCP_READER_NOTE, NULL_PROVIDER_NAME, PROVIDER_ENV
 from .ai import as_dict as payload_as_dict
 from .ai import resolve as resolve_provider
 from .operations import (
+    baseline_area,
     export_payload,
     gather,
     evidence_for_run,
@@ -457,6 +458,46 @@ def build_parser() -> argparse.ArgumentParser:
         help="emit the structured state instead of the rendered document",
     )
 
+    baseline = subparsers.add_parser(
+        "baseline",
+        help="document an area as it behaves now, with no ticket",
+        description=(
+            "Store a reading that describes an area of the product as it "
+            "already behaves, rather than what a ticket changed. Constat "
+            "supplies no evidence here: there is no delta to read, so the "
+            "reader works from the repository directly. What this does is "
+            "ground every anchor against mainline, record which revision was "
+            "described, and store the result as rule proposals awaiting a "
+            "human decision. Nothing is accepted."
+        ),
+    )
+    baseline.add_argument("area", metavar="AREA")
+    baseline.add_argument(
+        "--from",
+        dest="source",
+        metavar="PATH",
+        default="-",
+        help="file to read the reading from (default: - for stdin)",
+    )
+    baseline.add_argument(
+        "--as",
+        dest="reference",
+        default=None,
+        metavar="REF",
+        help=(
+            "the reference this baseline is recorded under. Use the ticket "
+            "that occasioned it, which is how an undocumented area is normally "
+            "found. With no ticket, supply one and it is opened — it will "
+            "appear in `ticket list` without being a unit of work."
+        ),
+    )
+    baseline.add_argument(
+        "--provider",
+        default="external",
+        help="what produced the reading. Self-reported and unverified (D-045).",
+    )
+    baseline.add_argument("--model", default=None, help="model name, also self-reported")
+
     area = subparsers.add_parser(
         "area",
         help="list or declare business areas",
@@ -658,6 +699,12 @@ def _report_proposals(
         print(f"      {item.proposal.statement}")
         area = item.proposal.area or "(unplaced)"
         print(f"      area: {area} — read by {item.attribution}, run {item.run_id}")
+        if item.from_baseline:
+            # A reviewer's question differs (CON-89): a reading from a ticket
+            # says "this change established a rule", a baseline says "this is
+            # how it already behaves". Accepting them has the same effect;
+            # deciding them does not.
+            print("      from a baseline — describes existing behaviour, not a change")
         if item.proposal.examples:
             # In the queue, not only in `rule show`: the examples are what a
             # reviewer decides *on*, so a queue that hid them would be asking
@@ -688,9 +735,16 @@ def _report_proposals(
             # Said explicitly: an anchor grounded only in mainline means this
             # ticket is not the evidence that the rule's home changed (D-072).
             globs = ", ".join(a.path_glob for a in weak)
-            print(
-                f"      anchored in mainline, not in this ticket's changes: {globs}"
-            )
+            if item.from_baseline:
+                # The ground stays visible (product rule 3), but without the
+                # clause about a ticket's changes: a baseline has none, so the
+                # wording would imply a deficiency where mainline is the only
+                # ground there can be.
+                print(f"      anchored in mainline: {globs}")
+            else:
+                print(
+                    f"      anchored in mainline, not in this ticket's changes: {globs}"
+                )
         if item.is_repair:
             # Said explicitly rather than left to the statement. A repair
             # accepted as though it were new business knowledge loses the only
@@ -1189,6 +1243,60 @@ def _decider(args: argparse.Namespace) -> tuple[str, str]:
             "than recording an account name: a decision needs a person."
         )
     return inferred, "inferred"
+
+
+def _run_baseline(args: argparse.Namespace) -> int:
+    """Store a baseline reading of one area."""
+    reference = args.reference or f"baseline-{args.area.strip().replace(' ', '-')}"
+    text = (
+        sys.stdin.read() if args.source == "-" else Path(args.source).read_text()
+    )
+    try:
+        with Workspace.open(args.workspace) as workspace:
+            result = baseline_area(
+                workspace,
+                area=args.area,
+                reference=reference,
+                text=text,
+                provider=args.provider,
+                model=args.model,
+            )
+    except (InvalidInput, ProviderError) as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    except WorkspaceError as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_WORKSPACE
+
+    print(f"baseline of {result.area!r}, recorded under {result.reference!r}")
+    if result.opened_ticket:
+        # Said plainly: this is the cost C accepted, and a reference that is
+        # not a unit of work should not appear in `ticket list` unannounced.
+        print(
+            f"  opened {result.reference!r} as a reference — it is not a "
+            "unit of work, and will appear in `ticket list`"
+        )
+    print()
+    print("Described the product at:")
+    for alias, revision in result.read_from:
+        if revision.startswith("unreadable:"):
+            # Reported, never skipped: an unreadable repository means a rule
+            # living there would be refused as ungrounded, and silence would
+            # make that look like the rule being wrong (D-070).
+            print(f"  {alias} — {revision}")
+        else:
+            print(f"  {alias} at {revision[:12]}")
+    print()
+    print("A baseline documents what already exists, so every anchor rests on")
+    print("mainline rather than on a change (D-072). Nothing here is evidence")
+    print("that anything changed, because nothing did.")
+    print()
+    if result.out_of_area:
+        print(f"{len(result.out_of_area)} reading(s) were out of scope:")
+        for rejection in result.out_of_area:
+            print(f"    {rejection.describe()}")
+        print()
+    return _report_submission(result.submitted)
 
 
 def _run_area(args: argparse.Namespace) -> int:
@@ -1811,6 +1919,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "publish":
         return _run_publish(args)
+
+    if args.command == "baseline":
+        return _run_baseline(args)
 
     if args.command == "area":
         if args.area_action is None:

@@ -284,7 +284,13 @@ def _anchors(
 
         alias = item.get("repository_alias")
         if alias is not None:
-            if not isinstance(alias, str) or alias not in aliases:
+            # Known from the payload, or from the mainline map — whose keys are
+            # the registered repositories. A baseline's payload carries no
+            # repositories at all (there is no ticket evidence), so without the
+            # second source every repository-scoped anchor in a baseline would
+            # be refused as naming a repository nobody showed the reader.
+            known_alias = alias in aliases or alias in (mainline or {})
+            if not isinstance(alias, str) or not known_alias:
                 return ()
 
         if any(matches_path(path, glob) for path in paths):

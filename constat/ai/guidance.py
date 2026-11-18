@@ -75,6 +75,30 @@ offer none rather than inventing cases the evidence does not show — but a rule
 with no examples is a rule nobody can check, so look for them.\
 """
 
+BASELINE = """\
+A **baseline** documents an area of the product as it already behaves. You are \
+not given evidence for it, because there is no change to read: open the \
+repository and read the code yourself.
+
+What this changes about the task:
+
+- **Describe what is true now, not what changed.** Nothing here is evidence \
+that anything moved, so do not reach for history, recent commits or the word \
+"now". A baseline rule reads as though it had always been written down.
+- **Every anchor rests on mainline.** Name the path where the rule lives, read \
+from the product as it stands. There is no ticket diff to ground it in.
+- **Stay inside the area you were asked for.** A rule belonging to another area \
+is refused rather than re-filed; baseline that area on its own.
+- **Returning no rules is still a correct answer.** An area whose code carries \
+no business rule a reader could have an opinion on has none to document, and \
+inventing some to fill a heading is the failure this whole process exists to \
+avoid.
+
+Read widely before writing: a baseline that documents one file of an area and \
+calls the area done is worse than one that documents nothing, because the gap \
+is then invisible.\
+"""
+
 ANCHORS = """\
 An anchor says where a rule lives, not that its behaviour changed — whether \
 the behaviour changed is for a reviewer to say.
@@ -164,6 +188,27 @@ REPLY_SHAPE = """\
             "relation": "establishes",
             "revises": 3}]}\
 """
+
+
+def for_baseline(area: str) -> str:
+    """The guidance for documenting one area as it behaves now (CON-89).
+
+    The same blocks as the ticket path, with `BASELINE` in place of the framing
+    about a change, because the rule-writing rules themselves must not differ:
+    a rule from a baseline and a rule from a ticket go in the same catalogue
+    and have to mean the same thing (D-045, CON-66).
+    """
+    return (
+        f"You are documenting the **{area}** area of this product as it "
+        "behaves today, and identifying the business rules it holds.\n\n"
+        f"{BASELINE}\n\n"
+        f"{WHAT_A_RULE_IS}\n\n{EXAMPLES}\n\n{ANCHORS}\n\n{RELATIONS}\n\n"
+        f"{REVISION}\n\n{NOTHING_IS_ACCEPTED}\n\n"
+        "Reply with JSON and nothing else, in exactly this shape:\n\n"
+        f"{REPLY_SHAPE}\n\n"
+        f'Set `area` to "{area}" on every rule, or leave it out — it is filled '
+        "in for you. An example needs both `situation` and `outcome`."
+    )
 
 
 def for_system_prompt() -> str:

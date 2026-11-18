@@ -8,6 +8,76 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-080 · 2026-11-18 · A baseline documents an area with no evidence from Constat, under a reference
+
+**Closes CON-89.** A new workspace had an empty catalogue and no route into it but one ticket at a
+time. This is the way in.
+
+**Decision.** `constat baseline <AREA>` stores a reading that describes an area **as it already
+behaves**. Three parts:
+
+1. **Constat supplies no evidence.** There is no delta to read, so there is no payload worth
+   building — the reader has the repository and reads it directly. What Constat does is what only it
+   can: ground every anchor, record which revision was described, and store the result as proposals
+   nobody has accepted.
+2. **It is recorded under a reference** — the ticket that occasioned it, or one supplied and opened
+   for a cold start.
+3. **Scope is the argument.** A reading naming another area is refused rather than re-filed.
+
+**The agent-driven shape was chosen over three alternatives**, and the decisive trade is stated
+plainly: it means a **baseline cannot be produced on the provider path**, because a provider has no
+repository access. The rejected options were a human-supplied path glob (bounded and symmetric, but
+requires knowing the layout and a wrong glob documents the wrong part of the product), a fifth MCP
+tool serving excerpts on demand (probably the right long-run answer, and the most work), and
+inferring an area's home from directory names (refused outright: that is organising by where the
+code lives, the axis D-070 rejects, and a wrong guess produces a confidently wrong baseline).
+
+**A correction to how this was first argued.** The asymmetry was initially described as violating
+D-045. It does not. D-045's invariant is that a rule proposed over MCP and the same rule proposed by
+a provider must **mean** the same thing, which the shared guidance enforces — `for_baseline` reuses
+`WHAT_A_RULE_IS`, `EXAMPLES` and `ANCHORS` unchanged. A command being unavailable on one path is a
+**capability** asymmetry, not a meaning one. The provider path refuses clearly rather than producing
+nothing, which is D-059's posture.
+
+**Why it hangs off a reference rather than an area.** The chain
+`ticket -> document -> run -> rule_proposal` is `NOT NULL` at every link, and a proposal must point
+at a run. Letting a run belong to an area instead would mean rebuilding nine tables — SQLite cannot
+drop `NOT NULL` without a table rebuild, `run`'s children cascade on delete, and
+`PRAGMA foreign_keys=OFF` is a no-op inside the transaction migrations run in. That is the riskiest
+migration in the project for one nullable column. **So there is no schema change here at all.** The
+cost is stated rather than hidden: a cold-start reference appears in `ticket list` without being a
+unit of work, and the command says so when it opens one.
+
+**Grounding needed nothing new** — D-072 already allows an anchor to rest on mainline — with one
+exception found by a test: a baseline's payload carries no repositories, so a repository-scoped
+anchor was refused as naming an alias nobody had shown the reader. The mainline map's keys *are* the
+registered aliases, so that is now the second source for the alias check. It loosens only toward
+repositories Constat actually has.
+
+**Consequences.**
+
+- **The revision is recorded as the run's evidence pointer** (D-073), in the same `run_commit` table
+  a ticket's commits go in. A claim about the present that cannot name the revision it described is
+  not inspectable (product rule 2), and a baseline has no commit set to point at.
+- **A baseline's anchors are the weaker ground by construction**, and correctly so: nothing here is
+  evidence that anything changed. The queue says *"anchored in mainline"* without the clause about a
+  ticket's changes, which on a baseline would imply a deficiency.
+- **The queue says a reading came from a baseline.** A reviewer's question differs — "this change
+  established a rule" versus "this is how it already behaves" — even though accepting them has the
+  same effect.
+- **An out-of-scope reading is reported as out of scope**, never as ungrounded or malformed. The
+  first implementation folded the two together and reported it twice, the second time under a label
+  that was false.
+- **Nothing is accepted.** A baseline documents existing behaviour, which makes it tempting to treat
+  as uncontroversial; a rule still enters the catalogue only by a human decision (D-048), and a test
+  holds that.
+- **The MCP tool is not built.** `constat baseline` is the CLI path; an MCP tool would be a thin
+  wrapper over the same operation, which ARCHITECTURE § 2 requires.
+
+**Status.** accepted
+
+---
+
 ## D-079 · 2026-11-18 · An area is declared by accepting a rule, and coverage is counted in areas
 
 **Closes CON-88 and CON-90. Amends D-070**, which made an area free text with no vocabulary and

@@ -917,13 +917,41 @@ def submit_reply(
     # Before the readings are stored, so a proposal never exists with its
     # evidence pointer missing (D-073).
     record_run_evidence(workspace, run_id, findings)
+    return _store_readings(
+        workspace,
+        run_id,
+        result.proposals,
+        result.rejections,
+        provider,
+        model,
+        reference,
+    )
+
+
+def _store_readings(
+    workspace: Workspace,
+    run_id: int,
+    readings: tuple,
+    rejections: tuple,
+    provider: str,
+    model: str | None,
+    reference: str,
+) -> SubmitResult:
+    """Store grounded readings and report what a reviewer needs to know.
+
+    Shared by `submit_reply` and `baseline_area` deliberately. The two differ
+    in what the reading is *about* and in nothing after that: the duplicate
+    warnings, the coined-area report and the append-only storage must behave
+    identically, or the queue becomes a record of which command happened to be
+    used.
+    """
     proposals = RuleProposals(workspace)
     stored = []
     candidates: dict[int, tuple[int, ...]] = {}
     pending_candidates: dict[int, tuple[int, ...]] = {}
     new_areas: dict[int, tuple[str, tuple[str, ...]]] = {}
     declared = Catalogue(workspace).areas()
-    for proposal in result.proposals:
+    for proposal in readings:
         proposal_id = proposals.record(
             run_id=run_id,
             proposal=proposal,
@@ -960,7 +988,7 @@ def submit_reply(
     return SubmitResult(
         run_id=run_id,
         stored=tuple(stored),
-        rejections=result.rejections,
+        rejections=tuple(rejections),
         candidates=candidates,
         pending_candidates=pending_candidates,
         new_areas=new_areas,
@@ -987,6 +1015,169 @@ class EvidenceCommit:
     @property
     def short_sha(self) -> str:
         return self.sha[:12]
+
+
+@dataclass(frozen=True)
+class BaselineResult:
+    """What a baseline of one area produced (CON-89)."""
+
+    area: str
+    reference: str
+    submitted: SubmitResult
+    opened_ticket: bool = False
+    """Whether the reference was opened here rather than found (D-063's
+    posture). A cold-start baseline supplies its own reference, and the user
+    should be told a ticket now exists under it."""
+    read_from: tuple[tuple[str, str], ...] = ()
+    """(repository alias, mainline revision) for each repository read.
+
+    The baseline's answer to "which *now* did you describe". A claim about the
+    present that cannot name the revision it described is not inspectable
+    (product rule 2), and unlike a ticket there is no commit set to point at —
+    so the pointer is mainline itself."""
+    out_of_area: tuple[Rejection, ...] = ()
+    """Readings refused because they named a different area than the one being
+    baselined. Refused rather than re-filed: `baseline advertising` is a
+    statement of scope, and quietly accepting a rule about payouts would make
+    the command's own argument meaningless."""
+
+
+def baseline_area(
+    workspace: Workspace,
+    area: str,
+    reference: str,
+    text: str,
+    provider: str = "external",
+    model: str | None = None,
+) -> BaselineResult:
+    """Store a reading that documents an area as it behaves now (CON-89).
+
+    **The difference from `submit_reply` is what the reading is *about*.** A
+    submitted reply describes what a ticket changed; a baseline describes what
+    already exists, so there is no delta to read and no payload Constat can
+    usefully supply — the reader has the repository and reads it directly. What
+    Constat does here is what only it can do: ground every anchor, record which
+    revision was described, and store the result as proposals nobody has
+    accepted.
+
+    **Grounding needs nothing new.** With no ticket evidence in the payload,
+    every anchor is checked against mainline, which D-072 already allows and
+    records as `grounded_in='mainline'`. A baseline's anchors are therefore the
+    weaker of the two grounds *by construction*, which is correct: this ticket
+    is not the evidence that anything changed, because nothing did.
+
+    **Why it still hangs off a reference.** The chain
+    `ticket -> document -> run -> rule_proposal` is `NOT NULL` at every link,
+    and a proposal must point at a run. Rather than rebuild nine tables to let
+    a run belong to an area, a baseline is submitted against the ticket that
+    occasioned it — which is how a baseline actually arises, since an
+    undocumented area is normally discovered while documenting a change. With
+    no occasioning ticket the caller supplies a reference, which is opened
+    here. The cost is stated rather than hidden: such a reference appears in
+    `ticket list` without being a unit of work.
+    """
+    tickets = TicketStore(workspace)
+    opened = tickets.find(reference) is None
+    if opened:
+        # Opened rather than refused, the posture D-063 set for gathering: a
+        # cold-start baseline has no occasioning ticket, so refusing here would
+        # make the first baseline in a workspace impossible.
+        tickets.add(reference)
+
+    # Collected for the mainline grounding map and for the revision pointers.
+    # Not for a payload: there is none (see above).
+    mainline = mainline_files(workspace)
+    read_from = _mainline_revisions(workspace)
+
+    payload = redact(
+        reference,
+        (),
+        known_rules(workspace),
+        pending_readings(workspace, reference),
+    )
+    result = parse(text, payload, mainline)
+
+    # Scope is the command's argument, so a reading about another area is out
+    # of scope rather than mis-filed. Partitioned before anything is stored:
+    # storing then reporting would leave the reviewer a proposal to decide
+    # that the baseline never claimed.
+    in_area, out_of_area = [], []
+    for proposal in result.proposals:
+        if proposal.area is not None and proposal.area != area:
+            out_of_area.append(
+                Rejection(
+                    proposal.name,
+                    f"names area {proposal.area!r}, but this is a baseline of "
+                    f"{area!r}. Baseline that area separately.",
+                )
+            )
+        else:
+            in_area.append(proposal.model_copy(update={"area": area}))
+
+    run_id = open_run(workspace, reference, "baseline")
+    _record_mainline_evidence(workspace, run_id, read_from)
+    # Only the parse's rejections go in here. An out-of-scope reading is not
+    # ungrounded or malformed — it is a correct reading of the wrong area — and
+    # folding the two together would report it twice and mislabel it the second
+    # time. It travels on `out_of_area`, which says what it actually was.
+    submitted = _store_readings(
+        workspace, run_id, tuple(in_area), result.rejections,
+        provider, model, reference,
+    )
+    return BaselineResult(
+        area=area,
+        reference=reference,
+        submitted=submitted,
+        opened_ticket=opened,
+        read_from=read_from,
+        out_of_area=tuple(out_of_area),
+    )
+
+
+def _mainline_revisions(workspace: Workspace) -> tuple[tuple[str, str], ...]:
+    """Each registered repository's mainline revision, or why it was not read.
+
+    An unreadable repository is reported rather than skipped, for D-070's
+    reason: its files are absent from the grounding map, so a rule that lives
+    there would be refused as ungrounded — and silence would make that look
+    like the rule being wrong rather than the repository being unreadable.
+    """
+    revisions = []
+    for entry in Registry(workspace).list():
+        try:
+            repo = discover_repository(entry.source)
+            mainline = resolve_mainline(repo, entry.default_branch)
+            revision = resolve_revision(repo, mainline.ref)
+            revisions.append((entry.alias, revision.sha))
+        except RepositoryError as exc:
+            revisions.append((entry.alias, f"unreadable: {exc}"))
+    return tuple(revisions)
+
+
+def _record_mainline_evidence(
+    workspace: Workspace, run_id: int, read_from: tuple[tuple[str, str], ...]
+) -> None:
+    """Record which revision of each repository a baseline described (D-073).
+
+    The same table a ticket's commits go in, because it answers the same
+    question — what did this reading rest on — and a reviewer looking back must
+    not have to know which kind of run produced a pointer to resolve it.
+    """
+    rows = [
+        (run_id, alias, None, sha, "(mainline at the time of the baseline)")
+        for alias, sha in read_from
+        if not sha.startswith("unreadable:")
+    ]
+    if not rows:
+        return
+    with workspace.transaction() as ws:
+        for row in rows:
+            ws.execute(
+                "INSERT OR IGNORE INTO run_commit "
+                "(run_id, repository_alias, repository_identity, sha, subject) "
+                "VALUES (?, ?, ?, ?, ?)",
+                row,
+            )
 
 
 def record_run_evidence(

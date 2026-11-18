@@ -48,9 +48,22 @@ class StoredRuleProposal:
     decided_at: str | None = None
     rationale: str | None = None
 
+    run_kind: str | None = None
+    """What kind of run produced this reading — `submit_reply`, `document` or
+    `baseline` (CON-89).
+
+    Surfaced because a reviewer's question differs: a reading from a ticket
+    says "this change established a rule", a reading from a baseline says
+    "this is how it already behaves". Accepting them has the same effect, and
+    deciding them does not."""
+
     @property
     def is_decided(self) -> bool:
         return self.decision is not None
+
+    @property
+    def from_baseline(self) -> bool:
+        return self.run_kind == "baseline"
 
     @property
     def claims_to_revise(self) -> bool:
@@ -247,13 +260,17 @@ class RuleProposals:
 
     def find(self, proposal_id: int) -> StoredRuleProposal | None:
         row = self._workspace.execute(
-            "SELECT * FROM rule_proposal WHERE id = ?", (proposal_id,)
+            "SELECT p.*, r.kind AS run_kind FROM rule_proposal p "
+            "JOIN run r ON r.id = p.run_id WHERE p.id = ?",
+            (proposal_id,),
         ).fetchone()
         return None if row is None else self._hydrate(row)
 
     def for_run(self, run_id: int) -> tuple[StoredRuleProposal, ...]:
         rows = self._workspace.execute(
-            "SELECT * FROM rule_proposal WHERE run_id = ? ORDER BY id", (run_id,)
+            "SELECT p.*, r.kind AS run_kind FROM rule_proposal p "
+            "JOIN run r ON r.id = p.run_id WHERE p.run_id = ? ORDER BY p.id",
+            (run_id,),
         ).fetchall()
         return tuple(self._hydrate(row) for row in rows)
 
@@ -265,7 +282,7 @@ class RuleProposals:
         table exists.
         """
         rows = self._workspace.execute(
-            "SELECT p.* FROM rule_proposal p "
+            "SELECT p.*, r.kind AS run_kind FROM rule_proposal p "
             "JOIN run r ON r.id = p.run_id "
             "JOIN document d ON d.id = r.document_id "
             "JOIN ticket t ON t.id = d.ticket_id "
@@ -392,9 +409,11 @@ class RuleProposals:
             (row["id"],),
         ).fetchone()
 
+        keys = row.keys()
         return StoredRuleProposal(
             id=row["id"],
             run_id=row["run_id"],
+            run_kind=row["run_kind"] if "run_kind" in keys else None,
             proposal=RuleProposal(
                 name=row["name"],
                 statement=row["statement"],
