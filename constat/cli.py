@@ -17,6 +17,7 @@ from .config import build_request, build_snapshot_request
 from .git.adapter import configured_identity
 from .errors import (
     InvalidInput,
+    NotRegistered,
     ProviderError,
     ProviderRequired,
     PublishError,
@@ -29,6 +30,7 @@ from .store import OFF, ON, READER_MCP, READERS, SWITCH, Settings
 from .store import (
     Areas,
     Catalogue,
+    Checkpoints,
     Review,
     Registry,
     RuleProposals,
@@ -526,6 +528,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="what produced the reading. Self-reported and unverified (D-045).",
     )
     baseline.add_argument("--model", default=None, help="model name, also self-reported")
+
+    checkpoint = subparsers.add_parser(
+        "checkpoint",
+        help="freeze the catalogue's current state, or see what changed since",
+        description=(
+            "A checkpoint is the last state of the product somebody agreed to: "
+            "which rules stood, at which versions, when it was taken. "
+            "`constat state` is computed and stored nowhere, which is what "
+            "makes it always current and also what leaves nothing to compare "
+            "against — this is the other half. `changes` reports what the "
+            "catalogue has done since."
+        ),
+    )
+    checkpoint_actions = checkpoint.add_subparsers(
+        dest="checkpoint_action", metavar="ACTION"
+    )
+    checkpoint_actions.add_parser("list", help="list the checkpoints taken")
+    checkpoint_take = checkpoint_actions.add_parser(
+        "take", help="freeze the catalogue as it stands now"
+    )
+    checkpoint_take.add_argument(
+        "--label",
+        required=True,
+        metavar="TEXT",
+        help=(
+            "how a person will refer to this state — a date, a release, a "
+            "meeting. Required: a checkpoint nobody can name is one nobody "
+            "will compare against."
+        ),
+    )
+    checkpoint_take.add_argument(
+        "--by", default=None, metavar="WHO",
+        help="who took it. Taken from your git identity when omitted (D-061).",
+    )
+    checkpoint_changes = checkpoint_actions.add_parser(
+        "changes", help="what the catalogue has done since a checkpoint"
+    )
+    checkpoint_changes.add_argument(
+        "ref", metavar="REF", nargs="?", default=None,
+        help="which checkpoint (default: the most recent)",
+    )
+    checkpoint_changes.add_argument(
+        "--all",
+        action="store_true",
+        help="include rules that have not changed",
+    )
 
     message = subparsers.add_parser(
         "message",
@@ -1398,6 +1446,94 @@ def _run_baseline(args: argparse.Namespace) -> int:
     return _report_submission(result.submitted)
 
 
+def _run_checkpoint(args: argparse.Namespace) -> int:
+    """Take a checkpoint, list them, or report what changed since one."""
+    try:
+        with Workspace.open(args.workspace) as workspace:
+            checkpoints = Checkpoints(workspace)
+
+            if args.checkpoint_action == "take":
+                taken_by, attribution = _decider(args)
+                taken = checkpoints.take(args.label, taken_by, attribution)
+                print(f"took {taken.ref}: {taken.label}")
+                print(f"  {taken.rule_count} rule(s) frozen as the agreed state")
+                if attribution == "inferred":
+                    print(f"  recorded as: {taken_by} (inferred from git config)")
+                print()
+                print("Retired rules are not in it: a checkpoint records the")
+                print("product as it stood, and a rule a person had taken out")
+                print("of the picture was not part of it.")
+                return EXIT_OK
+
+            if args.checkpoint_action == "changes":
+                checkpoint = checkpoints.require(args.ref)
+                return _report_changes(
+                    checkpoint, checkpoints.changes_since(checkpoint), args.all
+                )
+
+            found = checkpoints.list()
+            if not found:
+                print("No checkpoints taken.")
+                print()
+                print("Take one with `constat checkpoint take --label ...` to")
+                print("have something to compare the catalogue against. Until")
+                print("then `constat state` is the only picture, and it is")
+                print("always of now.")
+                return EXIT_OK
+            print(f"{len(found)} checkpoint(s):")
+            for item in found:
+                print(f"  {item.ref}  {item.label}")
+                print(
+                    f"      {item.rule_count} rule(s), taken {item.taken_at} "
+                    f"by {item.taken_by}"
+                )
+    except InvalidInput as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    except NotRegistered as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_WORKSPACE
+    except WorkspaceError as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_WORKSPACE
+    return EXIT_OK
+
+
+def _report_changes(checkpoint, changes, include_unchanged: bool) -> int:
+    """What the catalogue has done since a checkpoint."""
+    moved = [c for c in changes if c.status != "unchanged"]
+    unchanged = [c for c in changes if c.status == "unchanged"]
+
+    print(f"Since {checkpoint.ref} ({checkpoint.label}), taken {checkpoint.taken_at}:")
+    print()
+    if not moved:
+        print("  nothing has changed.")
+    for change in moved:
+        cite = change.ref or change.name
+        if change.status == "added":
+            print(f"  {cite}  added — {change.name} (version {change.to_version})")
+        elif change.status == "retired":
+            print(f"  {cite}  retired — {change.detail}")
+        else:
+            print(
+                f"  {cite}  revised — version {change.from_version} "
+                f"to {change.to_version}: {change.name}"
+            )
+    print()
+    if include_unchanged and unchanged:
+        print(f"{len(unchanged)} unchanged:")
+        for change in unchanged:
+            print(f"  {change.ref or change.name}  {change.name}")
+        print()
+    print(
+        f"{len(moved)} changed, {len(unchanged)} unchanged. A revision says the "
+        "rule has a"
+    )
+    print("new accepted version, not what the new version says — see")
+    print("`constat rule history <RULE_ID>` for the detail of what moved.")
+    return EXIT_OK
+
+
 def _run_message(args: argparse.Namespace) -> int:
     """List the stored messages, or check their wording against the code."""
     try:
@@ -2098,6 +2234,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "baseline":
         return _run_baseline(args)
+
+    if args.command == "checkpoint":
+        if args.checkpoint_action is None:
+            args.checkpoint_action = "list"
+        return _run_checkpoint(args)
 
     if args.command == "message":
         if args.message_action is None:

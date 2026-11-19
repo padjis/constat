@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -321,6 +321,42 @@ CREATE TABLE rule_proposal_decision (
     rationale        TEXT
 );
 
+-- A frozen record of which rules stood, at which versions, when somebody took
+-- it (CON-15). The "last approved state" a reviewer compares against.
+--
+-- **Taken explicitly, because "the last approved state" needs a point somebody
+-- chose.** Deriving it from the newest acceptance would make the comparison
+-- shift every time a rule was accepted, so "what is new since" would quietly
+-- mean "since the previous rule" rather than since a state anyone agreed to.
+--
+-- **Why this exists when `constat state` already renders the picture.** That
+-- view is computed and stored nowhere (D-070), which is what makes it always
+-- true of the revisions it names — and also what leaves nothing to compare
+-- against. The two are complementary: one says what the product does now, this
+-- says what it did when a person last looked.
+--
+-- Append-only. A checkpoint that could be edited would make "what changed
+-- since" unanswerable, which is the whole point of having one.
+CREATE TABLE checkpoint (
+    id          INTEGER PRIMARY KEY,
+    ref         TEXT,
+    label       TEXT    NOT NULL,
+    taken_by    TEXT    NOT NULL,
+    attribution TEXT    NOT NULL DEFAULT 'stated',
+    taken_at    TEXT    NOT NULL
+);
+
+-- Which rule stood at which version in one checkpoint. `rule_version_id` is
+-- the point: a rule present in both a checkpoint and the catalogue today has
+-- *changed* if its version differs, and nothing else can tell you that.
+CREATE TABLE checkpoint_rule (
+    id              INTEGER PRIMARY KEY,
+    checkpoint_id   INTEGER NOT NULL REFERENCES checkpoint(id) ON DELETE CASCADE,
+    rule_id         INTEGER NOT NULL REFERENCES rule(id),
+    rule_version_id INTEGER NOT NULL REFERENCES rule_version(id),
+    UNIQUE (checkpoint_id, rule_id)
+);
+
 -- A human's decision that a rule no longer describes the product (CON-83).
 --
 -- **A decision, not a deletion.** `rule` can never be removed — the trigger
@@ -465,6 +501,8 @@ CREATE TABLE anchor (
 CREATE UNIQUE INDEX idx_rule_ref ON rule(ref);
 CREATE UNIQUE INDEX idx_message_ref ON message(ref);
 CREATE INDEX idx_rule_retirement_rule ON rule_retirement(rule_id);
+CREATE UNIQUE INDEX idx_checkpoint_ref ON checkpoint(ref);
+CREATE INDEX idx_checkpoint_rule_checkpoint ON checkpoint_rule(checkpoint_id);
 CREATE INDEX idx_rule_message_rule ON rule_message(rule_id);
 CREATE INDEX idx_rule_proposal_message ON rule_proposal_message(rule_proposal_id);
 CREATE INDEX idx_rule_version_message ON rule_version_message(rule_version_id);
@@ -526,6 +564,20 @@ CREATE TRIGGER rule_proposal_is_append_only_delete
 BEFORE DELETE ON rule_proposal
 BEGIN
     SELECT RAISE(ABORT, 'rule_proposal is append-only: a reading cannot be deleted');
+END;
+
+CREATE TRIGGER checkpoint_is_append_only_update
+BEFORE UPDATE ON checkpoint
+BEGIN
+    SELECT RAISE(ABORT,
+        'checkpoint is append-only: take a new one rather than editing this');
+END;
+
+CREATE TRIGGER checkpoint_is_append_only_delete
+BEFORE DELETE ON checkpoint
+BEGIN
+    SELECT RAISE(ABORT,
+        'checkpoint is append-only: a state somebody compared against cannot be removed');
 END;
 
 CREATE TRIGGER rule_retirement_is_append_only_update
@@ -889,6 +941,39 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     # time. They were not: the match would be made today, by this code, and
     # presented as what a reviewer saw. NULL reads as "not numbered", and the
     # diff says so rather than comparing.
+    # 19 -> 20: a checkpoint of the catalogue (CON-15).
+    #
+    # Nothing is checkpointed by the migration. A checkpoint records that a
+    # person looked at the product and agreed it was this, so inventing one
+    # would put a human decision in the record that nobody made.
+    19: (
+        "CREATE TABLE checkpoint ("
+        " id INTEGER PRIMARY KEY,"
+        " ref TEXT,"
+        " label TEXT NOT NULL,"
+        " taken_by TEXT NOT NULL,"
+        " attribution TEXT NOT NULL DEFAULT 'stated',"
+        " taken_at TEXT NOT NULL)",
+        "CREATE TABLE checkpoint_rule ("
+        " id INTEGER PRIMARY KEY,"
+        " checkpoint_id INTEGER NOT NULL REFERENCES checkpoint(id) ON DELETE CASCADE,"
+        " rule_id INTEGER NOT NULL REFERENCES rule(id),"
+        " rule_version_id INTEGER NOT NULL REFERENCES rule_version(id),"
+        " UNIQUE (checkpoint_id, rule_id))",
+        "CREATE UNIQUE INDEX idx_checkpoint_ref ON checkpoint(ref)",
+        "CREATE INDEX idx_checkpoint_rule_checkpoint"
+        " ON checkpoint_rule(checkpoint_id)",
+        "CREATE TRIGGER checkpoint_is_append_only_update"
+        " BEFORE UPDATE ON checkpoint BEGIN"
+        " SELECT RAISE(ABORT,"
+        " 'checkpoint is append-only: take a new one rather than editing this');"
+        " END",
+        "CREATE TRIGGER checkpoint_is_append_only_delete"
+        " BEFORE DELETE ON checkpoint BEGIN"
+        " SELECT RAISE(ABORT,"
+        " 'checkpoint is append-only: a state somebody compared against cannot be removed');"
+        " END",
+    ),
     # 18 -> 19: a rule can be retired (CON-83).
     #
     # One table and two triggers. Nothing is retired by the migration, which

@@ -64,7 +64,7 @@ Ticket register. The single source of truth for *what work exists*; the single s
 | CON-12 | Implement review decisions | No proposal becomes official without an explicit human decision. | ✅ CON-44/D-053 — `--by` is required with no default, decisions are append-only in their own table, and D-055 keeps acceptance out of every MCP tool |
 | CON-13 | Persist proposals and decisions | A restart does not lose review history. | 🔁 **superseded by CON-31** — persistence is now a prerequisite, not Phase 4 |
 | CON-14 | Create immutable approved baselines | A later approval creates a new version; previous content remains recoverable. | ✅ CON-43/D-053 — versions are frozen rows with `UPDATE`/`DELETE` aborted by trigger. **Partial on recoverability:** see CON-61 |
-| CON-15 | Compare against the last approved baseline | A reviewer can see what is new since the last approved state. | ⬜ |
+| CON-15 | Compare against the last approved baseline | A reviewer can see what is new since the last approved state. | ✅ D-085 — schema 20; a *checkpoint*, taken explicitly and compared by version number, with four outcomes per rule. The word "baseline" was already taken twice over, so this object has its own noun |
 
 ## Phase 5 — GitHub and realistic demonstration
 

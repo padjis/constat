@@ -1,8 +1,12 @@
 # Project status
 
-**Last updated:** 2026-11-18
+**Last updated:** 2026-11-19
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-18):** **CON-83 closed (D-084)** — retirement is a human decision, final,
+**Current session (2026-11-19):** **CON-15 closed (D-085)** — the agreed state is a *checkpoint*,
+taken explicitly and compared by version number, schema 20. It was the oldest open ticket in the
+register, and it also completes **CON-14**.
+
+**2026-11-18:** **CON-83 closed (D-084)** — retirement is a human decision, final,
 and deletes nothing; it is also where a lapsed condition (D-071) is expressed. Before it, **CON-91
 (D-083)** — a message is verified against the code by its longest literal fragment — and **CON-82
 (D-082)** — a message is a
@@ -446,10 +450,16 @@ rule-shape list, and CON-84 is droppable.
 verification and retirement — leaving only **CON-84 (glossary)**, which I would drop rather than
 build.
 
-The next code task, if you keep building, is **CON-15 — compare against the last approved
-baseline**, the oldest open ticket in the register. CON-67's per-detail diff supplies most of the
-comparison; what is missing is a *stored* baseline to compare against, which `constat state`
-deliberately is not (D-070).
+**There is no obvious next code task**, which is itself the finding. The rule-shape cluster is
+finished, the oldest Phase 4 ticket is closed, and what is left in the register is either small
+(CON-84, a glossary I would drop), deferred by decision (CON-85's release concept, CON-59's
+publishing backends), or waiting on a user rather than on code.
+
+**CON-26 — discovery conversations — is now the critical path, and has been all week.** Sixteen
+tickets have closed in two days. Every design call in them was a judgement about what a business
+reader needs, made without one present: examples, the coverage denominator, the baseline shape, flat
+citations, the message exemption, four states of a checkpoint. They are defensible. None has met a
+reader.
 
 Two smaller things are now reachable and unblocked: **an MCP tool for `baseline`**, which would be a
 thin wrapper over `baseline_area` (D-080 left it unbuilt deliberately), and **CON-15**, comparing
@@ -505,6 +515,72 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## CON-15 — done when: *a reviewer can see what is new since the last approved state* ✅
+
+`D-085` records the decision. The oldest open ticket in the register, and it was waiting on
+something `constat state` deliberately is not: D-070 made that view **computed and stored nowhere**,
+which keeps it always true of the revisions it names and left nothing to compare against.
+
+**Live, after taking a checkpoint and then changing the catalogue three ways:**
+
+```
+Since C-1 (the November review), taken 2026-11-19T17:26:14Z:
+
+  R-1  revised — version 1 to 2: maximum-upload-size
+  R-2  retired — advertising was switched on after approval
+  R-3  added — duplicate-file-name (version 1)
+
+3 changed, 0 unchanged.
+```
+
+**Compared by rule id and version number, never by statement text.** A rule a later version
+rephrased has changed; one nobody touched has not; only the stored version numbers tell those apart.
+That is why a checkpoint records the *version* rather than the rule.
+
+**Taken explicitly, not derived from the newest acceptance** — which would make the reference point
+move every time a rule was accepted, so "what is new since" would quietly mean "since the previous
+rule".
+
+**One subtlety worth naming:** a rule added *and* retired since the checkpoint is reported as
+nothing. It was never in the state being compared against, so calling it retired would describe the
+product losing something it never had in that state.
+
+### The word "baseline" was already taken twice, and I took it a third time
+
+`PRODUCT_SPEC` § 6 calls this object a *baseline*; the CLI says "version 1 baselined" when freezing a
+rule version; and CON-89 — yesterday — took `constat baseline <AREA>` for documenting an area. So
+this object is a **checkpoint**, and "baseline" keeps its other two uses. Flagged before building
+rather than after, and renaming CON-89's command stays available if the overload proves worse than
+the new noun.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_checkpoints.py` → **25 passed** (new file). **Whole suite**,
+because the schema changed: **1242 passed in 258s**, exit 0.
+
+**Mutation-checked:** treating a version change as unchanged fails `test_a_revision_reads_as_revised`;
+answering "nothing changed" instead of refusing a missing checkpoint fails both refusal tests.
+
+### The same restore mistake as yesterday, in a new form
+
+`git checkout -- constat/store/checkpoints.py` **silently did nothing**, because the file is
+untracked — so both mutations stayed applied and the "restored" run still failed. Yesterday it was a
+stale backup; today it was a restore command that cannot work on a new file. Reverted by hand,
+then both mutations redone against an explicit copy.
+
+Twice is a pattern rather than bad luck: **a mutation check needs its own verified-good copy, and
+the restore needs checking, not assuming.**
+
+### Deliberately not done
+
+- **A revision reports *that* a rule changed, not *what* changed in it.** The per-detail diff is
+  CON-67's, reached through `rule history`, and the output says so rather than implying it covers
+  both.
+- **No automatic checkpoint** at acceptance, release or publication. All three would make the
+  reference point move.
 
 ---
 

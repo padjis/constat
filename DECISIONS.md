@@ -8,6 +8,66 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-085 · 2026-11-19 · The agreed state is a checkpoint, taken explicitly and compared by version
+
+**Closes CON-15**, the oldest open ticket in the register. It was waiting on something `constat
+state` deliberately is not.
+
+**Decision.** A **checkpoint** is a frozen record of which rules stood, at which versions, when a
+person took it. `constat checkpoint take --label …` freezes it; `constat checkpoint changes` reports
+what the catalogue has done since, as one of four outcomes per rule: **added**, **retired**,
+**revised**, **unchanged**.
+
+**Why a new object rather than reusing `constat state`.** D-070 made that view computed and stored
+nowhere, which is exactly what keeps it always true of the revisions it names — and also what left
+nothing to compare against. The two are complementary: `state` says what the product does now, a
+checkpoint says what it did when a person last looked, and the difference is what a reviewer wants.
+
+**Taken explicitly, not derived.** "The last approved state" needs a point somebody chose. Derived
+from the newest acceptance it would move every time a rule was accepted, so "what is new since"
+would quietly come to mean "since the previous rule" — a moving reference point, which is no
+reference point at all.
+
+**Compared by rule id and version number, never by statement text.** A rule a later version
+rephrased has changed; one nobody touched has not; and only the stored version numbers tell those
+apart. That is why a checkpoint records the *version* rather than the rule. Mutation-checked.
+
+**The word.** `PRODUCT_SPEC` § 6 calls this a *baseline*, CON-14 did too, the CLI says "version 1
+baselined" when freezing a rule version, and CON-89 took `constat baseline <AREA>` for documenting
+an area — three senses of one word, the third of which I introduced on 2026-11-18. This object is
+therefore a **checkpoint**, and "baseline" keeps its other two uses. Recorded rather than left for
+somebody to trip over; renaming CON-89's command stays available if the overload proves worse than
+the new noun.
+
+**Four outcomes, kept apart**, because a reviewer's next move differs for each — and one subtlety:
+a rule **added and retired since** the checkpoint is reported as *nothing*. It was never in the
+state being compared against, so calling it retired would describe the product losing something it
+never had in that state.
+
+**Consequences.**
+
+- **Schema 20:** `checkpoint` and `checkpoint_rule`, both append-only by trigger. A checkpoint that
+  could be edited would make "what changed since" unanswerable, which is the whole reason to have
+  one. Nothing is checkpointed by the migration: a checkpoint records that a person looked and
+  agreed, and inventing one would put a decision in the record nobody made.
+- **Retired rules are excluded when taking one.** A checkpoint records the product as it stood, and
+  a rule a person had taken out of the picture was not part of it (D-084). A rule retired *after* a
+  checkpoint is therefore a reported change, which is the behaviour wanted.
+- **An empty catalogue can be checkpointed.** "We agreed it was empty" is a real starting point, and
+  refusing it would make the first comparison impossible.
+- **A missing checkpoint refuses rather than answering.** "Nothing has changed since a checkpoint
+  that does not exist" is the confidently-wrong answer this product exists to avoid.
+- **A revision reports *that* the rule changed, not *what* changed in it.** The per-detail diff is
+  CON-67's, reached through `rule history`, and the output says so rather than implying it covers
+  both.
+- **CON-14 is now fully met.** Its criterion — "a later approval creates a new version; previous
+  content remains recoverable" — held for versions since D-053; what was missing was a stored state
+  to compare against, which this supplies.
+
+**Status.** accepted
+
+---
+
 ## D-084 · 2026-11-18 · Retirement is a human decision, final, and deletes nothing
 
 **Closes CON-83, and answers the question D-071 left open.**
