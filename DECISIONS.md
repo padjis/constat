@@ -8,6 +8,65 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-082 · 2026-11-18 · A message is a verbatim quotation, stored once, exempt from the leakage gate
+
+**Closes CON-82.** A rule could describe what the product does and never show what the product
+*says*. The text a user reads was either absent or paraphrased inside a statement.
+
+**Decision.** A message a user can see is a catalogue entry of its own: stored once, keyed on its
+exact text, cited as `M-7` in D-081's scheme, and referred to by every rule that shows it. A reading
+proposes the text; the entry is minted at acceptance.
+
+**Verbatim, and therefore exempt from D-066.** This is the load-bearing decision. The code-leakage
+gate refuses an identifier, a file path, an HTTP verb or a snake_case name — and real user-facing
+text contains all four:
+
+> `No ExcelMappingType was found in the workbook`
+> `Could not read render.ts`
+> `HTTP 503: the service is unavailable`
+
+Applying the gate here would refuse the true text and leave a reviewer with a tidied approximation,
+**which is worse than nothing because it still looks like evidence**. D-066 protects sentences
+Constat writes *about* the product; a message is a sentence the product writes itself. The gate still
+applies to the statement, the behaviours, the examples and the area — a test asserts a statement
+naming a file is refused while a message naming one is kept, so the exemption cannot be read as the
+gate weakening.
+
+**Stored once, matched on exact text.** One message routinely belongs to several rules — the same
+refusal covers a size limit and a duplicate name — and a second copy is how two wordings come to
+disagree. Correcting a message therefore corrects it everywhere, which is the point and the one
+piece of a version's substance that is *not* frozen against later change: `rule_version_message`
+links to the entry rather than copying the text. Stated because it differs from behaviours and
+examples, which are frozen per version.
+
+A **near-match is a different message.** Treating one as the same is a judgement no gate here is
+entitled to make, and it would silently rewrite what a user sees.
+
+**Minted at acceptance, never at submission.** A reading carries text and no citation, like an
+example carrying no number (D-078): minting an entry for an unaccepted reading would put something
+in the catalogue no human had agreed to (D-048).
+
+**Consequences.**
+
+- **Schema 18:** `message`, `rule_message`, `rule_proposal_message`, `rule_version_message`. No
+  back-fill, and nothing to back-fill from — mining quoted strings out of existing statements would
+  be Constat inventing the evidence a reviewer is meant to check.
+- **The guidance block is shared by all three reading paths** — provider, MCP and baseline — and a
+  test asserts the same object reaches each. It asks for the text copied from the code, and says an
+  approximation is worse than nothing.
+- **CON-91 gets simpler.** "A quoted message is verified against the code" now has an obvious
+  implementation: check `message.text`, rather than scraping quotations out of statements.
+- **A mutation survived first, again.** Applying `code_leakage` to messages failed only one of four
+  parametrised cases, because three of my example texts did not actually trip the gate. The test now
+  asserts `code_leakage(text) is not None` before asserting the exemption, so a text that stops
+  tripping the gate fails loudly rather than quietly weakening what it was written to pin. Two
+  tickets in a row where the first mutation attempt was uninformative; the lesson is that a mutation
+  which survives tells you about the test, not about the code.
+
+**Status.** accepted
+
+---
+
 ## D-081 · 2026-11-18 · A rule's citable identifier is flat, stored, and never reused
 
 **Closes CON-81.** A rule could be identified two ways and neither was citable: the row id is an

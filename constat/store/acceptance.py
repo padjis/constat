@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..errors import InvalidInput, NotRegistered
-from ..models import Anchor, Behaviour, Example
+from ..models import Anchor, Behaviour, Example, Message
 from .proposals import RuleProposals, StoredRuleProposal
 from .workspace import Workspace, utc_now
 
@@ -301,6 +301,16 @@ class Review:
                     "(rule_version_id, behaviour_no, description) VALUES (?, ?, ?)",
                     (version_id, number, behaviour.description),
                 )
+            message_ids = [
+                self._message_id(ws, message.text)
+                for message in stored.proposal.messages
+            ]
+            for message_id in message_ids:
+                ws.execute(
+                    "INSERT INTO rule_version_message "
+                    "(rule_version_id, message_id) VALUES (?, ?)",
+                    (version_id, message_id),
+                )
             for example, number in zip(stored.proposal.examples, example_nos):
                 ws.execute(
                     "INSERT INTO rule_version_example "
@@ -333,6 +343,12 @@ class Review:
                     rule_id,
                 ),
             )
+            ws.execute("DELETE FROM rule_message WHERE rule_id = ?", (rule_id,))
+            for message_id in message_ids:
+                ws.execute(
+                    "INSERT INTO rule_message (rule_id, message_id) VALUES (?, ?)",
+                    (rule_id, message_id),
+                )
             ws.execute("DELETE FROM behaviour WHERE rule_id = ?", (rule_id,))
             ws.execute("DELETE FROM example WHERE rule_id = ?", (rule_id,))
             ws.execute("DELETE FROM anchor WHERE rule_id = ?", (rule_id,))
@@ -365,6 +381,38 @@ class Review:
                 )
 
         return version_id, version_no
+
+    @staticmethod
+    def _message_id(ws, text: str) -> int:
+        """The id of the message with this exact text, minting it if new.
+
+        **Found before minted**, which is what makes a message live once
+        (CON-82): the same wording shows under several rules, and a second copy
+        is how two wordings come to disagree. Matching is on the exact text,
+        because that is what a message *is* — a near-match is a different
+        message, and deciding otherwise is a judgement no gate here is entitled
+        to make.
+
+        The citation is minted only for genuinely new text, from the greatest
+        one in the table. `message` has no delete path, so that is the whole
+        history and a citation is never reused.
+        """
+        found = ws.execute(
+            "SELECT id FROM message WHERE text = ?", (text,)
+        ).fetchone()
+        if found is not None:
+            return int(found["id"])
+
+        highest = ws.execute(
+            "SELECT MAX(CAST(SUBSTR(ref, 3) AS INTEGER)) AS top FROM message "
+            "WHERE ref LIKE 'M-%'"
+        ).fetchone()
+        ref = f"M-{(highest['top'] or 0) + 1}"
+        cursor = ws.execute(
+            "INSERT INTO message (ref, text, created_at) VALUES (?, ?, ?)",
+            (ref, text, utc_now()),
+        )
+        return int(cursor.lastrowid)
 
     @staticmethod
     def _assign_numbers(
@@ -456,6 +504,7 @@ class Review:
             version = dict(row)
             version["behaviours"] = self.version_behaviours(row["id"])
             version["behaviour_details"] = self.version_behaviour_details(row["id"])
+            version["messages"] = self.version_messages(row["id"])
             version["examples"] = self.version_examples(row["id"])
             version["anchors"] = self.version_anchors(row["id"])
             versions.append(version)
@@ -524,6 +573,23 @@ class Review:
             Behaviour(description=row["description"], number=row["behaviour_no"])
             for row in rows
         )
+
+    def version_messages(self, rule_version_id: int) -> tuple[Message, ...]:
+        """The messages this version was accepted with, as frozen (CON-82).
+
+        Through the link table to `message`, so the *text* read back is the
+        text as it stands. Deliberate, and worth stating because it differs
+        from behaviours and examples: a message is one entry shared by every
+        rule that shows it, so correcting its wording corrects it everywhere.
+        That is the point of storing it once, and the one piece of a version's
+        substance that is not frozen against later change."""
+        rows = self._workspace.execute(
+            "SELECT m.ref, m.text FROM rule_version_message v "
+            "JOIN message m ON m.id = v.message_id "
+            "WHERE v.rule_version_id = ? ORDER BY v.id",
+            (rule_version_id,),
+        ).fetchall()
+        return tuple(Message(text=row["text"], ref=row["ref"]) for row in rows)
 
     def version_examples(self, rule_version_id: int) -> tuple[Example, ...]:
         """The worked cases this version was accepted with, as frozen (CON-80).

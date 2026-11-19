@@ -705,6 +705,13 @@ def _report_proposals(
             # how it already behaves". Accepting them has the same effect;
             # deciding them does not.
             print("      from a baseline — describes existing behaviour, not a change")
+        if item.proposal.messages:
+            # The most checkable thing in the reading, so it is in the queue
+            # rather than one command away: a reviewer may be unsure whether a
+            # rule is right, and is never unsure whether the screen says this.
+            print(f"      messages ({len(item.proposal.messages)}):")
+            for message in item.proposal.messages:
+                print(f"        - \"{message.text}\"")
         if item.proposal.examples:
             # In the queue, not only in `rule show`: the examples are what a
             # reviewer decides *on*, so a queue that hid them would be asking
@@ -809,6 +816,13 @@ def _print_rule(rule) -> None:
             print(f"    - {behaviour.description}")
     else:
         print("  behaviours: none declared yet")
+    if rule.messages:
+        print(f"  messages ({len(rule.messages)}):")
+        for message in rule.messages:
+            cite = f"{message.ref}  " if message.ref else ""
+            # Quoted, so the boundaries of the text are visible: trailing
+            # space and punctuation are part of what a user sees.
+            print(f"    - {cite}\"{message.text}\"")
     if rule.examples:
         print(f"  examples ({len(rule.examples)}):")
         for example in rule.examples:
@@ -979,6 +993,11 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                             print(f"        - {description}")
                     else:
                         print("      behaviours: none recorded in this version")
+                    if v["messages"]:
+                        print(f"      messages ({len(v['messages'])}):")
+                        for message in v["messages"]:
+                            cite = f"{message.ref}  " if message.ref else ""
+                            print(f"        - {cite}\"{message.text}\"")
                     if v["examples"]:
                         print(f"      examples ({len(v['examples'])}):")
                         for example in v["examples"]:

@@ -39,7 +39,7 @@ from dataclasses import dataclass
 
 from ..errors import MalformedResponse
 from ..globs import matches_path
-from ..models import Anchor, Behaviour, Example, RuleProposal
+from ..models import Anchor, Behaviour, Example, Message, RuleProposal
 from .redaction import ProviderPayload
 from .statements import code_leakage, restates
 
@@ -56,6 +56,11 @@ RELATIONS = ("establishes", "revises", "repairs")
 """How a reading may stand to the catalogue (D-065). Kept here beside the
 parse that enforces it: SQLite cannot add a CHECK to an existing column, so a
 migrated workspace relies on this gate exactly as a fresh one does."""
+
+MAX_MESSAGE = 500
+"""A user-facing message. Longer than an example half, because real messages
+run to several sentences of instruction — and still bounded, because an
+unbounded one is prose that wandered out of the statement."""
 
 MAX_EXAMPLE = 200
 """Each half of an example. A case is a sentence, not a scenario document; past
@@ -173,6 +178,44 @@ def _behaviours(raw: object) -> tuple[Behaviour, ...]:
         for item in raw
         if isinstance(item, str) and item.strip()
     )
+
+
+def _messages(raw: object) -> tuple[Message, ...] | str:
+    """Parsed messages, or a reason to reject the whole proposal (CON-82).
+
+    **No code-leakage check, deliberately.** A message is a quotation of what
+    the product shows a user, and real messages carry file names, error codes
+    and product names. D-066's gate exists to keep *Constat's own sentences*
+    business-readable; applying it to a verbatim quotation would refuse the
+    true text and leave a reader with a sanitised approximation — which is
+    worse than nothing, because it looks like evidence.
+
+    What is checked is that the text is non-empty, bounded, and not repeated
+    within one reading.
+    """
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        return "'messages' is not a list"
+
+    messages: list[Message] = []
+    seen: set[str] = set()
+    for position, item in enumerate(raw, start=1):
+        if not isinstance(item, str):
+            return f"message {position} is not a string"
+        text = item.strip()
+        if not text:
+            return f"message {position} is empty"
+        if len(text) > MAX_MESSAGE:
+            return (
+                f"message {position} is longer than {MAX_MESSAGE} characters; "
+                "a message is what the product shows, not a description of it"
+            )
+        if text in seen:
+            return f"message {position} repeats an earlier one"
+        seen.add(text)
+        messages.append(Message(text=text))
+    return tuple(messages)
 
 
 def _examples(raw: object, statement: str) -> tuple[Example, ...] | str:
@@ -483,6 +526,11 @@ def parse(
             rejections.append(Rejection(label, examples))
             continue
 
+        messages = _messages(raw.get("messages"))
+        if isinstance(messages, str):
+            rejections.append(Rejection(label, messages))
+            continue
+
         anchors = _anchors(raw.get("anchors"), paths, aliases, mainline)
         if not anchors:
             # Deliberately fatal for the proposal. An unanchored rule can
@@ -503,6 +551,7 @@ def parse(
                 name=name,
                 statement=statement,
                 behaviours=behaviours,
+                messages=messages,
                 examples=examples,
                 anchors=anchors,
                 revises_rule_id=revises,

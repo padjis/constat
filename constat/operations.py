@@ -475,6 +475,12 @@ def _render_rules(
             for behaviour in proposal.behaviours:
                 lines.append(f"- {behaviour.description}")
             lines.append("")
+        if proposal.messages:
+            lines.append("Messages the user sees:")
+            lines.append("")
+            for message in proposal.messages:
+                lines.append(f"- > {message.text}")
+            lines.append("")
         lines += example_table(proposal.examples)
         if proposal.anchors:
             lines.append("Anchors:")
@@ -1974,6 +1980,9 @@ def render_state(state: ProductState) -> str:
                     shown = ", ".join(f"`{path}`" for path in paths[:5])
                     more = "" if len(paths) <= 5 else f" and {len(paths) - 5} more"
                     lines.append(f"  - in {alias}: {shown}{more}")
+                for message in item.rule.messages:
+                    cite = f"`{message.ref}` " if message.ref else ""
+                    lines.append(f"  - shows {cite}> {message.text}")
                 if item.rule.examples:
                     lines.append("")
                     lines += [

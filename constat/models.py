@@ -128,6 +128,30 @@ class Behaviour(Frozen):
     reads as "not numbered" rather than as any particular number."""
 
 
+class Message(Frozen):
+    """Exact text a user can see, stored once and cited (CON-82).
+
+    **The most checkable thing a rule can carry.** A business reader may be
+    unsure whether a limit is really enforced; they are never unsure whether
+    the screen says what the catalogue claims it says. That is why the text is
+    verbatim, and why it lives once rather than being quoted into each rule
+    that shows it — two copies are how two wordings come to disagree.
+
+    **The code-leakage gate (D-066) deliberately does not apply here.** A
+    message is a *quotation*, not a statement: real user-facing text contains
+    file names, error codes and product names, and refusing those would corrupt
+    the one field whose whole value is being verbatim. The gate protects
+    sentences Constat writes about the product; this is a sentence the product
+    writes itself.
+
+    `ref` is the citation (`M-7`), None on a reading — a message has no
+    identity until a human accepts the rule that shows it.
+    """
+
+    text: str = Field(min_length=1)
+    ref: str | None = None
+
+
 class Example(Frozen):
     """One situation and what the product does with it (CON-80).
 
@@ -217,6 +241,8 @@ class Rule(Frozen):
     None only for a rule read back from a workspace older than schema 17,
     before the back-fill has run."""
     behaviours: tuple[Behaviour, ...] = ()
+    messages: tuple[Message, ...] = ()
+    """The messages this rule shows a user (CON-82)."""
     examples: tuple[Example, ...] = ()
     """Worked cases, in the order they were proposed (CON-80).
 
@@ -254,6 +280,9 @@ class RuleProposal(Frozen):
     name: str = Field(min_length=1)
     statement: str = Field(min_length=1)
     behaviours: tuple[Behaviour, ...] = ()
+    messages: tuple[Message, ...] = ()
+    """Messages this reading says the rule shows (CON-82). Text only: a
+    message has no citation until a human accepts the rule."""
     examples: tuple[Example, ...] = ()
     """Worked cases this reading proposes (CON-80).
 

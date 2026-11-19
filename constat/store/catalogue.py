@@ -26,7 +26,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from ..globs import matches_path
-from ..models import Anchor, Behaviour, Example, Rule
+from ..models import Anchor, Behaviour, Example, Message, Rule
 from .workspace import Workspace
 
 
@@ -140,6 +140,15 @@ class Catalogue:
                 (rule_id,),
             )
         )
+        messages = tuple(
+            Message(text=m["text"], ref=m["ref"])
+            for m in self._workspace.execute(
+                "SELECT m.ref, m.text FROM rule_message rm "
+                "JOIN message m ON m.id = rm.message_id "
+                "WHERE rm.rule_id = ? ORDER BY rm.id",
+                (rule_id,),
+            )
+        )
         # Ordered by id, not by text: the order a reading proposed cases in
         # carries meaning — accepted first, then the boundary, then the
         # refusal — and sorting alphabetically would scramble it. Behaviours
@@ -178,6 +187,7 @@ class Catalogue:
             area=row["area"] if "area" in row.keys() else None,
             created_at=datetime.fromisoformat(row["created_at"]),
             behaviours=behaviours,
+            messages=messages,
             examples=examples,
             anchors=anchors,
         )

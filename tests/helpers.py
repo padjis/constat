@@ -175,6 +175,12 @@ TABLES_INTRODUCED_AT: dict[int, tuple[str, ...]] = {
     13: ("run_commit",),
     14: ("rule_proposal_example", "rule_version_example", "example"),
     16: ("area",),
+    18: (
+        "message",
+        "rule_message",
+        "rule_proposal_message",
+        "rule_version_message",
+    ),
 }
 
 

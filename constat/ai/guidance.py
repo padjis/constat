@@ -99,6 +99,22 @@ calls the area done is worse than one that documents nothing, because the gap \
 is then invisible.\
 """
 
+MESSAGES = """\
+When a rule produces text a user actually sees — an error, a refusal, a \
+confirmation — quote it **exactly**, in `messages`. Copy it from the code: the \
+wording, the punctuation, the capitals. Do not tidy it, translate it, or \
+summarise it.
+
+This is the most checkable thing you can give a reviewer. They may be unsure \
+whether a limit is really enforced; they are never unsure whether the screen \
+says what you claim it says — so an approximation is worse than nothing, \
+because it still looks like evidence.
+
+Leave a placeholder in whatever form the product uses it, rather than filling \
+it in with an example value. Omit `messages` entirely when the rule shows the \
+user nothing: most rules do not.\
+"""
+
 ANCHORS = """\
 An anchor says where a rule lives, not that its behaviour changed — whether \
 the behaviour changed is for a reviewer to say.
@@ -182,6 +198,7 @@ REPLY_SHAPE = """\
             "behaviours": ["What the system does"],
             "examples": [{"situation": "An upload of 64 MB",
                           "outcome": "Refused, and nothing is processed"}],
+            "messages": ["Failed to start upload"],
             "anchors": [{"path_glob": "path/from/the/evidence.py",
                          "repository_alias": "alias"}],
             "area": "advertising",
@@ -202,7 +219,8 @@ def for_baseline(area: str) -> str:
         f"You are documenting the **{area}** area of this product as it "
         "behaves today, and identifying the business rules it holds.\n\n"
         f"{BASELINE}\n\n"
-        f"{WHAT_A_RULE_IS}\n\n{EXAMPLES}\n\n{ANCHORS}\n\n{RELATIONS}\n\n"
+        f"{WHAT_A_RULE_IS}\n\n{EXAMPLES}\n\n{MESSAGES}\n\n{ANCHORS}\n\n"
+        f"{RELATIONS}\n\n"
         f"{REVISION}\n\n{NOTHING_IS_ACCEPTED}\n\n"
         "Reply with JSON and nothing else, in exactly this shape:\n\n"
         f"{REPLY_SHAPE}\n\n"
@@ -216,7 +234,8 @@ def for_system_prompt() -> str:
     return (
         "You are reading the evidence for one software ticket and identifying "
         "the business rules it touches.\n\n"
-        f"{WHAT_A_RULE_IS}\n\n{EXAMPLES}\n\n{ANCHORS}\n\n{AREAS}\n\n{RELATIONS}\n\n"
+        f"{WHAT_A_RULE_IS}\n\n{EXAMPLES}\n\n{MESSAGES}\n\n{ANCHORS}\n\n"
+        f"{AREAS}\n\n{RELATIONS}\n\n"
         f"{REVISION}\n\n{PENDING}\n\n"
         f"{NOTHING_IS_ACCEPTED}\n\n"
         "Reply with JSON and nothing else, in exactly this shape:\n\n"

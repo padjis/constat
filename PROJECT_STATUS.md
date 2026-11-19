@@ -2,8 +2,9 @@
 
 **Last updated:** 2026-11-18
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-18):** **CON-81 closed (D-081)** — a rule's citation is flat (`R-14`),
-stored and never reused, schema 17. Before it, **CON-89 (D-080)** — a baseline documents an area with no
+**Current session (2026-11-18):** **CON-82 closed (D-082)** — a message is a verbatim quotation,
+stored once and exempt from the leakage gate, schema 18. Before it, **CON-81 (D-081)** — a rule's
+citation is flat (`R-14`), stored and never reused, schema 17 — and **CON-89 (D-080)** — a baseline documents an area with no
 evidence from Constat, under a reference, and with no schema change. Before it, **CON-88 and CON-90
 (D-079)** — an area is declared by accepting a rule, and coverage is counted in areas, schema 16. Before them, **CON-67 (D-078)** — a
 detail's identity is its text, numbered at acceptance, schema 15 — and **CON-80 (D-077)** — a rule
@@ -433,10 +434,13 @@ already said — the ticket needed a recorded decision, not an edit. CON-21 is c
 the site starts at `constat.padjinou.com` and no domain is bought, which accepts rather than solves
 the risk that `tryconstat.com` stays registerable by anyone.
 
-The next code task is **CON-82 — a user-facing message is a catalogue entry a rule refers to**,
-which D-081 just unblocked: a message takes the same flat form (`M-7`). It is the last of the §1
-cluster, and the one that most changes what a business reader can check, since a quoted message is
-the most verifiable thing a rule can carry.
+**The §1 cluster is finished.** Examples (CON-80), detail tracking (CON-67), citations (CON-81) and
+messages (CON-82) are all in; only CON-83 (retirement) and CON-84 (glossary) remain of the original
+rule-shape list, and CON-84 is droppable.
+
+The next code task, if you keep building, is **CON-91 — verify a quoted message against the code**,
+which D-082 just made simple: check `message.text` rather than scraping quotations out of
+statements. It is the gate that turns a stored message from a claim into a checked fact.
 
 Two smaller things are now reachable and unblocked: **an MCP tool for `baseline`**, which would be a
 thin wrapper over `baseline_area` (D-080 left it unbuilt deliberately), and **CON-15**, comparing
@@ -492,6 +496,79 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## CON-82 — done when: *a user-facing message is a catalogue entry a rule refers to* ✅
+
+`D-082` records the decision, and the load-bearing part of it is an **exemption**.
+
+**A message is a quotation, so D-066's leakage gate does not apply to it.** Real user-facing text
+contains identifiers, file paths, HTTP verbs and snake_case names — the gate refuses all four:
+
+```
+No ExcelMappingType was found in the workbook
+Could not read render.ts
+HTTP 503: the service is unavailable
+```
+
+Applying the gate would refuse the true text and leave a reviewer with a tidied approximation,
+**which is worse than nothing because it still looks like evidence**. D-066 protects sentences
+Constat writes *about* the product; this is a sentence the product writes itself. The gate still
+applies to statements, behaviours, examples and areas, and a test asserts a statement naming a file
+is refused while a message naming one is kept.
+
+**Live, two rules sharing one message:**
+
+```
+R-1  maximum-upload-size
+  messages (1):
+    - M-1  "Failed to start upload"
+
+R-2  duplicate-file-name
+  messages (2):
+    - M-1  "Failed to start upload"
+    - M-2  "The following files have already been uploaded: <file names>"
+```
+
+One entry, two rules. That is the point: the same refusal covers a size limit and a duplicate name,
+and a second copy is how two wordings come to disagree. **Correcting a message corrects it
+everywhere** — the one piece of a version's substance deliberately *not* frozen against later
+change, because `rule_version_message` links to the entry rather than copying the text.
+
+A **near-match is a different message**: treating one as the same is a judgement no gate here is
+entitled to make, and it would silently rewrite what a user sees.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_messages.py` → **28 passed** (new file). **Whole suite**,
+because the schema changed: **1176 passed in 150s**, exit 0.
+
+**Mutations, both informative in the end:**
+
+| Mutation | Result |
+| --- | --- |
+| Apply `code_leakage` to message text | Fails all 5 parametrised cases |
+| Mint a new message instead of finding the existing one | Fails `test_the_same_text_under_two_rules_is_one_message` |
+
+### The first mutation attempt was uninformative, for the second ticket running
+
+Applying the gate to messages initially failed **one** of four cases, because three of the example
+texts I had chosen did not actually trip `code_leakage` — I had asserted in the docstring that they
+all did, and that was false. The test now asserts `code_leakage(text) is not None` *before*
+asserting the exemption, so a text that stops tripping the gate fails loudly rather than quietly
+weakening the thing it was written to pin.
+
+Twice in two tickets now. The lesson is worth keeping: **a mutation that survives tells you about
+the test, not about the code** — and a docstring claiming a property is not the same as a test
+asserting it.
+
+### Deliberately not done
+
+- **No verification against the code.** That is CON-91, which this makes simple: check
+  `message.text` rather than scraping statements for quotations.
+- **No back-fill**, and nothing to back-fill from: mining quoted strings out of existing statements
+  would be Constat inventing the evidence a reviewer is meant to check.
 
 ---
 

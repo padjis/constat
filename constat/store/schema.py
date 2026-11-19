@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -147,6 +147,25 @@ CREATE TABLE operation (
     payload       TEXT
 );
 
+-- A message a user can see, stored once with its own citation (CON-82).
+--
+-- **Global, not owned by a rule.** One message routinely belongs to several
+-- rules — the same refusal text covers a size limit and a format check — and
+-- copying it per rule is how two copies come to disagree. `text` is UNIQUE, so
+-- proposing the same wording twice links to one entry rather than minting a
+-- second.
+--
+-- **Stored verbatim.** This is the exact string a user reads, which is what
+-- makes it the most checkable thing a rule can carry: a business reader may be
+-- unsure whether a limit is really enforced, and is never unsure whether the
+-- screen says what the catalogue claims it says.
+CREATE TABLE message (
+    id         INTEGER PRIMARY KEY,
+    ref        TEXT,
+    text       TEXT    NOT NULL UNIQUE,
+    created_at TEXT    NOT NULL
+);
+
 -- A business area declared ahead of its first rule (CON-88).
 --
 -- Most declared areas are not here. An area is declared by a human accepting a
@@ -241,6 +260,15 @@ CREATE TABLE rule_proposal_behaviour (
     description      TEXT    NOT NULL
 );
 
+-- The messages a reading says a rule shows (CON-82). Text rather than a
+-- message id: a reading predates the message existing, and minting one at
+-- submission would put an entry in the catalogue that no human had accepted.
+CREATE TABLE rule_proposal_message (
+    id               INTEGER PRIMARY KEY,
+    rule_proposal_id INTEGER NOT NULL REFERENCES rule_proposal(id) ON DELETE CASCADE,
+    text             TEXT    NOT NULL
+);
+
 -- A worked example: one situation and what the product does with it (CON-80).
 --
 -- Two columns, not a per-rule table of input columns. A reading is re-run, and
@@ -328,6 +356,12 @@ CREATE TABLE rule_version_behaviour (
 -- number for a rule is max(example_no) + 1 across its whole history. No counter
 -- to keep in step, and reuse is structurally impossible even though the live
 -- `example` table is deleted and rewritten on every acceptance.
+CREATE TABLE rule_version_message (
+    id              INTEGER PRIMARY KEY,
+    rule_version_id INTEGER NOT NULL REFERENCES rule_version(id) ON DELETE CASCADE,
+    message_id      INTEGER NOT NULL REFERENCES message(id)
+);
+
 CREATE TABLE rule_version_example (
     id              INTEGER PRIMARY KEY,
     rule_version_id INTEGER NOT NULL REFERENCES rule_version(id) ON DELETE CASCADE,
@@ -361,6 +395,15 @@ CREATE TABLE behaviour (
     UNIQUE (rule_id, description)
 );
 
+-- Which messages a rule shows, now. Rewritten on each acceptance like the
+-- other current-state tables; the frozen copy is `rule_version_message`.
+CREATE TABLE rule_message (
+    id         INTEGER PRIMARY KEY,
+    rule_id    INTEGER NOT NULL REFERENCES rule(id) ON DELETE CASCADE,
+    message_id INTEGER NOT NULL REFERENCES message(id),
+    UNIQUE (rule_id, message_id)
+);
+
 -- The worked examples of a rule in the catalogue (CON-80). Rewritten on each
 -- acceptance, like `behaviour`: the frozen copy is `rule_version_example`.
 CREATE TABLE example (
@@ -392,6 +435,10 @@ CREATE TABLE anchor (
 -- index, and two shapes of the same table is a difference waiting to surprise
 -- somebody.
 CREATE UNIQUE INDEX idx_rule_ref ON rule(ref);
+CREATE UNIQUE INDEX idx_message_ref ON message(ref);
+CREATE INDEX idx_rule_message_rule ON rule_message(rule_id);
+CREATE INDEX idx_rule_proposal_message ON rule_proposal_message(rule_proposal_id);
+CREATE INDEX idx_rule_version_message ON rule_version_message(rule_version_id);
 CREATE INDEX idx_behaviour_rule ON behaviour(rule_id);
 CREATE INDEX idx_example_rule ON example(rule_id);
 CREATE INDEX idx_anchor_rule ON anchor(rule_id);
@@ -799,6 +846,38 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     # time. They were not: the match would be made today, by this code, and
     # presented as what a reviewer saw. NULL reads as "not numbered", and the
     # diff says so rather than comparing.
+    # 17 -> 18: a user-facing message is a catalogue entry (CON-82).
+    #
+    # Four tables and no back-fill. Nothing to back-fill from: no reading
+    # before this could propose a message, and mining existing statements for
+    # quoted strings would be Constat inventing the evidence a reviewer is
+    # meant to check — D-046's failure, performed by a migration.
+    17: (
+        "CREATE TABLE message ("
+        " id INTEGER PRIMARY KEY,"
+        " ref TEXT,"
+        " text TEXT NOT NULL UNIQUE,"
+        " created_at TEXT NOT NULL)",
+        "CREATE TABLE rule_proposal_message ("
+        " id INTEGER PRIMARY KEY,"
+        " rule_proposal_id INTEGER NOT NULL REFERENCES rule_proposal(id) ON DELETE CASCADE,"
+        " text TEXT NOT NULL)",
+        "CREATE TABLE rule_version_message ("
+        " id INTEGER PRIMARY KEY,"
+        " rule_version_id INTEGER NOT NULL REFERENCES rule_version(id) ON DELETE CASCADE,"
+        " message_id INTEGER NOT NULL REFERENCES message(id))",
+        "CREATE TABLE rule_message ("
+        " id INTEGER PRIMARY KEY,"
+        " rule_id INTEGER NOT NULL REFERENCES rule(id) ON DELETE CASCADE,"
+        " message_id INTEGER NOT NULL REFERENCES message(id),"
+        " UNIQUE (rule_id, message_id))",
+        "CREATE UNIQUE INDEX idx_message_ref ON message(ref)",
+        "CREATE INDEX idx_rule_message_rule ON rule_message(rule_id)",
+        "CREATE INDEX idx_rule_proposal_message"
+        " ON rule_proposal_message(rule_proposal_id)",
+        "CREATE INDEX idx_rule_version_message"
+        " ON rule_version_message(rule_version_id)",
+    ),
     # 16 -> 17: a rule has a citable identifier (CON-81).
     #
     # **Back-filled, unlike every migration before it, and the difference is
