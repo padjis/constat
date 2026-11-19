@@ -38,3 +38,7 @@ htmlcov/
 .idea/
 .vscode/
 .DS_Store
+
+# Interview notes. The synthesis belongs in the repository; the transcripts do
+# not — CLAUDE.md forbids personal data in project files (DISCOVERY.md § 5).
+discovery/

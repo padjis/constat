@@ -83,6 +83,7 @@ justifies them. See [ARCHITECTURE.md](ARCHITECTURE.md) § "After the MVP".
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute, and the required DCO sign-off. |
 | [LICENSING_STRATEGY.md](LICENSING_STRATEGY.md) | Why Apache-2.0 + DCO, and what it means for a future sale. |
 | [BRAND_NAME_REVIEW.md](BRAND_NAME_REVIEW.md) | Trademark, domain and positioning review of the working name. |
+| [DISCOVERY.md](DISCOVERY.md) | The discovery script (CON-26): who to ask, what to ask, and the assumptions it tests. |
 
 ## Getting started
 
