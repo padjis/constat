@@ -8,6 +8,57 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-084 · 2026-11-18 · Retirement is a human decision, final, and deletes nothing
+
+**Closes CON-83, and answers the question D-071 left open.**
+
+**Decision.** A rule can be **retired**: a person records that it no longer describes the product,
+with a mandatory reason. The rule leaves `constat state`'s current picture and stays in the record —
+its versions, citation and evidence all readable. Retirement is append-only and **final**: there is
+no reinstatement, and a retired rule cannot be revised.
+
+**A human decision, in the same sense acceptance is.** D-070 already said a rule whose anchors have
+vanished is a *retirement candidate, never a retirement*; this is the other half of that sentence.
+Nothing automatic retires anything — not vanished anchors, not an unreadable repository, not a
+migration. A test asserts that deleting a registered repository retires nothing.
+
+**A decision, not a deletion.** `rule` cannot be deleted at all — the trigger aborts it (D-048) —
+so retirement is a state recorded *about* a rule, in its own append-only table, the shape
+`rule_proposal_decision` uses for acceptance. Product rule 5 requires this: a catalogue that forgets
+what it used to claim cannot be audited.
+
+**Final, and that is a choice.** No reinstatement row exists by design. Bringing behaviour back
+means accepting a new reading as a **new rule with its own citation**, which is a decision somebody
+makes rather than a flag somebody clears — and it leaves both the retirement and the return in the
+record. A reading that claims to revise a retired rule is therefore refused at acceptance, with the
+route back named in the message.
+
+**This is where a lapsed condition goes.** D-071 allowed a rule conditional on a business state —
+"while the site is not approved by the ad network" — and left open what happens when that state
+changes. The rule becomes false, nothing in the statement can say so, and editing the statement
+would rewrite what a person accepted. **Retiring it with that reason is the answer**, and it is why
+a reason is required rather than optional: the reason is the only record of why the product stopped
+behaving this way.
+
+**Consequences.**
+
+- **Schema 19:** `rule_retirement`, with both append-only triggers. Nothing is retired by the
+  migration — inventing a human decision is precisely what D-048 prevents.
+- **`rules_matching` excludes retired rules.** A retired rule is not current behaviour, so reporting
+  a change as touching it would send a reviewer back to something they had taken out of the picture.
+  A path claimed only by a retired rule is therefore claimed by nothing, which `unmatched_paths`
+  correctly says.
+- **An all-retired catalogue is not an empty one**, and the state view distinguishes them. The first
+  implementation printed "the catalogue holds no rules" after every rule had been retired, which is
+  a different claim about the product and a false one.
+- **The reason is rendered.** The picture says how many rules left and why, because "the product
+  used to do this and deliberately stopped" is a fact a reader of business documentation needs, and
+  silence would read as the rule never having existed.
+
+**Status.** accepted
+
+---
+
 ## D-083 · 2026-11-18 · A message is verified by its longest literal fragment, and absence is reported
 
 **Closes CON-91.** A stored message was a *claim*: Constat held `Failed to start upload` because a

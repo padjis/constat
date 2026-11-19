@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -321,6 +321,34 @@ CREATE TABLE rule_proposal_decision (
     rationale        TEXT
 );
 
+-- A human's decision that a rule no longer describes the product (CON-83).
+--
+-- **A decision, not a deletion.** `rule` can never be removed — the trigger
+-- aborts it — because a catalogue that can be emptied is protected by
+-- convention only (D-048). Retirement is therefore a state recorded *about* a
+-- rule, in its own append-only table, the shape `rule_proposal_decision` uses
+-- for acceptance. The rule, its versions, its citation and its evidence all
+-- stay readable forever.
+--
+-- **Append-only, so retirement is final.** There is no reinstatement row by
+-- design: bringing behaviour back means a new reading accepted as a new rule,
+-- which is a decision somebody makes rather than a flag somebody clears. The
+-- citation is never reused either way.
+--
+-- This is also where a *lapsed condition* goes (D-071). A rule conditional on
+-- a business state — "while the site is not approved by the ad network" —
+-- becomes false when that state changes, and nothing in the statement can say
+-- so. Retiring it with that reason is the answer, and it is why this table
+-- carries a reason rather than only a decider.
+CREATE TABLE rule_retirement (
+    id          INTEGER PRIMARY KEY,
+    rule_id     INTEGER NOT NULL REFERENCES rule(id),
+    reason      TEXT    NOT NULL,
+    decided_by  TEXT    NOT NULL,
+    attribution TEXT    NOT NULL DEFAULT 'stated',
+    decided_at  TEXT    NOT NULL
+);
+
 -- A frozen snapshot of a rule at the moment a human accepted a reading of it.
 -- Same split as document/document_version (D-029): `rule` is the current
 -- state, this is the durable history. Append-only — see the triggers below.
@@ -436,6 +464,7 @@ CREATE TABLE anchor (
 -- somebody.
 CREATE UNIQUE INDEX idx_rule_ref ON rule(ref);
 CREATE UNIQUE INDEX idx_message_ref ON message(ref);
+CREATE INDEX idx_rule_retirement_rule ON rule_retirement(rule_id);
 CREATE INDEX idx_rule_message_rule ON rule_message(rule_id);
 CREATE INDEX idx_rule_proposal_message ON rule_proposal_message(rule_proposal_id);
 CREATE INDEX idx_rule_version_message ON rule_version_message(rule_version_id);
@@ -497,6 +526,20 @@ CREATE TRIGGER rule_proposal_is_append_only_delete
 BEFORE DELETE ON rule_proposal
 BEGIN
     SELECT RAISE(ABORT, 'rule_proposal is append-only: a reading cannot be deleted');
+END;
+
+CREATE TRIGGER rule_retirement_is_append_only_update
+BEFORE UPDATE ON rule_retirement
+BEGIN
+    SELECT RAISE(ABORT,
+        'rule_retirement is append-only: a retirement cannot be modified');
+END;
+
+CREATE TRIGGER rule_retirement_is_append_only_delete
+BEFORE DELETE ON rule_retirement
+BEGIN
+    SELECT RAISE(ABORT,
+        'rule_retirement is append-only: a retirement cannot be undone — accept a new rule');
 END;
 
 CREATE TRIGGER rule_proposal_decision_is_append_only_update
@@ -846,6 +889,31 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     # time. They were not: the match would be made today, by this code, and
     # presented as what a reviewer saw. NULL reads as "not numbered", and the
     # diff says so rather than comparing.
+    # 18 -> 19: a rule can be retired (CON-83).
+    #
+    # One table and two triggers. Nothing is retired by the migration, which
+    # needs no argument: retirement is a human decision, and inventing one
+    # would be the thing D-048 exists to prevent, performed by a migration.
+    18: (
+        "CREATE TABLE rule_retirement ("
+        " id INTEGER PRIMARY KEY,"
+        " rule_id INTEGER NOT NULL REFERENCES rule(id),"
+        " reason TEXT NOT NULL,"
+        " decided_by TEXT NOT NULL,"
+        " attribution TEXT NOT NULL DEFAULT 'stated',"
+        " decided_at TEXT NOT NULL)",
+        "CREATE TRIGGER rule_retirement_is_append_only_update"
+        " BEFORE UPDATE ON rule_retirement BEGIN"
+        " SELECT RAISE(ABORT,"
+        " 'rule_retirement is append-only: a retirement cannot be modified');"
+        " END",
+        "CREATE TRIGGER rule_retirement_is_append_only_delete"
+        " BEFORE DELETE ON rule_retirement BEGIN"
+        " SELECT RAISE(ABORT,"
+        " 'rule_retirement is append-only: a retirement cannot be undone');"
+        " END",
+        "CREATE INDEX idx_rule_retirement_rule ON rule_retirement(rule_id)",
+    ),
     # 17 -> 18: a user-facing message is a catalogue entry (CON-82).
     #
     # Four tables and no back-fill. Nothing to back-fill from: no reading

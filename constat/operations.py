@@ -1775,6 +1775,14 @@ class ProductState:
 
     repositories: tuple[RepositoryState, ...] = ()
     rules: tuple[RuleState, ...] = ()
+    retired: tuple[tuple[Rule, str], ...] = ()
+    """(rule, reason) for each retired rule (CON-83).
+
+    Carried rather than dropped. A retired rule is out of the *current picture*
+    by a human decision, and the picture says how many left and why — because
+    "the product used to do this and deliberately stopped" is a fact a reader
+    of business documentation needs, and silence would read as the rule never
+    having existed."""
     areas: tuple[str, ...] = ()
     """Every declared business area (CON-88), including those with no rule yet.
 
@@ -1835,7 +1843,13 @@ def product_state(
     ]
 
     catalogue = Catalogue(workspace)
-    rules = catalogue.list()
+    retirements = catalogue.retirements()
+    rules = [rule for rule in catalogue.list() if rule.ref not in retirements]
+    retired = tuple(
+        (rule, retirements[rule.ref])
+        for rule in catalogue.list()
+        if rule.ref in retirements
+    )
 
     repositories: list[RepositoryState] = []
     matches: dict[str, dict[str, tuple[str, ...]]] = {rule.name: {} for rule in rules}
@@ -1875,6 +1889,7 @@ def product_state(
     return ProductState(
         repositories=tuple(repositories),
         rules=tuple(RuleState(rule=rule, matched=matches[rule.name]) for rule in rules),
+        retired=retired,
         areas=catalogue.areas(),
     )
 
@@ -2077,13 +2092,25 @@ def render_state(state: ProductState) -> str:
             )
     lines.append("")
 
-    if not state.rules:
+    if not state.rules and not state.retired:
         lines += [
             "The catalogue holds no rules, so there is nothing to describe yet. "
             "A rule enters only as an accepted rule proposal (D-048).",
             "",
         ]
         return "\n".join(lines)
+
+    if not state.rules:
+        # Distinct from the sentence above, and the distinction matters: a
+        # catalogue nobody has filled and one whose every rule a person has
+        # retired are different claims about the product, and only the second
+        # is a statement that the behaviour was deliberately stopped.
+        lines += [
+            f"No rule currently describes the product. All {len(state.retired)} "
+            "rule(s) in the catalogue are retired, listed below — this is not "
+            "an empty catalogue.",
+            "",
+        ]
 
     grouped = state.by_area()
     if grouped:
@@ -2117,6 +2144,22 @@ def render_state(state: ProductState) -> str:
                         "case by case"
                     )
             lines.append("")
+
+    if state.retired:
+        lines += [
+            "## Retired",
+            "",
+            f"{len(state.retired)} rule(s) are retired: a person decided each "
+            "no longer describes the product. They are out of the picture "
+            "above and stay in the record, because \"the product used to do "
+            "this and deliberately stopped\" is something a reader of business "
+            "documentation needs to be able to find.",
+            "",
+        ]
+        for rule, reason in state.retired:
+            cite = f"`{rule.ref}` " if rule.ref else ""
+            lines.append(f"- {cite}**{rule.name}** — retired: {reason}")
+        lines.append("")
 
     if state.unanchored:
         lines += [

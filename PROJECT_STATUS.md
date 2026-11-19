@@ -2,8 +2,10 @@
 
 **Last updated:** 2026-11-18
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-18):** **CON-91 closed (D-083)** — a message is verified against the code
-by its longest literal fragment, no schema change. Before it, **CON-82 (D-082)** — a message is a
+**Current session (2026-11-18):** **CON-83 closed (D-084)** — retirement is a human decision, final,
+and deletes nothing; it is also where a lapsed condition (D-071) is expressed. Before it, **CON-91
+(D-083)** — a message is verified against the code by its longest literal fragment — and **CON-82
+(D-082)** — a message is a
 verbatim quotation, stored once and exempt from the leakage gate, schema 18 — and **CON-81
 (D-081)** — a rule's
 citation is flat (`R-14`), stored and never reused, schema 17 — and **CON-89 (D-080)** — a baseline documents an area with no
@@ -440,10 +442,14 @@ the risk that `tryconstat.com` stays registerable by anyone.
 messages (CON-82) are all in; only CON-83 (retirement) and CON-84 (glossary) remain of the original
 rule-shape list, and CON-84 is droppable.
 
-The next code task, if you keep building, is **CON-83 — rule retirement**, which also settles the
-question D-071 left open: how a *lapsed* condition is expressed, now that a rule may be conditional
-on a transient business state. It needs a decision from you first — whether retiring a rule is a
-human decision in the same sense acceptance is, which I think it has to be.
+**Every rule-shape ticket is now closed** — examples, detail tracking, citations, messages, message
+verification and retirement — leaving only **CON-84 (glossary)**, which I would drop rather than
+build.
+
+The next code task, if you keep building, is **CON-15 — compare against the last approved
+baseline**, the oldest open ticket in the register. CON-67's per-detail diff supplies most of the
+comparison; what is missing is a *stored* baseline to compare against, which `constat state`
+deliberately is not (D-070).
 
 Two smaller things are now reachable and unblocked: **an MCP tool for `baseline`**, which would be a
 thin wrapper over `baseline_area` (D-080 left it unbuilt deliberately), and **CON-15**, comparing
@@ -499,6 +505,77 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## CON-83 — done when: *a rule can be retired, and its identifier is never reused* ✅
+
+`D-084` records the decision, and the answer to your question is yes: **retirement is a human
+decision in the same sense acceptance is.** D-070 already said a rule whose anchors have vanished is
+a *retirement candidate, never a retirement* — this is the other half of that sentence.
+
+**Live, retiring a rule whose condition lapsed:**
+
+```
+retired: R-1 — the site was approved by the ad network on 2026-11-18, so the condition no longer holds
+
+## Retired
+
+1 rule(s) are retired: a person decided each no longer describes the product. They are out of
+the picture above and stay in the record, because "the product used to do this and deliberately
+stopped" is something a reader of business documentation needs to be able to find.
+
+- `R-1` **no-ads-while-unapproved** — retired: the site was approved by the ad network on
+  2026-11-18, so the condition no longer holds
+```
+
+**This closes D-071's open question.** A rule conditional on a business state becomes false when that
+state changes; nothing in the statement can say so, and editing it would rewrite what a person
+accepted. Retiring it with that reason is the answer — which is why the reason is **required**, not
+optional. It is the only record of why the product stopped behaving this way.
+
+**Three properties, each tested:** a decision rather than a deletion (the rule, its versions, its
+citation and its evidence stay readable, and `rule` still cannot be deleted); final (append-only,
+no reinstatement, and a reading revising a retired rule is refused with the route back named); and
+never automatic — a test deletes a registered repository and asserts nothing was retired.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_retirement.py` → **27 passed** (new file). **Whole suite**,
+because the schema changed: **1217 passed in 262s**, exit 0.
+
+**Mutation-checked:**
+
+| Mutation | Result |
+| --- | --- |
+| Allow a retired rule to be revised | Fails both finality tests |
+| Keep retired rules in the current picture | Fails all three picture tests |
+
+### Two real defects the tests found
+
+1. **`rules_matching` still returned retired rules**, which crashed `product_state` on a key that
+   was no longer there. The fix is also the correct behaviour: a retired rule is not current
+   behaviour, so reporting a change as touching it would send a reviewer back to something they had
+   taken out of the picture.
+2. **An all-retired catalogue printed "the catalogue holds no rules."** That is a different claim
+   about the product and a false one — a catalogue nobody has filled and one whose every rule was
+   deliberately retired are not the same thing. Now distinguished, with a test.
+
+### A self-inflicted mess worth recording
+
+While mutation-testing, I restored `operations.py` from a backup taken during **CON-91's** mutation
+run — which predated every retirement edit in that file, silently wiping five of them. `git diff`
+showed the file identical to HEAD, which is how it was caught. Reapplied, re-tested, and the
+mutation redone with a *targeted* revert instead of a whole-file copy.
+
+The lesson is small and real: a whole-file backup is the wrong tool for a one-line mutation, and
+`git diff` is the check that catches it.
+
+### Deliberately not done
+
+- **No reinstatement.** Behaviour returning means a new rule with a fresh citation — a decision
+  somebody makes rather than a flag they clear, and both ends stay in the record.
+- **Nothing back-filled.** Inventing a human decision in a migration is exactly what D-048 prevents.
 
 ---
 

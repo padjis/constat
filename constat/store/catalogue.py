@@ -90,6 +90,21 @@ class Catalogue:
         ).fetchall()
         return tuple(row["name"] for row in rows)
 
+    def retirements(self) -> dict[str, str]:
+        """Citation -> reason, for every retired rule (CON-83).
+
+        Keyed on the citation because that is the only unique, stable handle a
+        `Rule` carries: `name` may change between versions (D-050) and the row
+        id is not on the model. A rule retired before citations existed cannot
+        occur — retirement arrived at schema 19 and citations at 17.
+        """
+        rows = self._workspace.execute(
+            "SELECT r.ref, t.reason FROM rule_retirement t "
+            "JOIN rule r ON r.id = t.rule_id "
+            "WHERE r.ref IS NOT NULL"
+        ).fetchall()
+        return {row["ref"]: row["reason"] for row in rows}
+
     def rules_matching(
         self, repository_alias: str, paths: tuple[str, ...]
     ) -> dict[str, tuple[str, ...]]:
@@ -97,9 +112,19 @@ class Catalogue:
 
         A statement about code, not about meaning: these rules' implementations
         were touched. Whether their behaviours changed is a reviewer's call.
+
+        **Retired rules are excluded** (CON-83). A retired rule is not current
+        behaviour, so reporting a change as touching it would tell a reviewer
+        that something they had already taken out of the picture needs looking
+        at. A path claimed only by a retired rule is therefore claimed by
+        nothing, which `unmatched_paths` will say — correctly, because the
+        documentation no longer covers it.
         """
+        retired = set(self.retirements())
         hits: dict[str, list[str]] = {}
         for rule in self.list():
+            if rule.ref in retired:
+                continue
             matched = [
                 path
                 for path in paths

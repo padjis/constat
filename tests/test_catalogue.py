@@ -91,6 +91,7 @@ class TestTheCatalogueCannotBeEmptied:
             "by_id",
             "find",
             "list",
+            "retirements",
             "rules_matching",
             "unmatched_paths",
         ]

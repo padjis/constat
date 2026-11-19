@@ -195,6 +195,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rule_reject.add_argument("--rationale", default=None)
 
+    rule_retire = rule_actions.add_parser(
+        "retire",
+        help="record that a rule no longer describes the product",
+        description=(
+            "Retire a rule. A human decision in the same sense acceptance is: "
+            "nothing retires a rule automatically, and a rule whose anchors "
+            "have vanished is a candidate rather than a retirement (D-070). "
+            "The rule, its versions, its citation and its evidence stay "
+            "readable — this records a decision, it does not delete anything. "
+            "It is final: if the behaviour comes back, accept a new rule."
+        ),
+    )
+    rule_retire.add_argument("rule_id", metavar="RULE_ID", type=int)
+    rule_retire.add_argument(
+        "--reason",
+        required=True,
+        metavar="WHY",
+        help=(
+            "why it no longer applies. Required: it is the only record of why "
+            "the product stopped behaving this way, and a rule conditional on "
+            "a business state that has lapsed cannot say so itself (D-071)."
+        ),
+    )
+    rule_retire.add_argument(
+        "--by", default=None, metavar="WHO",
+        help="who is deciding. Taken from your git identity when omitted, and recorded as inferred rather than stated (D-061).",
+    )
+
     rule_history = rule_actions.add_parser(
         "history", help="show every accepted version of a rule"
     )
@@ -972,6 +1000,25 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                 print()
                 print("Recorded as inconclusive, not as wrong (D-036). The")
                 print("catalogue is unchanged and another reading is expected.")
+                return EXIT_OK
+
+            if args.rule_action == "retire":
+                decided_by, attribution = _decider(args)
+                retired = Review(workspace).retire(
+                    args.rule_id,
+                    reason=args.reason,
+                    decided_by=decided_by,
+                    attribution=attribution,
+                )
+                rule = Catalogue(workspace).by_id(retired.rule_id)
+                cite = rule.ref if rule is not None and rule.ref else f"rule {retired.rule_id}"
+                print(f"retired: {cite} — {retired.reason}")
+                if attribution == "inferred":
+                    print(f"  recorded as: {decided_by} (inferred from git config)")
+                print()
+                print("Out of `constat state` from now on, and still in the")
+                print("record: nothing is deleted. A retirement is final — if")
+                print("the behaviour returns, accept a new rule for it.")
                 return EXIT_OK
 
             if args.rule_action == "history":

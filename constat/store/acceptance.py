@@ -129,6 +129,17 @@ class VersionDiff:
 
 
 @dataclass(frozen=True)
+class Retirement:
+    """A rule a human has decided no longer describes the product (CON-83)."""
+
+    rule_id: int
+    reason: str
+    decided_by: str
+    attribution: str
+    decided_at: str
+
+
+@dataclass(frozen=True)
 class Acceptance:
     """What accepting a rule proposal produced."""
 
@@ -176,6 +187,92 @@ class Review:
             created_rule=created,
         )
 
+    def retire(
+        self,
+        rule_id: int,
+        reason: str,
+        decided_by: str,
+        attribution: str = "stated",
+    ) -> Retirement:
+        """Retire a rule: record that it no longer describes the product.
+
+        **A human decision, in the same sense acceptance is.** A rule leaves
+        the current picture only because somebody says so — D-070 already said
+        a rule whose anchors have vanished is a *retirement candidate, never a
+        retirement*, and this is the other half of that sentence. Nothing
+        automatic retires anything.
+
+        **A decision, not a deletion.** The rule, its versions, its citation
+        and its evidence stay readable. `rule` cannot be deleted at all (the
+        trigger aborts it), and that is deliberate: product rule 5 makes
+        history durable, and a catalogue that forgets what it used to claim
+        cannot be audited.
+
+        **Final.** The table is append-only with no reinstatement row, so
+        bringing the behaviour back means accepting a new reading as a new
+        rule. That is a decision somebody makes rather than a flag somebody
+        clears, and it leaves both the retirement and the return in the record.
+
+        A `reason` is required rather than optional, because the interesting
+        retirements are the ones nothing else can express — in particular a
+        *lapsed condition* (D-071): a rule conditional on a business state
+        becomes false when that state changes, and no edit to the statement can
+        say so.
+        """
+        cleaned = reason.strip()
+        if not cleaned:
+            raise InvalidInput(
+                "a retirement needs a reason. It is the only record of why the "
+                "product stopped behaving this way, and the rule itself cannot "
+                "say so."
+            )
+
+        row = self._workspace.execute(
+            "SELECT id FROM rule WHERE id = ?", (rule_id,)
+        ).fetchone()
+        if row is None:
+            raise NotRegistered(f"no rule with id {rule_id}")
+
+        already = self.retirement_of(rule_id)
+        if already is not None:
+            raise InvalidInput(
+                f"rule {rule_id} was already retired on {already.decided_at} "
+                f"by {already.decided_by}. A retirement is final: accept a new "
+                "rule proposal if the behaviour has come back."
+            )
+
+        now = utc_now()
+        self._workspace.execute(
+            "INSERT INTO rule_retirement "
+            "(rule_id, reason, decided_by, attribution, decided_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (rule_id, cleaned, decided_by, attribution, now),
+        )
+        return Retirement(
+            rule_id=rule_id,
+            reason=cleaned,
+            decided_by=decided_by,
+            attribution=attribution,
+            decided_at=now,
+        )
+
+    def retirement_of(self, rule_id: int) -> Retirement | None:
+        """The retirement of a rule, or None if it still stands."""
+        row = self._workspace.execute(
+            "SELECT rule_id, reason, decided_by, attribution, decided_at "
+            "FROM rule_retirement WHERE rule_id = ? ORDER BY id LIMIT 1",
+            (rule_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return Retirement(
+            rule_id=int(row["rule_id"]),
+            reason=row["reason"],
+            decided_by=row["decided_by"],
+            attribution=row["attribution"],
+            decided_at=row["decided_at"],
+        )
+
     def reject(
         self,
         proposal_id: int,
@@ -216,6 +313,18 @@ class Review:
                 raise NotRegistered(
                     f"rule proposal claims to revise rule "
                     f"{stored.revises_rule_id}, which does not exist."
+                )
+            retired = self.retirement_of(int(row["id"]))
+            if retired is not None:
+                # Revising a retired rule is a contradiction: a new version
+                # would be the current state of something a human has said is
+                # no longer the product's behaviour. Refused with the route
+                # back named, rather than resurrected silently (CON-83).
+                raise InvalidInput(
+                    f"rule {row['id']} was retired on {retired.decided_at} and "
+                    "cannot be revised. Accept this reading as a new rule "
+                    "instead: a retirement is final, and the way behaviour "
+                    "comes back is a new rule with its own citation."
                 )
             return int(row["id"]), False
 
