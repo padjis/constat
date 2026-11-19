@@ -2,7 +2,15 @@
 
 **Last updated:** 2026-11-19
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-19):** **CON-96 closed (D-087)** — unshipped work is a state in the view,
+**Current session (2026-11-19):** **Constat was run in earnest on a real area for the first time** —
+the install and landing pages of `237feed-ui` — and found in under a minute a defect that
+twenty-nine tests and a mutation check had not: the leakage gate refused a semicolon, and the live
+catalogue's own accepted rule R-2 contains one. Fixed as **CON-100 (D-091)**; four rule proposals
+await your decision. Before that, **four direct answers and three decisions (D-088, D-089,
+D-090)** — Constat is a **demonstration of practice**, not a product being sold, so § 10's
+validation track is no longer the plan and CON-26/27/28 are deferred; off-CLI approval **is**
+intended (CON-58's target); parallel release lines **are** intended (CON-99). Before those,
+**CON-96 closed (D-087)** — unshipped work is a state in the view,
 verified against mainline, and it needed no release concept. Before it, **CON-22 and CON-23
 withdrawn (D-086)** — no trademark clearance
 is sought, and the name risk is accepted unverified rather than cleared. Before that, **CON-15
@@ -428,6 +436,61 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
   outside contribution if it should be a company.
 - Q2, Q4, Q8 and Q10 are now resolved (D-010, D-012, D-009, D-011); the product name is resolved
   by D-013.
+
+---
+
+## The first real area — 2026-11-19
+
+Not a ticket: the step D-088 names as the mitigation for its own failure mode. The **install and
+landing pages of `237feed-ui`** were read directly and documented with the machinery as it stands.
+
+**Four rule proposals are in the live queue** under `baseline-app-install`, in a new area **app
+install**, all awaiting a decision — 9, 10, 11 and 12. Nothing was accepted; nothing on that path
+can accept.
+
+### What it found that the tests did not
+
+**A false refusal, in under a minute.** The fourth rule was discarded because an example read *"They
+are not there; the note under the download buttons says they are in the app"* — the gate called the
+semicolon inline code. The decisive evidence came from the live catalogue: **the accepted rule R-2
+contains a semicolon**, so the gate had come to refuse a rule a human had already agreed to.
+
+Raised and fixed as CON-100 (D-091); the discarded rule was then re-submitted successfully.
+
+**Twenty-nine tests, a mutation check and a docstring naming this exact risk did not catch it.** One
+real use did. Every one of those tests was written by whoever wrote the pattern, which is why they
+agreed with it.
+
+### What the machinery got right, on real data
+
+| | |
+| --- | --- |
+| Anchors grounded in mainline (D-072) | All four rules anchored to files no ticket changed |
+| The revision was recorded (D-080) | All three repositories' mainline SHAs, as the run's evidence |
+| Catalogue overlap warned (D-050) | Proposals 9 and 10 overlap accepted `R-3`, anchored `src/pages/*` |
+| Queue overlap warned (CON-70) | Proposal 12 overlaps pending 11 — both anchor `Hero.tsx` |
+| The coined area was reported (D-079) | *"new area: 'app install' — the catalogue has 'advertising'"* |
+| A baseline reads as a baseline (D-080) | *"from a baseline — describes existing behaviour, not a change"* |
+| Messages stored verbatim (D-082) | Seven, including an em dash and an emoji, untouched |
+
+### What it could not demonstrate, and why that is correct
+
+**Message verification (CON-91) could not run.** A message enters the catalogue only when a human
+accepts the rule that shows it, so there is nothing to check until a decision is made. The same
+holds for the shipping check (CON-96) and checkpoints (CON-15): all three operate on accepted rules.
+That is D-048 working rather than a gap — but it does mean **three of the last six tickets cannot be
+exercised end to end without a human decision.**
+
+### What is waiting
+
+```
+constat rule proposals baseline-app-install
+```
+
+Four proposals. Accepting any of them declares the area *app install*. 11 and 12 overlap and should
+probably not both be accepted. And proposals 9 and 10 overlapping `R-3` is worth a look on its own:
+`R-3` claims all of `src/pages/*` for advertising, which may be too broad now that those pages have
+rules of their own.
 
 ---
 

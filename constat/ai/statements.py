@@ -69,7 +69,16 @@ LEAKS: tuple[tuple[str, re.Pattern[str]], ...] = (
         # canonical example of a business rule, not a leak.
         re.compile(r"\bHTTP\b|\b(?:GET|POST|PUT|PATCH|DELETE)\b"),
     ),
-    ("a code fence or inline code", re.compile(r"[`{}<>;]|::")),
+    # No semicolon. It was here until 2026-11-19 and was a false positive: a
+    # semicolon is ordinary English punctuation, and refusing it discarded a
+    # real rule on the first real use of the baseline path. **The accepted
+    # rule R-2 in the author's own catalogue contains one** — "Losing an
+    # analytics beacon is acceptable; failing a request a user is waiting on is
+    # not" — so the gate had come to refuse a rule a human had already agreed
+    # to. That is the failure this module's own docstring warns about: a false
+    # refusal discards a reading a person might have accepted, and the reader
+    # cannot argue back.
+    ("a code fence or inline code", re.compile(r"[`{}<>]|::")),
 )
 
 ALLOWED = ("i.e.", "e.g.", "etc.", "vs.")

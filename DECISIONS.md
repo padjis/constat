@@ -8,6 +8,51 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-091 · 2026-11-19 · A semicolon is punctuation; the leakage gate had come to refuse a live rule
+
+**Narrows D-066**, found on the **first real use** of the baseline path against a real repository.
+
+**Decision.** The semicolon is removed from `code_leakage`'s inline-code character class. Everything
+else in that class — a backtick, a brace, an angle bracket, `::` — stays.
+
+**How it was found, and why the evidence is decisive.** Documenting the install and landing pages of
+a real product, a rule was discarded because one example read *"They are not there; the note under
+the download buttons says they are in the app"*. The gate called a semicolon inline code. Checking
+the live catalogue then produced the finding that settles it: **the accepted rule R-2 contains a
+semicolon** —
+
+> Losing an analytics beacon is acceptable; failing a request a user is waiting on is not.
+
+— so the gate had come to refuse a rule a human had already agreed to. A gate that would reject what
+the catalogue already holds is not protecting the catalogue.
+
+**This is the failure the module's own docstring warned about.** `ai/statements.py` says it is
+"deliberately forgiving in one direction... a false refusal is worse than a miss: it discards a
+reading a person might have accepted, and the reader is given no way to argue". The semicolon was
+the counter-example to its own stated posture, and it survived CON-74's twenty-nine tests because
+every one of them was written by the same person who wrote the pattern.
+
+**What this says about the method, which matters more than the fix.** Twenty-nine tests, a mutation
+check, and a docstring stating the exact risk did not catch it; **one use against a real repository
+did, in under a minute.** That is the argument for D-088's mitigation in its strongest form: a
+demonstration of practice is kept honest by running on something real, not by more tests of the same
+shape.
+
+**Consequences.**
+
+- **Raised and closed as CON-100**, with the rule it discarded re-submitted successfully afterwards.
+- **Tests added both ways**: three real sentences with semicolons pass, and four other inline-code
+  signals still fire — removing one character from a class must not empty it.
+- **D-066 is not superseded.** Its decision — that leakage is refused mechanically and business-ness
+  is the guidance's job — stands exactly as written. One pattern was wrong.
+- **The other characters are left alone deliberately.** A brace or an angle bracket in business prose
+  is rare, and messages are already exempt from the gate entirely (D-082), which is where
+  placeholders legitimately live.
+
+**Status.** accepted
+
+---
+
 ## D-090 · 2026-11-19 · Parallel release lines are intended, so product rule 6 is staged not abandoned
 
 **Amends D-076's framing, not its content.** D-076 named trunk-based development as the assumption

@@ -208,3 +208,41 @@ class TestGuidance:
         assert WHAT_A_RULE_IS in for_system_prompt()
         got = asyncio.run(build_server("/tmp").get_prompt("document", {"reference": "628"}))
         assert WHAT_A_RULE_IS in got.messages[0].content.text
+
+class TestTheSemicolonFalsePositive:
+    """A semicolon is punctuation, not inline code (2026-11-19, CON-100).
+
+    Found on the first real use of the baseline path: a rule about the landing
+    pages was discarded because an example read "They are not there; the note
+    says they are in the app". The decisive evidence was in the author's own
+    live catalogue — the accepted rule R-2 contains a semicolon, so the gate
+    had come to refuse a rule a human had already agreed to.
+
+    This module's docstring already warned about exactly this: a false refusal
+    discards a reading a person might have accepted, and the reader cannot
+    argue back.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Losing an analytics beacon is acceptable; failing a request a user is waiting on is not.",
+            "They are not there; the note under the download buttons says they are in the app",
+            "A transfer above the limit is refused; the limit is shown",
+        ],
+    )
+    def test_a_semicolon_in_prose_is_allowed(self, text) -> None:
+        assert code_leakage(text) is None
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "A transfer is refused by `limits.py`",
+            "The message reads {count} files",
+            "Call Service::method to refuse it",
+            "The tag is <name>",
+        ],
+    )
+    def test_the_other_inline_code_signals_still_fire(self, text) -> None:
+        """Removing one character from the class must not empty it."""
+        assert code_leakage(text) is not None
