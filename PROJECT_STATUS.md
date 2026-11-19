@@ -433,96 +433,29 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-26 — the first two discovery conversations.** (Unchanged, and now with one fewer code task in
-front of it: CON-96 was the last open correctness defect.) It is the only item on the critical path, and it
-has been since 2026-11-08. `DISCOVERY.md` holds the script, the outreach message, the record
-template and the ten assumptions the last three days were built on; the count of conversations held
-is **zero**.
+**Document one real area of 237feed with the machinery as it stands, and decide what comes back.**
 
-The trademark work that used to sit here is **withdrawn (D-086)**: no register search and no
-attorney opinion, with the name risk accepted unverified. That reordering is deliberate — paying for
-an opinion on the name of a product nobody outside this repository has confirmed they want is
-spending in the wrong order. It does mean the descriptiveness question is now unanswered rather than
-answered, and a rename costs more after a pilot than before one.
+That is the mitigation D-088 names for its own failure mode: a demonstration of practice can drift
+into prose about rigour with nothing checking the rigour, and what keeps it honest is Constat
+actually running on a real product. The live workspace holds three repositories and **one** accepted
+rule, so almost everything built since 2026-11-17 — examples, messages and their verification,
+citations, declared areas, baselines, retirement, checkpoints, the shipping check — has never been
+exercised on real evidence.
 
-CON-25 is now closed (D-074): the copyright is held personally, which `LICENSE` and `NOTICE`
-already said — the ticket needed a recorded decision, not an edit. CON-21 is closed too (D-075):
-the site starts at `constat.padjinou.com` and no domain is bought, which accepts rather than solves
-the risk that `tryconstat.com` stays registerable by anyone.
+It also has precedent. This file records four separate occasions where running the loop found more
+than reading the code did; tickets 615 and 628 produced CON-70 through CON-77 that way.
 
-**The §1 cluster is finished.** Examples (CON-80), detail tracking (CON-67), citations (CON-81) and
-messages (CON-82) are all in; only CON-83 (retirement) and CON-84 (glossary) remain of the original
-rule-shape list, and CON-84 is droppable.
+What it needs is one choice: **which area of which repository.** The smallest coherent one that can
+be described in a sentence is the right size, and `237feed-ui` or `237feed` are the candidates —
+the baseline path (D-080) expects an agent to read the repository directly, so the area should be
+one whose code is readable without context nobody has.
 
-**Every rule-shape ticket is now closed** — examples, detail tracking, citations, messages, message
-verification and retirement — leaving only **CON-84 (glossary)**, which I would drop rather than
-build.
+**No longer here:** CON-26, which led this section all week. Under D-088 it is deferred rather than
+overdue, and `DISCOVERY.md` stands as a written artefact rather than a task list. The trademark work
+that preceded it is withdrawn (D-086).
 
-**There is no obvious next code task**, which is itself the finding. The rule-shape cluster is
-finished, the oldest Phase 4 ticket is closed, and what is left in the register is either small
-(CON-84, a glossary I would drop), deferred by decision (CON-85's release concept, CON-59's
-publishing backends), or waiting on a user rather than on code.
-
-**CON-26 — discovery conversations — is now the critical path, and has been all week.** Sixteen
-tickets have closed in two days. Every design call in them was a judgement about what a business
-reader needs, made without one present: examples, the coverage denominator, the baseline shape, flat
-citations, the message exemption, four states of a checkpoint. They are defensible. None has met a
-reader.
-
-Two smaller things are now reachable and unblocked: **an MCP tool for `baseline`**, which would be a
-thin wrapper over `baseline_area` (D-080 left it unbuilt deliberately), and **CON-15**, comparing
-against the last approved baseline, which CON-67's per-detail diff supplies most of.
-
-Still at zero: **CON-26**, discovery conversations. Nine tickets have closed in two days and the
-validation track has not moved.
-
-The cluster CON-80 and CON-67 belong to has one piece left — **CON-81, a citable rule identifier**,
-and with it **CON-82, messages as catalogue entries**. CON-81 needs a decision from you on the
-*form* (area-prefixed like `BR-UPL-006`, or flat), and CON-82 cannot start until it lands.
-
-**CON-15** (compare against the last approved baseline) is now reachable for the first time: CON-67
-supplies a per-detail diff between two versions, which is most of what comparing against a baseline
-needs.
-
-Then **CON-58 — read decisions back, with their channel and verification**, the half of acceptance
-that is still CLI-only.
-
-Still unanswered rather than unbuilt: whether a merge commit should contribute evidence **at all**
-(noted on CON-75); and how a *lapsed* condition is expressed now that D-071 allows conditional rules
-— when the site is approved, rule 1 becomes false and only a superseding version can say so, which
-says "the rule changed" rather than "the condition lapsed". That probably belongs with retirement.
-
-~~Re-read ticket 628, now that a repair is sayable~~ **done 2026-11-14.** It worked: three
-proposals became one, relation `repairs`, and the concurrency clause is gone from the statement.
-Rule proposal 6 is in the queue, undecided. It also produced CON-75 and CON-76 — the third time in
-two days that running the loop found more than reading the code did.
-
-Then **CON-58 — read decisions back, with their channel and verification.** CON-70 and CON-74 are
-closed; CON-71 (what grounding means when a rule is attested by evidence it is not anchored to) and
-CON-72 (whether a rule may be conditional on a transient business state) still need a decision from
-you before any code.
-
-An alternative worth weighing ahead of CON-58: **breadth**. The guidance was validated on one
-commit touching one file. A 30-commit ticket across the three registered repositories is the case
-that would actually strain a reading, and nothing yet says it holds there.
-
-~~Run one real ticket through the MCP loop on the live workspace~~ **done 2026-11-14**, written up
-below. The decision not to bill API usage stands: the MCP path validated the guidance at no API
-cost and leaves the provider's transport untested.
-
-What CON-58 involves: the publishing port's `read_decisions` raises `DecisionsNotReadable` on
-every target, so acceptance is still CLI-only — half of what the original question asked for.
-
-D-061 is the thing to keep straight while building it: `attribution` (`stated` / `inferred`) sits
-*inside* the CLI channel and is not `channel` or `verification`. `channel` says where a decision was
-made; `verification` whether anything attested to it. A forge approval is genuinely verified;
-nothing on the CLI is. Do not collapse the three.
-
-Then **CON-61** → **CON-67** (a version's details are stored and unreachable; tracking them across
-versions needs that read first).
-
-Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
-settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+**Two tickets now have a stated target rather than an open question:** CON-58 (off-CLI approval,
+D-089) and CON-99 (parallel release lines, D-090). Neither should precede the real use above.
 
 ---
 

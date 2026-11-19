@@ -74,7 +74,7 @@ Ticket register. The single source of truth for *what work exists*; the single s
 | CON-17 | Link pull requests to change proposals | A proposal can be traced to its originating PR. | ⬜ |
 | CON-18 | Add traceability references | A reviewer can navigate from a proposal to its supporting artefacts. | ⬜ |
 | CON-19 | Run a realistic multi-change scenario | A repeatable demo shows the product-level value, not just a Git diff. | ⬜ no longer the *first* cross-repo work — CON-32 makes the set primary |
-| CON-20 | Package the MVP and document limits | A new person can run the demo and understand what Constat does and does not do. | ⬜ |
+| CON-20 | Package the MVP and document limits | A new person can run the demo and understand what Constat does and does not do. | ⬜ **raised in priority (D-088)** — close to the point of the project now that it is a demonstration, rather than a packaging chore |
 
 ---
 
@@ -90,9 +90,9 @@ forces them.
 | CON-23 | ~~Trademark attorney review~~ | — | ❌ **withdrawn 2026-11-19 (D-086).** The FR/EU descriptiveness question — is `CONSTAT` registrable for software that produces findings — is left unanswered. Reopen as a new ticket if the name is ever to be defended |
 | CON-24 | Ratify the proposal unit (Q1) | A `D-NNN` entry fixes the unit of a proposal. | ✅ D-025 |
 | CON-25 | Decide the copyright holder | `LICENSE` and `NOTICE` name the intended holder. | ✅ D-074 — held personally; `LICENSE` and `NOTICE` were already correct, so this closes as recorded rather than implemented. A CLA is needed only if relicensing is intended |
-| CON-26 | Hold 5–10 discovery conversations | Notes from 5–10 people who work across multiple repositories. | 🔴 **0 held** — the roadmap puts the first two on Day 7. The script, the outreach message, the record template and the ten assumptions being tested are written: [DISCOVERY.md](DISCOVERY.md). Only the conversations are missing |
-| CON-27 | Secure one design partner | A safe, non-sensitive sample repository from someone other than us. | ⬜ weeks 3–5 |
-| CON-28 | Obtain two pilot commitments | Two time-boxed pilots with named users and agreed success criteria. | ⬜ weeks 6–8 |
+| CON-26 | Hold 5–10 discovery conversations | Notes from 5–10 people who work across multiple repositories. | ⏸️ **deferred 2026-11-19 (D-088)** — Constat is a demonstration of practice, not a product being sold, so this is no longer the critical path. Kept because the purpose could change. Previously 🔴 **0 held** — the roadmap puts the first two on Day 7. The script, the outreach message, the record template and the ten assumptions being tested are written: [DISCOVERY.md](DISCOVERY.md). Only the conversations are missing |
+| CON-27 | Secure one design partner | A safe, non-sensitive sample repository from someone other than us. | ⏸️ deferred (D-088) — validation track of a product being sold |
+| CON-28 | Obtain two pilot commitments | Two time-boxed pilots with named users and agreed success criteria. | ⏸️ deferred (D-088) — validation track of a product being sold |
 
 ## New scope
 
@@ -137,6 +137,7 @@ forces them.
 | CON-90 | Coverage is measured in declared areas, not in files | The coverage statement names documented and undocumented areas; the file count stays available as a technical figure, not as the headline. | ✅ D-079 — landed with CON-88, because the denominator is the reason CON-88 exists. The view also states what it cannot measure: parts nobody has declared |
 | CON-91 | A quoted message in a statement is verified against the code | Text a rule quotes as user-visible is checked against the evidence or mainline, and a quotation found nowhere is reported. | ✅ D-083 — no schema change; searched by its longest literal fragment (placeholders and newlines cut it), absence reported never refused, and a third state for text too short to be evidence |
 | CON-95 | Publication refuses a document disclosing a weakness, infrastructure or commercial data | `guard_publication` refuses on security-weakness wording, internal hostnames and addresses, and commercial figures, with the same recorded-override posture as the credential gate. | ⬜ — credentials (D-044) and identity (D-040) are covered; these three are not, and a published page reaches everyone with access to the target |
+| CON-99 | A rule version can be in effect on one release line and not another | `constat state` can be read per release line, and a rule's shipping is answered per line rather than against a single mainline. | ⬜ D-090 — intended, not deferred. A schema and rendering change across the store: `rule` holds one current state per rule, and D-028, D-068, D-085 and D-087 all assume one trunk per repository. Follows the real use D-088 makes next, rather than preceding it |
 | CON-98 | The review queue can be read across the whole workspace, by state | Every rule proposal in the workspace can be listed grouped by state and ticket, filtered by state, without naming a ticket reference. | ⬜ — read path only, no schema: the states are already stored and `rule proposals` renders them per ticket. Today "what is waiting?" cannot be asked without already knowing which tickets to name |
 | CON-29 | Ticket-scoped documentation (`constat document <ref>`) | A proposal can be initialised from a reference found in commit messages, across one or more repositories. | 🔁 **promoted** — now the primary workflow, delivered by CON-33/34 |
 | CON-39 | Regeneration must not destroy human input | Re-running an operation preserves every comment and decision, each still attached to what it was about. | ⬜ **blocks CON-47/48** — reframed by D-043: human *edits* no longer exist, so this is now about durable comment anchors. Decisions are already safe: CON-12 closed, and a decision is attached to a rule proposal rather than to document prose |

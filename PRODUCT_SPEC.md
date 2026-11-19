@@ -154,11 +154,13 @@ These are invariants. A change that breaks one of them is a defect, not a trade-
    traceable.
 6. **Release streams are distinct.** Do not assume every branch or release follows one linear
    timeline.
-   **Not yet met, recorded 2026-11-18 (D-076):** the implementation assumes exactly one mainline
-   per repository, so this is an invariant the product intends and the code does not hold. Stated
-   here rather than left to be discovered. Supporting parallel production lines is a schema
-   question — a rule version in effect on one line and not another — and waits for a pilot that
-   asks for it.
+   **Not yet met, recorded 2026-11-18 (D-076); intended, recorded 2026-11-19 (D-090):** the
+   implementation assumes exactly one mainline per repository, so this is an invariant the product
+   intends and the code does not hold. Stated here rather than left to be discovered. Supporting
+   parallel production lines is a schema question — a rule version in effect on one line and not
+   another — and is **staged work (CON-99)** rather than deferred indefinitely: asked directly, the
+   author confirmed an environment with long-lived release lines is one Constat must eventually
+   serve.
 7. **Security by design.** Start read-only, minimise permissions, never store credentials in project
    files.
    **Amended 2026-11-14 (D-062):** one path now writes to a subject repository. With the
@@ -207,6 +209,19 @@ Every claim in a report carries exactly one provenance type:
 | No clear buyer or budget | Interview budget owners and test willingness to pay before building enterprise features. |
 
 ## 10. Validation track (runs in parallel with building)
+
+**Superseded as the governing plan on 2026-11-19 (D-088).** Constat is built as a demonstration of
+practice rather than a product being taken to market, so the track below — discovery conversations,
+a design partner, two pilot commitments — is **not** what the project is measured against, and
+§ 8's signals are not the measure either. The tickets (CON-26, CON-27, CON-28) stay in the register,
+deferred rather than withdrawn, because the purpose could change again; `DISCOVERY.md` holds the
+script if it does.
+
+What replaces it: whether a reader of the repository can follow why each thing is the way it is, and
+whether what is claimed is true — kept honest by Constat actually running on a real repository
+rather than by prose about rigour.
+
+The original track, kept for the record:
 
 Product validation does not wait for the software to be finished.
 

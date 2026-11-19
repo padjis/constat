@@ -8,6 +8,121 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-090 · 2026-11-19 · Parallel release lines are intended, so product rule 6 is staged not abandoned
+
+**Amends D-076's framing, not its content.** D-076 named trunk-based development as the assumption
+and recorded product rule 6 — "release streams are distinct" — as an invariant the product intends
+and the code does not hold, adding that parallel production lines "wait for a pilot that asks for
+it". Asked directly on 2026-11-19, the author's answer is that an environment with long-lived
+release lines **is** one Constat must eventually serve.
+
+**Decision.** Supporting parallel release lines is **intended work**, not a deferred maybe. D-076's
+limit stands as today's truth and is still what `README.md` states; what changes is that it is
+staged rather than permanent, and the shape of the store must stop being built further in the
+direction that forecloses it.
+
+**What it costs, named now so it is not discovered later.** A rule version would have to be in
+effect on one line and not another, which the single `rule` / `rule_version` shape cannot express —
+`rule` holds one current state per rule, and every renderer assumes it. Three things already lean on
+one trunk per repository:
+
+- **D-028 / D-068** — mainline is *the* default branch's remote-tracking ref, singular.
+- **D-087** — shipping is verified by asking whether a commit is an ancestor of *that* ref. On two
+  supported lines the honest answer becomes "in effect on 1.x, not on 2.x", which the current
+  three-way answer cannot carry.
+- **D-085** — a checkpoint records one version per rule, so "the agreed state" is implicitly the
+  agreed state of one line.
+
+**Consequences.** Raised as **CON-99** rather than started: it is a schema and rendering change
+across the governance store, and it should follow the real use D-088 makes the next step, not
+precede it. Product rule 6's note in `PRODUCT_SPEC.md` is corrected from "waits for a pilot that
+asks for it" to intended. D-076 is **not** superseded — its description of what the code does today
+remains accurate, and the README's stated limit stays until CON-99 lands.
+
+**Status.** accepted
+
+---
+
+## D-089 · 2026-11-19 · Approval outside the command line is intended; D-055 will be amended by CON-58
+
+**Records an intent that reverses a standing invariant**, so that CON-58 is designed for it rather
+than around it.
+
+**Decision.** An approval taken **outside the CLI** — on a published page, in a tracker — is
+intended to count as a human decision. Asked directly on 2026-11-19, the author's answer is that
+off-CLI approval should be possible.
+
+**What this does and does not change now.** It changes nothing in the code today: D-048 and D-055
+stand, there is still no `accept` tool on any MCP surface, and a test still asserts the live tool
+list. What it changes is CON-58's design target. The amendment to D-055 **lands with the
+implementation**, not here — writing an invariant out of force before the mechanism exists would
+leave a window in which the record permits something nothing enforces.
+
+**The distinction D-055 was protecting, which survives.** The objection was never the *channel*; it
+was that **a model must not be able to accept**. An approval ticked by a person on a page is a human
+decision that happened somewhere else; a tool call by an agent is not, whatever it is named. CON-58's
+`channel` and `verification` exist to keep those apart — and a page approval is arguably *more*
+verified than a CLI `--by` string, which nothing checks (D-061).
+
+**Consequences.** CON-58 stays open and widened, now with a stated target rather than an open
+question. `DISCOVERY.md` § 4 assumption 6 is answered by intent rather than by evidence, and is
+worth asking about anyway: knowing where approval *should* live does not tell us where the people
+who would do it actually work.
+
+**Status.** accepted
+
+---
+
+## D-088 · 2026-11-19 · Constat is a demonstration of practice; the validation track is not the plan
+
+**The most consequential decision in the log, and it reframes a week of work.** Asked directly on
+2026-11-19 what Constat is for, the answer is **a demonstration of how its author works**: the
+decision log, the test discipline, the mutation checks and the written reasoning are the artefact,
+and the software is the medium.
+
+**Decision.** Constat is built as a demonstration of practice, not as a product being taken to
+market. `PRODUCT_SPEC.md` § 10's validation track — discovery conversations, a design partner, two
+pilot commitments — is **no longer the governing plan**, and § 8's success signals (willingness to
+pay, cross-repo value proven with a real feature) are not the measure.
+
+**What I got wrong all week, stated plainly.** Every status report since 2026-11-17 ended by naming
+CON-26 as the critical path and the only thing that mattered. That was the spec's framing applied
+without checking whether it was still the author's, and the evidence was visible the whole time:
+eighteen tickets closed and zero conversations held is not a team failing to validate, it is a
+project whose purpose was something else. The right move was to ask on day one. `DISCOVERY.md`
+(2026-11-19) was written in the same mistaken frame — it stands as a usable artefact and is no
+longer an overdue task.
+
+**What the measure becomes.** Whether a reader of this repository can follow *why* each thing is the
+way it is, and whether what is claimed is true. That makes several things first-class that were
+treated as overhead: the decision log's completeness, a refusal that explains itself, a test that
+pins a property rather than asserting the code, and the honesty of what is recorded as unverified
+(D-076's unmet invariant, D-086's unverified name, D-087's uncheckable rules).
+
+**The failure mode this creates, and the mitigation.** A demonstration can drift into unfalsifiable
+self-regard — prose about rigour, with nothing checking the rigour. The mitigation is the second
+answer given on the same day: **Constat must actually run on a real repository.** A worked area of
+a real product, documented with the machinery as it stands, is what keeps the demonstration
+honest, and it is the next step rather than another feature.
+
+**Consequences.**
+
+- **CON-26, CON-27 and CON-28 are deferred, not withdrawn.** They are the validation track of a
+  product being sold. They stay in the register, reframed, because the purpose could change again
+  and because `DISCOVERY.md` is already written.
+- **CON-20 rises.** "A new person can run the demo and understand what Constat does and does not do"
+  is now close to the point of the whole thing, rather than a packaging chore.
+- **Features are worth less than they were; legibility is worth more.** A ticket that adds a
+  capability nobody will exercise is weaker than one that makes an existing claim checkable.
+- **D-086 reads better in hindsight.** Dropping the trademark work was already right; under a
+  demonstration it is not even a risk being accepted so much as a cost that was never owed.
+- **This does not relax any product rule.** A demonstration of practice that quietly lowered its own
+  standards would demonstrate the opposite of what is intended.
+
+**Status.** accepted
+
+---
+
 ## D-087 · 2026-11-19 · Unshipped work is a state in the view, verified against mainline
 
 **Closes CON-96**, and closes it **without the release concept CON-85 and CON-86 were to supply.**
