@@ -8,6 +8,52 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-086 · 2026-11-19 · The trademark work is dropped, and the name risk is accepted unverified
+
+**Withdraws CON-22 and CON-23.** Both are struck from the register rather than deleted: an ID is
+never reused here, including for an abandoned ticket, so a reader five months from now finds the
+decision instead of a gap.
+
+**Decision.** No trademark clearance is sought. **Constat** is used as the name with no register
+search and no attorney opinion, and the risk that follows is accepted rather than mitigated.
+
+**What is being accepted, stated plainly** so that nobody later reads this as "cleared":
+
+- **The name may be unregistrable.** The open question was whether `CONSTAT` is *descriptive* in
+  FR/EU for classes 9 and 42 — software that produces findings — and a descriptive mark cannot be
+  registered. That question is now unanswered rather than answered favourably.
+- **The word is already in commercial software use in French.** `e-constat auto` is the French
+  insurance industry's official application (`BRAND_NAME_REVIEW.md` § 10). That was the strongest
+  negative signal found, and nothing has been done about it.
+- **The repository has been public throughout**, so first use is visible and dated. That cuts both
+  ways and is not a defence.
+- **A rename later costs more than a rename now**, and more again after a pilot: the name is in the
+  package, the CLI, the schema's own prose, the published pages and the domain plan (D-075).
+
+**Why accept it anyway.** `PRODUCT_SPEC.md` § 10 puts the attorney review before the first pilot
+conversation, and the first pilot conversation is itself behind CON-26, which stands at **zero
+conversations**. Paying for an opinion on a name for a product nobody outside this repository has
+confirmed they want is spending in the wrong order. If discovery kills the premise, the trademark
+question never needed answering; if discovery validates it, the question returns with a reason to
+pay for the answer.
+
+**Consequences.**
+
+- **D-013 is unchanged** — the name is still Constat — and `BRAND_NAME_REVIEW.md` stays as the
+  record of what was checked and what was not. It is a review, not a clearance, and now says so by
+  the absence of a follow-up ticket.
+- **The register keeps both IDs struck through**, with this entry named, so the withdrawal is
+  traceable rather than silent.
+- **Reopening is a new ticket**, not a reinstatement of these two — the same posture D-084 takes for
+  a retired rule. If the name is ever to be defended, the descriptiveness question is the one to ask
+  first and the cheapest to ask.
+- **The validation tickets are untouched.** CON-26, CON-27 and CON-28 are commercial, not legal, and
+  remain the critical path.
+
+**Status.** accepted
+
+---
+
 ## D-085 · 2026-11-19 · The agreed state is a checkpoint, taken explicitly and compared by version
 
 **Closes CON-15**, the oldest open ticket in the register. It was waiting on something `constat

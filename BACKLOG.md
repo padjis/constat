@@ -86,8 +86,8 @@ forces them.
 | ID | Title | Done when | Status |
 | --- | --- | --- | --- |
 | CON-21 | The site has a home | The project site resolves somewhere its author controls. | ✅ D-075 — `constat.padjinou.com`, a subdomain of an owned domain. No domain bought: `tryconstat.com` stays the choice from D-014 for when there is something to put on it, and stays registerable by anyone until then |
-| CON-22 | Trademark knockout search on "Constat" | USPTO and EUIPO searched in Nice classes 9 and 42, plus an INPI/RCS check. | ⬜ **attempted 2026-11-16 and not possible from here** — every register blocked or JavaScript-only (`BRAND_NAME_REVIEW.md` § 10). Needs a person with register access, or folding into CON-23 |
-| CON-23 | Trademark attorney review | A finalist cleared, including the FR/EU descriptiveness question. | ⬜ before the first pilot conversation |
+| CON-22 | ~~Trademark knockout search on "Constat"~~ | — | ❌ **withdrawn 2026-11-19 (D-086).** Attempted 2026-11-16 and not possible from this environment (`BRAND_NAME_REVIEW.md` § 10). The name is used as-is and unverified; the risk is accepted rather than cleared |
+| CON-23 | ~~Trademark attorney review~~ | — | ❌ **withdrawn 2026-11-19 (D-086).** The FR/EU descriptiveness question — is `CONSTAT` registrable for software that produces findings — is left unanswered. Reopen as a new ticket if the name is ever to be defended |
 | CON-24 | Ratify the proposal unit (Q1) | A `D-NNN` entry fixes the unit of a proposal. | ✅ D-025 |
 | CON-25 | Decide the copyright holder | `LICENSE` and `NOTICE` name the intended holder. | ✅ D-074 — held personally; `LICENSE` and `NOTICE` were already correct, so this closes as recorded rather than implemented. A CLA is needed only if relicensing is intended |
 | CON-26 | Hold 5–10 discovery conversations | Notes from 5–10 people who work across multiple repositories. | 🔴 **0 held** — the roadmap puts the first two on Day 7. The script, the outreach message, the record template and the ten assumptions being tested are written: [DISCOVERY.md](DISCOVERY.md). Only the conversations are missing |

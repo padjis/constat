@@ -16,6 +16,11 @@ enforced mark.
 
 ---
 
+> **Withdrawn 2026-11-19 (D-086).** The follow-up work this review recommended — a register
+> knockout search (CON-22) and an attorney opinion on FR/EU descriptiveness (CON-23) — is dropped.
+> **This document is a review, not a clearance.** Nothing below has been verified against a
+> register, and the name is used as-is with that risk accepted.
+
 ## 1. The trademark problem
 
 ### 1.1 CLAUDE is a registered mark in this exact category
@@ -285,7 +290,8 @@ before spending money on a brand.
 
 ## 10. Knockout search attempt — 2026-11-16
 
-**Outcome: not performed. CON-22 stays open.** The trademark registers could not be reached from the
+**Outcome: not performed, and now withdrawn (D-086, 2026-11-19).** CON-22 was never done and will
+not be; the risk is accepted rather than cleared. The trademark registers could not be reached from the
 working environment, and this section records what was and was not established so the attempt is
 not repeated blindly.
 
@@ -325,7 +331,7 @@ EU/FR system a mark that merely describes the goods is refusable, and "a tool th
 constats, called Constat" is the textbook shape of that objection. The insurance usage above shows
 the word is already doing descriptive work in a software context, in the same language.
 
-### The brief for CON-23
+### The brief for CON-23 — written, never commissioned (withdrawn, D-086)
 
 An attorney needs three questions answered, in this order, because the second and third only matter
 if the first clears:

@@ -2,7 +2,9 @@
 
 **Last updated:** 2026-11-19
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-19):** **CON-15 closed (D-085)** — the agreed state is a *checkpoint*,
+**Current session (2026-11-19):** **CON-22 and CON-23 withdrawn (D-086)** — no trademark clearance
+is sought, and the name risk is accepted unverified rather than cleared. Before that, **CON-15
+closed (D-085)** — the agreed state is a *checkpoint*,
 taken explicitly and compared by version number, schema 20. It was the oldest open ticket in the
 register, and it also completes **CON-14**.
 
@@ -374,6 +376,13 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ### Known issues / open items
 
+- **The name is unverified and will stay that way (D-086, 2026-11-19).** CON-22 and CON-23 are
+  withdrawn: no register search, no attorney opinion. The open question — whether `CONSTAT` is
+  descriptive in FR/EU for classes 9 and 42, and therefore unregistrable — is now unanswered rather
+  than answered. `e-constat auto` remains the French insurance industry's official application, and
+  the repository has been public throughout. Reopening is a new ticket, and a rename costs more
+  after a pilot than before one.
+
 - **Personal data in evidence: settled (D-040).** Identity does not cross the provider boundary at
   all — no names, no addresses, no timestamps, and the payload type has no field for them. The
   obligation D-023 recorded is discharged, before any provider exists.
@@ -422,20 +431,16 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-23 — the trademark attorney review, asked in the right order.** CON-22 was attempted on
-2026-11-16 and **cannot be done from this environment**: every register is either blocked or a
-JavaScript application with nothing server-rendered to read (`BRAND_NAME_REVIEW.md` § 10). It needs
-a person with register access — or folding into CON-23, which is the recommendation.
+**CON-26 — the first two discovery conversations.** It is the only item on the critical path, and it
+has been since 2026-11-08. `DISCOVERY.md` holds the script, the outreach message, the record
+template and the ten assumptions the last three days were built on; the count of conversations held
+is **zero**.
 
-§ 10 writes the brief, and its first question is the one that matters: **is `CONSTAT` registrable at
-all in FR/EU for classes 9 and 42, or is it descriptive** for software that produces findings? That
-is a go/no-go on the name, and it should be asked before paying for a clearance search on a name
-that may be unregistrable. The two things § 10 did establish: `e-constat auto` is the French
-insurance industry's official app, so the word is already in use as a software product name in
-French; and no software company called Constat surfaced, which is weak evidence of availability and
-nothing more.
-
-CON-26 is still at zero discovery conversations, and the repository has been public throughout.
+The trademark work that used to sit here is **withdrawn (D-086)**: no register search and no
+attorney opinion, with the name risk accepted unverified. That reordering is deliberate — paying for
+an opinion on the name of a product nobody outside this repository has confirmed they want is
+spending in the wrong order. It does mean the descriptiveness question is now unanswered rather than
+answered, and a rename costs more after a pilot than before one.
 
 CON-25 is now closed (D-074): the copyright is held personally, which `LICENSE` and `NOTICE`
 already said — the ticket needed a recorded decision, not an edit. CON-21 is closed too (D-075):
