@@ -2,7 +2,9 @@
 
 **Last updated:** 2026-11-19
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-19):** **CON-22 and CON-23 withdrawn (D-086)** — no trademark clearance
+**Current session (2026-11-19):** **CON-96 closed (D-087)** — unshipped work is a state in the view,
+verified against mainline, and it needed no release concept. Before it, **CON-22 and CON-23
+withdrawn (D-086)** — no trademark clearance
 is sought, and the name risk is accepted unverified rather than cleared. Before that, **CON-15
 closed (D-085)** — the agreed state is a *checkpoint*,
 taken explicitly and compared by version number, schema 20. It was the oldest open ticket in the
@@ -431,7 +433,8 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
 
 ## Next single task
 
-**CON-26 — the first two discovery conversations.** It is the only item on the critical path, and it
+**CON-26 — the first two discovery conversations.** (Unchanged, and now with one fewer code task in
+front of it: CON-96 was the last open correctness defect.) It is the only item on the critical path, and it
 has been since 2026-11-08. `DISCOVERY.md` holds the script, the outreach message, the record
 template and the ten assumptions the last three days were built on; the count of conversations held
 is **zero**.
@@ -520,6 +523,82 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## CON-96 — done when: *an unshipped rule version is not rendered as current behaviour* ✅
+
+`D-087` records the decision, and the headline is that **it did not need the release concept.**
+
+The defect, found on 2026-11-18: a rule accepted while its ticket was still unmerged rendered in
+`constat state` as the product's current behaviour — a false claim about the present, made by the
+one command whose purpose is to state the present.
+
+**Live, the same rule before and after its work lands:**
+
+```
+## Agreed, not yet shipped
+
+1 rule(s) were accepted on work that is **not in mainline**. They are not above, because the
+picture above is what the product does and these describe what it will do.
+
+- `R-1` **daily-limit** — A transfer above the daily limit is refused.
+  - rests on 38b16aa972b0, not in mainline
+```
+
+then, after `git merge` and `git push`, with no re-acceptance and no re-reading:
+
+```
+## Business rules
+
+### payments
+
+- `R-1` **daily-limit** — A transfer above the daily limit is refused.
+```
+
+**Why no release concept.** CON-96 was written as depending on CON-85/86's two-state model, where
+closing a declared release would put versions into effect. D-085 had already recorded that model's
+weakness: the ship is **asserted** by a human, and Constat cannot detect a partial ship across a
+plural registered set. Checking whether the evidence commits are ancestors of mainline is a
+*stronger* claim, needs no schema, and needs nobody to remember to close anything. **CON-85/86/87
+are now open but not urgent** — what they add is a name for a release, not the correctness of the
+present picture.
+
+**The fix is a state in the view, not a gate on the decision.** `rule accept` still has no
+pending/landed guard, deliberately: refusing the acceptance would stop a reviewer deciding about
+work they can see, which is the normal case.
+
+**Three answers, not two.** `contains_commit` returns yes, no or **unknown**, and the third carries
+the design: a squash-merge destroys the commit a rule points at, and a missing object must not read
+as "not shipped".
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_shipping.py` → **13 passed** (new file). **Whole suite**:
+**1255 passed in 268s**, exit 0. No schema change.
+
+**Mutation-checked, after one correction:** mapping the `unknown` band to "no" fails both
+vanished-commit tests, and dropping uncheckable rules from the picture fails four.
+
+### Three things the tests found, all mine
+
+1. **My implementation contradicted my own docstring.** It said uncheckable rules stay in the
+   picture and flagged; the code excluded them. The existing `product_state` tests caught it
+   immediately.
+2. **My first mutation survived, and the reason was useful.** Deleting the `cat-file -e` existence
+   check failed no test — because `merge-base --is-ancestor` exits **128** for a missing object,
+   which the `unknown` fallthrough already handled. The check read as a safeguard and did nothing,
+   so it was removed, as `area_is_declared` was under D-079.
+3. **A limit that follows from D-031.** A rule accepted *after* its ticket landed can never be
+   verified: a landed ticket contributes no evidence, so there is no pointer to check. It is
+   reported as *shipping not checked* rather than silently trusted, and a test asserts it. My first
+   "shipped" fixture was testing exactly that impossible path.
+
+### Deliberately not done
+
+- **No gate at acceptance.** The decision stays the reviewer's; only the presentation changed.
+- **Statements are not re-verified**, only shipping. Whether a shipped rule is *true* remains the
+  reviewer's judgement.
 
 ---
 

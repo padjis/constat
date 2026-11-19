@@ -8,6 +8,64 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-087 · 2026-11-19 · Unshipped work is a state in the view, verified against mainline
+
+**Closes CON-96**, and closes it **without the release concept CON-85 and CON-86 were to supply.**
+
+**Decision.** `constat state` renders a rule as current behaviour only when the commits it was
+accepted on are **ancestors of the repository's mainline**. A rule whose evidence is present and not
+an ancestor renders in its own section, *Agreed, not yet shipped*. A rule whose shipping cannot be
+checked stays in the picture and is flagged.
+
+**The fix is a state in the view, not a gate on the decision.** `rule accept` still has no
+pending/landed guard and deliberately gets none: refusing the acceptance would stop a reviewer
+deciding about work they can see, which is the normal case and the one the product is for. What was
+wrong was *presenting* the result as shipped.
+
+**Verified, not asserted — which is why this did not need releases.** CON-96 was written as
+depending on CON-85/86's two-state model, where closing a declared release would put versions into
+effect. D-085 already recorded the weakness of that: the ship is **asserted** by a human and
+Constat cannot detect a partial ship across a plural registered set. Checking whether the evidence
+commits are ancestors of mainline is a *stronger* claim, needs no schema, and needs no human to
+remember to close anything. The release concept remains worth having for naming and grouping; it is
+no longer what makes the current picture honest.
+
+**Three answers, not two.** `contains_commit` returns `yes`, `no`, or `unknown`, and the third is
+load-bearing: a squash-merge or force-push destroys the commit a rule points at — D-073 keeps the
+subject beside the SHA for exactly this reason — and a missing object must not be read as "not
+shipped". The rule may well have shipped; what is lost is the ability to check. Only exit codes 0
+and 1 from `merge-base --is-ancestor` are answers, and the 128 band maps to `unknown`.
+
+**Uncheckable rules stay in the picture and are flagged**, never moved out of it. Moving them would
+assert they are *not* current behaviour, which is exactly as unsupported as the claim being fixed.
+There are three causes and none of them is "not shipped": no evidence pointer at all, a pointer to a
+vanished commit, or no readable repository for the alias.
+
+**A limit this exposed, and it follows from D-031.** A rule accepted **after** its ticket landed can
+never be verified: a landed ticket contributes no evidence, so no pointer is recorded and there is
+nothing to check. Such a rule is reported as *shipping not checked* rather than silently trusted,
+and a test asserts it. The lifecycle that verifies cleanly is the real one — accept while the work
+is pending, let it land.
+
+**Consequences.**
+
+- **No schema change.** `git/adapter.py` gains `contains_commit`, read-only like everything else
+  there; `operations.py` gains `_partition_by_shipping` and two fields on `ProductState`.
+- **An all-unshipped catalogue is not an empty one**, and the view distinguishes them — the third
+  such distinction after D-084's all-retired case. The sentence now counts retired and agreed
+  together and says it is not an empty catalogue.
+- **A dead safeguard was removed.** An explicit `cat-file -e` existence check stood in
+  `contains_commit` and failed no mutation, because 128 already fell into the `unknown` band. It
+  read as a safeguard and did nothing, so it went — the same treatment `area_is_declared` got under
+  D-079.
+- **CON-85, CON-86 and CON-87 stay open and are no longer urgent.** What they add is a *name* for a
+  release and the ability to read the catalogue as it stood at one, not the correctness of the
+  present picture.
+
+**Status.** accepted
+
+---
+
 ## D-086 · 2026-11-19 · The trademark work is dropped, and the name risk is accepted unverified
 
 **Withdraws CON-22 and CON-23.** Both are struck from the register rather than deleted: an ID is

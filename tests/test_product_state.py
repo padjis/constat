@@ -161,7 +161,16 @@ class TestGrouping:
         item = next(r for r in state.rules if r.rule.name == "shared")
 
         assert set(item.matched) == {"billing", "web"}
-        assert render_state(state).count("**shared**") == 1
+        # Counted within the rules listing, because that is where the
+        # invariant lives: one rule, one entry, however many repositories its
+        # anchors span. Later sections mention a rule again for other reasons
+        # — CON-96's shipping flag, CON-83's retirements — and those are
+        # different claims rather than duplicates.
+        # Split on "\n## " rather than "## ", or the "### <area>" subheadings
+        # split too and the section comes back empty.
+        sections = render_state(state).split("\n## ")[1:]
+        rules_section = next(s for s in sections if s.startswith("Business rules"))
+        assert rules_section.count("**shared**") == 1
 
     def test_the_matched_paths_are_named(self, product) -> None:
         """Evidence for the claim that the rule still holds."""

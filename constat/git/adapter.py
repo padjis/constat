@@ -284,6 +284,36 @@ def search_text(
     return tuple(paths[:limit])
 
 
+def contains_commit(repo: Repository, sha: str, revision: str) -> str:
+    """Whether `revision` contains `sha`: `yes`, `no`, or `unknown`.
+
+    Three answers rather than two, and the third is the point. A commit a rule
+    was accepted on can be **gone** — a squash-merge or a force-push destroys
+    it (D-073 stores the subject beside the SHA for exactly this reason) — and
+    a missing object must not be reported as "not shipped". The rule may well
+    have shipped; what is lost is the ability to check.
+
+    Read-only: one `merge-base --is-ancestor`, which does not write.
+
+    **Only two exit codes are answers.** 0 means yes and 1 means no; anything
+    else is git failing rather than answering — a missing object is 128, and so
+    is a bad revision or a broken repository. Mapping that band to `unknown` is
+    what keeps a vanished commit out of the "not shipped" bucket.
+
+    An explicit `cat-file -e` existence check stood here first and was removed:
+    a mutation deleting it failed no test, because 128 already lands in the
+    band below. Dead weight that read as a safeguard.
+    """
+    result = run_git(
+        ["merge-base", "--is-ancestor", sha, revision], cwd=repo.root
+    )
+    if result.returncode == 0:
+        return "yes"
+    if result.returncode == 1:
+        return "no"
+    return "unknown"
+
+
 def remote_url(repo: Repository, remote: str = "origin") -> str | None:
     """The configured URL of a remote, or None if it has none.
 

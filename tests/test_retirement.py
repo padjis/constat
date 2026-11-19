@@ -272,7 +272,7 @@ class TestTheCurrentPicture:
 
         rendered = render_state(product_state(workspace))
 
-        assert "this is not an empty catalogue" in rendered
+        assert "This is not an empty catalogue" in rendered
         assert "holds no rules, so there is nothing to describe" not in rendered
 
     def test_a_standing_rule_is_unaffected(self, workspace) -> None:

@@ -52,6 +52,7 @@ from .git.adapter import (
     Repository,
     Revision,
     discover_repository,
+    contains_commit,
     resolve_mainline,
     resolve_revision,
     search_text,
@@ -1775,6 +1776,31 @@ class ProductState:
 
     repositories: tuple[RepositoryState, ...] = ()
     rules: tuple[RuleState, ...] = ()
+    agreed: tuple[tuple[Rule, tuple[str, ...]], ...] = ()
+    """(rule, the SHAs it rests on that mainline does not contain) — CON-96.
+
+    **Accepted, and not yet the product's behaviour.** A rule accepted while
+    its ticket was still unmerged describes work that has not shipped, and
+    rendering it in the current picture is a false claim about the product
+    (product rule 1) made by the one command whose purpose is to state the
+    present.
+
+    Verified rather than asserted: the check is whether the commits the rule
+    was accepted on (D-073) are ancestors of the repository's mainline. That is
+    a stronger claim than a release concept could make — D-085 notes a declared
+    release's ship is asserted and unverifiable across a plural registered
+    set."""
+    unverifiable: tuple[Rule, ...] = ()
+    """Rules whose shipping cannot be checked (CON-96).
+
+    Three causes, none of which is "not shipped": no evidence pointer at all
+    (accepted before schema 13, or a run that gathered none), or a pointer to a
+    commit that no longer exists — a squash-merge or force-push destroys it,
+    which is why D-073 keeps the subject beside the SHA.
+
+    **Kept in the current picture and flagged**, never moved out of it. Moving
+    them would assert they are *not* current behaviour, which is exactly as
+    unsupported as asserting they are."""
     retired: tuple[tuple[Rule, str], ...] = ()
     """(rule, reason) for each retired rule (CON-83).
 
@@ -1851,6 +1877,20 @@ def product_state(
         if rule.ref in retirements
     )
 
+    # ref -> the newest accepted version, for checking what each rule rests on.
+    # The newest, because that is what the current picture renders: an earlier
+    # version's evidence says nothing about whether today's statement shipped.
+    newest = {
+        row["ref"]: int(row["version_id"])
+        for row in workspace.execute(
+            "SELECT r.ref AS ref, v.id AS version_id FROM rule r "
+            "JOIN rule_version v ON v.rule_id = r.id "
+            "WHERE r.ref IS NOT NULL AND v.version_no = ("
+            "  SELECT MAX(version_no) FROM rule_version WHERE rule_id = r.id)"
+        ).fetchall()
+    }
+    readable_at: dict[str, tuple] = {}
+
     repositories: list[RepositoryState] = []
     matches: dict[str, dict[str, tuple[str, ...]]] = {rule.name: {} for rule in rules}
 
@@ -1875,6 +1915,7 @@ def product_state(
         for name, paths in matching.items():
             matches[name][entry.alias] = paths
 
+        readable_at[entry.alias] = (repo, revision.sha)
         claimed = {path for paths in matching.values() for path in paths}
         repositories.append(
             RepositoryState(
@@ -1886,12 +1927,89 @@ def product_state(
             )
         )
 
+    in_picture, agreed, unverifiable = _partition_by_shipping(
+        workspace, rules, newest, readable_at
+    )
+
     return ProductState(
         repositories=tuple(repositories),
-        rules=tuple(RuleState(rule=rule, matched=matches[rule.name]) for rule in rules),
+        rules=tuple(
+            RuleState(rule=rule, matched=matches[rule.name]) for rule in in_picture
+        ),
+        agreed=agreed,
+        unverifiable=unverifiable,
         retired=retired,
         areas=catalogue.areas(),
     )
+
+
+def _partition_by_shipping(
+    workspace: Workspace,
+    rules: list[Rule],
+    newest: dict[str, int],
+    readable_at: dict[str, tuple],
+):
+    """Split rules into in-effect, agreed-but-unshipped, and uncheckable (CON-96).
+
+    The defect this fixes: a rule accepted while its ticket was unmerged
+    rendered as the product's current behaviour. `rule accept` has no
+    pending/landed guard and deliberately gets none — refusing the acceptance
+    would stop a reviewer deciding about work they can see, which is the normal
+    case. What is wrong is *presenting* it as shipped, so the fix is a state in
+    the view rather than a gate on the decision.
+
+    **A rule is in effect unless something says otherwise.** A commit that is
+    present and not an ancestor of mainline is that something; a commit that
+    cannot be found is not, and nor is an absent pointer. Both of those are
+    reported as uncheckable and stay in the picture, because moving them out
+    would assert they are not current behaviour — as unsupported as the claim
+    being fixed.
+    """
+    # `in_picture` holds everything the current view renders: rules verified as
+    # shipped *and* rules whose shipping cannot be checked. Only `agreed` is
+    # excluded, because only there is there positive evidence that the work has
+    # not landed. An earlier version of this excluded the uncheckable ones too
+    # — contradicting the paragraph above, and caught by the tests.
+    in_picture: list[Rule] = []
+    agreed: list[tuple[Rule, tuple[str, ...]]] = []
+    unverifiable: list[Rule] = []
+
+    for rule in rules:
+        version_id = newest.get(rule.ref) if rule.ref else None
+        if version_id is None:
+            in_picture.append(rule)
+            unverifiable.append(rule)
+            continue
+
+        commits = evidence_for_version(workspace, version_id)
+        if not commits:
+            in_picture.append(rule)
+            unverifiable.append(rule)
+            continue
+
+        unshipped: list[str] = []
+        checked = False
+        for commit in commits:
+            target = readable_at.get(commit.repository_alias or "")
+            if target is None:
+                continue
+            repo, revision = target
+            answer = contains_commit(repo, commit.sha, revision)
+            if answer == "no":
+                unshipped.append(commit.sha)
+                checked = True
+            elif answer == "yes":
+                checked = True
+
+        if unshipped:
+            agreed.append((rule, tuple(unshipped)))
+        elif checked:
+            in_picture.append(rule)
+        else:
+            in_picture.append(rule)
+            unverifiable.append(rule)
+
+    return in_picture, tuple(agreed), tuple(unverifiable)
 
 
 PLACEHOLDER = re.compile(
@@ -2092,7 +2210,7 @@ def render_state(state: ProductState) -> str:
             )
     lines.append("")
 
-    if not state.rules and not state.retired:
+    if not state.rules and not state.retired and not state.agreed:
         lines += [
             "The catalogue holds no rules, so there is nothing to describe yet. "
             "A rule enters only as an accepted rule proposal (D-048).",
@@ -2102,13 +2220,14 @@ def render_state(state: ProductState) -> str:
 
     if not state.rules:
         # Distinct from the sentence above, and the distinction matters: a
-        # catalogue nobody has filled and one whose every rule a person has
-        # retired are different claims about the product, and only the second
-        # is a statement that the behaviour was deliberately stopped.
+        # catalogue nobody has filled, one whose every rule a person retired,
+        # and one whose every rule is agreed but unshipped are three different
+        # claims about the product. Only the first is an empty catalogue.
+        held = len(state.retired) + len(state.agreed)
         lines += [
-            f"No rule currently describes the product. All {len(state.retired)} "
-            "rule(s) in the catalogue are retired, listed below — this is not "
-            "an empty catalogue.",
+            f"No rule currently describes the product, and the catalogue holds "
+            f"{held} — retired or agreed but not yet shipped, listed below. "
+            "This is not an empty catalogue.",
             "",
         ]
 
@@ -2144,6 +2263,44 @@ def render_state(state: ProductState) -> str:
                         "case by case"
                     )
             lines.append("")
+
+    if state.agreed:
+        lines += [
+            "## Agreed, not yet shipped",
+            "",
+            f"{len(state.agreed)} rule(s) were accepted on work that is **not "
+            "in mainline**. They are not above, because the picture above is "
+            "what the product does and these describe what it will do. "
+            "Verified rather than assumed: the commits each rule was accepted "
+            "on are not ancestors of the repository's mainline.",
+            "",
+        ]
+        for rule, unshipped in state.agreed:
+            cite = f"`{rule.ref}` " if rule.ref else ""
+            shown = ", ".join(sha[:12] for sha in unshipped[:3])
+            more = "" if len(unshipped) <= 3 else f" and {len(unshipped) - 3} more"
+            lines.append(f"- {cite}**{rule.name}** — {rule.statement}")
+            lines.append(f"  - rests on {shown}{more}, not in mainline")
+        lines.append("")
+
+    if state.unverifiable:
+        lines += [
+            "## Shipping not checked",
+            "",
+            f"{len(state.unverifiable)} rule(s) above could not be checked "
+            "against mainline: either no commit was recorded for them — "
+            "accepted before Constat kept evidence pointers, or read from a "
+            "ticket that contributed none — or the commit no longer exists, "
+            "which a squash-merge or a force-push does. **They are left in the "
+            "picture above**, because moving them out would assert they are "
+            "not current behaviour, and that is exactly as unsupported as "
+            "asserting they are.",
+            "",
+        ]
+        for rule in state.unverifiable:
+            cite = f"`{rule.ref}` " if rule.ref else ""
+            lines.append(f"- {cite}**{rule.name}**")
+        lines.append("")
 
     if state.retired:
         lines += [
