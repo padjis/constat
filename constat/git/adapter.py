@@ -241,6 +241,49 @@ def configured_identity() -> str | None:
     return f"{who} <{address}>" if address else who
 
 
+def search_text(
+    repo: Repository, revision: str, needle: str, limit: int = 20
+) -> tuple[str, ...]:
+    """Paths at `revision` containing `needle` literally. Read-only.
+
+    `git grep --fixed-strings`, so the needle is never interpreted as a
+    pattern — user-facing text is full of characters a regular expression would
+    read as syntax, and a message containing `(` must not become a search for
+    a group.
+
+    **Line-oriented, which is a stated limit rather than a hidden one.** Git
+    greps lines, so a needle spanning a newline matches nothing. The caller is
+    responsible for choosing a single-line fragment; see
+    `operations.literal_fragment`.
+    """
+    result = run_git(
+        [
+            "grep",
+            "--fixed-strings",
+            "--files-with-matches",
+            "--no-color",
+            "-e",
+            needle,
+            revision,
+            "--",
+        ],
+        cwd=repo.root,
+    )
+    # Exit 1 is "no match", which is an answer rather than a failure. Anything
+    # else — a bad revision, a corrupt object — is a real error and is raised
+    # by the caller's own revision resolution before reaching here.
+    if result.returncode not in (0, 1):
+        return ()
+
+    prefix = f"{revision}:"
+    paths = [
+        line[len(prefix):] if line.startswith(prefix) else line
+        for line in result.stdout.splitlines()
+        if line.strip()
+    ]
+    return tuple(paths[:limit])
+
+
 def remote_url(repo: Repository, remote: str = "origin") -> str | None:
     """The configured URL of a remote, or None if it has none.
 

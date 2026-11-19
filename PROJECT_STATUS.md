@@ -2,8 +2,10 @@
 
 **Last updated:** 2026-11-18
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-18):** **CON-82 closed (D-082)** — a message is a verbatim quotation,
-stored once and exempt from the leakage gate, schema 18. Before it, **CON-81 (D-081)** — a rule's
+**Current session (2026-11-18):** **CON-91 closed (D-083)** — a message is verified against the code
+by its longest literal fragment, no schema change. Before it, **CON-82 (D-082)** — a message is a
+verbatim quotation, stored once and exempt from the leakage gate, schema 18 — and **CON-81
+(D-081)** — a rule's
 citation is flat (`R-14`), stored and never reused, schema 17 — and **CON-89 (D-080)** — a baseline documents an area with no
 evidence from Constat, under a reference, and with no schema change. Before it, **CON-88 and CON-90
 (D-079)** — an area is declared by accepting a rule, and coverage is counted in areas, schema 16. Before them, **CON-67 (D-078)** — a
@@ -438,9 +440,10 @@ the risk that `tryconstat.com` stays registerable by anyone.
 messages (CON-82) are all in; only CON-83 (retirement) and CON-84 (glossary) remain of the original
 rule-shape list, and CON-84 is droppable.
 
-The next code task, if you keep building, is **CON-91 — verify a quoted message against the code**,
-which D-082 just made simple: check `message.text` rather than scraping quotations out of
-statements. It is the gate that turns a stored message from a claim into a checked fact.
+The next code task, if you keep building, is **CON-83 — rule retirement**, which also settles the
+question D-071 left open: how a *lapsed* condition is expressed, now that a rule may be conditional
+on a transient business state. It needs a decision from you first — whether retiring a rule is a
+human decision in the same sense acceptance is, which I think it has to be.
 
 Two smaller things are now reachable and unblocked: **an MCP tool for `baseline`**, which would be a
 thin wrapper over `baseline_area` (D-080 left it unbuilt deliberately), and **CON-15**, comparing
@@ -496,6 +499,73 @@ versions needs that read first).
 
 Still standing: validation is at **zero discovery conversations** (CON-26). The site's home is
 settled — `constat.padjinou.com` (D-075) — and no domain is owned, deliberately.
+
+---
+
+## CON-91 — done when: *a quoted message is verified against the code* ✅
+
+`D-083` records the decision. A stored message was a **claim** — Constat held `Failed to start
+upload` because a reading said so, and nothing checked it.
+
+**Live, against a real repository:**
+
+```
+3 message(s) checked against mainline:
+
+  M-1  found — app:upload.py
+  M-2  found — app:upload.py
+  M-3  NOT FOUND — searched for "Your upload was rejected by the compliance service"
+
+2 found, 1 not found, 0 not checkable.
+```
+
+**M-2 is the interesting one.** The catalogue says `...uploaded: <file names>` and the code says
+`...uploaded: {names}` — different placeholder syntax entirely — and it verified anyway, because the
+search uses the **longest literal fragment** rather than the whole string. That is the design
+earning its keep rather than a lucky case: real messages are format strings, so the full text
+appears nowhere.
+
+**Three states, not two.** Found, not found, and *not checkable* — the last for a message with no
+literal run of at least twelve characters. `Refused` appears in every codebase; finding it proves
+nothing, and reporting that as verified would be the confident-wrong answer this product exists to
+avoid. Collapsing it into either of the other two would assert something untrue.
+
+**Absence is reported, never refused**, and the output says why in as many words: a message can be
+assembled from fragments, translated, or held in a resource file this search cannot reach. A bare
+NOT FOUND left to read as a verdict would be the failure.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_messages.py` → **43 passed** (15 new). **Whole suite**:
+**1191 passed in 245s**, exit 0. No schema change — `search_text` is read-only, like everything else
+in `git/adapter.py`.
+
+**Mutation-checked:**
+
+| Mutation | Result |
+| --- | --- |
+| Drop `--fixed-strings` (search as a pattern) | Fails `test_the_search_is_literal_rather_than_a_pattern` |
+| `MIN_FRAGMENT = 1` (any run counts as evidence) | Fails both not-checkable tests |
+
+### Three test expectations of mine were wrong, and the code was right
+
+All three surfaced in one run, and all three were mine:
+
+- Two fragment expectations assumed the *last* literal run won; the code correctly takes the
+  longest.
+- The verification test used `LIMIT = 250` as a needle — **eleven characters, under the floor**. The
+  fixture's mainline had no line long enough to be evidence, so the test needed its own repository
+  that genuinely says something. That is the floor doing its job on the first real use.
+
+### Deliberately not done
+
+- **Statements, examples and behaviours are not verified.** Only the field whose entire value is
+  being verbatim; everything else stays a reading a human judges, which is D-066's division of
+  labour.
+- **Verification is on demand**, not at submission: a message is not in the catalogue until a rule
+  carrying it is accepted, and a check on every submission would scale with how often a reading is
+  re-run.
+- **`constat message list` arrived with it**, because D-082 added messages and no way to see them.
 
 ---
 

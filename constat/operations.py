@@ -45,6 +45,8 @@ from .publish import PublishedRef, Target
 from .publish.targets.git_pages import detect as git_pages_detect
 from .errors import PayloadRefused, ReferenceMatchedNothing, RepositoryError
 from .evidence import DEFAULT_LIMITS, EvidenceBundle, ExcerptLimits, collect_evidence
+import re
+
 from .git.adapter import (
     MainlineRef,
     Repository,
@@ -52,6 +54,7 @@ from .git.adapter import (
     discover_repository,
     resolve_mainline,
     resolve_revision,
+    search_text,
 )
 from .git.diff import compare_revisions, summarise_state
 from .models import RegisteredRepository, Rule
@@ -1874,6 +1877,122 @@ def product_state(
         rules=tuple(RuleState(rule=rule, matched=matches[rule.name]) for rule in rules),
         areas=catalogue.areas(),
     )
+
+
+PLACEHOLDER = re.compile(
+    r"<[^<>]{1,60}>|\{[^{}]{0,60}\}|%[sdfr]|%\([^)]{1,40}\)[sdfr]|\$\{?[A-Za-z_]\w*\}?"
+)
+"""The forms a product uses for a value it fills in at runtime.
+
+Deliberately several, because a catalogue spans repositories and languages, and
+a message's placeholder style belongs to whatever wrote it."""
+
+MIN_FRAGMENT = 12
+"""Shorter than this and a fragment stops being evidence.
+
+"Refused" appears in every codebase; finding it proves nothing, and reporting
+that as a verified message would be the confident-wrong answer this product
+exists to avoid."""
+
+
+def literal_fragment(text: str) -> str | None:
+    """The longest part of a message that could be searched for literally.
+
+    Two things make a stored message unsearchable as a whole, and both are
+    normal rather than exceptional:
+
+    **Placeholders.** `The following files have already been uploaded: <names>`
+    exists in the code as a format string, so the full text appears nowhere.
+    **Line breaks.** `git grep` is line-oriented (see `adapter.search_text`),
+    so a needle spanning a newline matches nothing.
+
+    So the message is cut at both, and the longest remaining run is the needle.
+    Returns None when nothing long enough survives — a message that is almost
+    entirely placeholder cannot be verified this way, and saying so is the
+    honest answer.
+    """
+    pieces = [
+        piece.strip()
+        for line in text.splitlines()
+        for piece in PLACEHOLDER.split(line)
+    ]
+    longest = max(pieces, key=len, default="")
+    return longest if len(longest) >= MIN_FRAGMENT else None
+
+
+@dataclass(frozen=True)
+class MessageCheck:
+    """Whether one stored message's wording is present in the product."""
+
+    ref: str | None
+    text: str
+    fragment: str | None
+    """The needle actually searched for — the longest literal run of the
+    message. Reported because a reader has to know what was checked: a match
+    on a fragment is evidence the wording exists, not proof the whole string
+    does."""
+    found_in: tuple[tuple[str, str], ...] = ()
+    """(repository alias, path) for each place the fragment was found."""
+    unreadable: tuple[str, ...] = ()
+    """Repositories that could not be read, so silence about them means
+    nothing."""
+
+    @property
+    def verified(self) -> bool:
+        return bool(self.found_in)
+
+    @property
+    def checkable(self) -> bool:
+        return self.fragment is not None
+
+
+def verify_messages(workspace: Workspace) -> tuple[MessageCheck, ...]:
+    """Check each stored message's wording against the product (CON-91).
+
+    A stored message is otherwise a *claim*: Constat holds it because a reading
+    said so. This is the strongest verification available without running
+    anything — the text is either in the code or it is not.
+
+    **Found nowhere is reported, never refused.** A message can be assembled
+    from fragments, translated, held in a resource file, or built by a
+    formatter this cannot see. Refusing a true message because the search was
+    naive is the worse error, and D-064's posture for duplicates applies here
+    unchanged: report, and let a person decide.
+    """
+    rows = workspace.execute(
+        "SELECT ref, text FROM message ORDER BY id"
+    ).fetchall()
+    if not rows:
+        return ()
+
+    targets = []
+    unreadable = []
+    for entry in Registry(workspace).list():
+        try:
+            repo = discover_repository(entry.source)
+            mainline = resolve_mainline(repo, entry.default_branch)
+            targets.append((entry.alias, repo, resolve_revision(repo, mainline.ref)))
+        except RepositoryError:
+            unreadable.append(entry.alias)
+
+    checks = []
+    for row in rows:
+        fragment = literal_fragment(row["text"])
+        found: list[tuple[str, str]] = []
+        if fragment is not None:
+            for alias, repo, revision in targets:
+                for path in search_text(repo, revision.sha, fragment):
+                    found.append((alias, path))
+        checks.append(
+            MessageCheck(
+                ref=row["ref"],
+                text=row["text"],
+                fragment=fragment,
+                found_in=tuple(found),
+                unreadable=tuple(unreadable),
+            )
+        )
+    return tuple(checks)
 
 
 def example_table(examples, heading: str = "Examples") -> list[str]:

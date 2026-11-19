@@ -41,6 +41,7 @@ from .ai import as_dict as payload_as_dict
 from .ai import resolve as resolve_provider
 from .operations import (
     baseline_area,
+    verify_messages,
     export_payload,
     gather,
     evidence_for_run,
@@ -497,6 +498,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="what produced the reading. Self-reported and unverified (D-045).",
     )
     baseline.add_argument("--model", default=None, help="model name, also self-reported")
+
+    message = subparsers.add_parser(
+        "message",
+        help="list the user-facing messages, or check them against the code",
+        description=(
+            "Messages are the exact text the product shows a user, stored once "
+            "and cited (M-7). `verify` searches every registered repository at "
+            "its mainline for each message's wording: a message found nowhere "
+            "is reported, never refused, because text can be assembled, "
+            "translated or held in a resource file this cannot see."
+        ),
+    )
+    message_actions = message.add_subparsers(dest="message_action", metavar="ACTION")
+    message_actions.add_parser("list", help="list every stored message")
+    message_actions.add_parser(
+        "verify", help="check each message's wording against the code"
+    )
 
     area = subparsers.add_parser(
         "area",
@@ -1333,6 +1351,83 @@ def _run_baseline(args: argparse.Namespace) -> int:
     return _report_submission(result.submitted)
 
 
+def _run_message(args: argparse.Namespace) -> int:
+    """List the stored messages, or check their wording against the code."""
+    try:
+        with Workspace.open(args.workspace) as workspace:
+            if args.message_action == "verify":
+                return _report_message_checks(verify_messages(workspace))
+
+            rows = workspace.execute(
+                "SELECT m.ref, m.text, COUNT(rm.rule_id) AS rules "
+                "FROM message m "
+                "LEFT JOIN rule_message rm ON rm.message_id = m.id "
+                "GROUP BY m.id ORDER BY m.id"
+            ).fetchall()
+            if not rows:
+                print("No messages yet.")
+                print()
+                print("A message enters the catalogue with the rule that shows")
+                print("it. Most rules show the user nothing, so this being")
+                print("empty is not a gap by itself.")
+                return EXIT_OK
+            print(f"{len(rows)} message(s):")
+            for row in rows:
+                cite = row["ref"] or "(uncited)"
+                print(f'  {cite}  "{row["text"]}"')
+                print(f"      shown by {row['rules']} rule(s)")
+    except WorkspaceError as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_WORKSPACE
+    return EXIT_OK
+
+
+def _report_message_checks(checks) -> int:
+    """Say which messages were found in the code, and what was searched for."""
+    if not checks:
+        print("No messages to check.")
+        return EXIT_OK
+
+    found = [c for c in checks if c.verified]
+    missing = [c for c in checks if c.checkable and not c.verified]
+    unverifiable = [c for c in checks if not c.checkable]
+
+    print(f"{len(checks)} message(s) checked against mainline:")
+    print()
+    for check in checks:
+        cite = check.ref or "(uncited)"
+        if check.verified:
+            where = ", ".join(f"{alias}:{path}" for alias, path in check.found_in[:3])
+            more = "" if len(check.found_in) <= 3 else f" and {len(check.found_in) - 3} more"
+            print(f'  {cite}  found — {where}{more}')
+        elif check.checkable:
+            print(f'  {cite}  NOT FOUND — searched for "{check.fragment}"')
+        else:
+            # A message that is almost entirely placeholder has no run long
+            # enough to be evidence. Saying so beats searching for "Refused"
+            # and calling the result a verification.
+            print(f"  {cite}  cannot be checked — no literal text long enough to search for")
+    print()
+    print(
+        f"{len(found)} found, {len(missing)} not found, "
+        f"{len(unverifiable)} not checkable."
+    )
+    if missing or unverifiable:
+        print()
+        print("Not found is a finding, not a verdict. A message can be")
+        print("assembled from fragments, translated, or held in a resource")
+        print("file this search cannot reach — so this says where to look,")
+        print("and a person decides whether the wording is wrong.")
+    unreadable = checks[0].unreadable if checks else ()
+    if unreadable:
+        print()
+        print(
+            f"Could not read: {', '.join(unreadable)}. A message living there "
+            "would read as not found."
+        )
+    return EXIT_OK
+
+
 def _run_area(args: argparse.Namespace) -> int:
     """List the declared areas, or declare one ahead of its first rule."""
     try:
@@ -1956,6 +2051,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "baseline":
         return _run_baseline(args)
+
+    if args.command == "message":
+        if args.message_action is None:
+            args.message_action = "list"
+        return _run_message(args)
 
     if args.command == "area":
         if args.area_action is None:

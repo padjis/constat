@@ -37,7 +37,13 @@ from constat.ai.redaction import (
     RepositoryContext,
 )
 from constat.models import Anchor, Message, RuleProposal
-from constat.operations import open_run, product_state, render_state
+from constat.operations import (
+    literal_fragment,
+    open_run,
+    product_state,
+    render_state,
+    verify_messages,
+)
 from constat.store import (
     Catalogue,
     Registry,
@@ -98,7 +104,13 @@ def _reply(messages=None, name: str = "daily-limit") -> str:
     return json.dumps({"rules": [rule]})
 
 
-def _accept(workspace, messages: tuple[str, ...], name: str = "daily-limit") -> int:
+def _accept(
+    workspace,
+    messages: tuple[str, ...],
+    name: str = "daily-limit",
+    anchor_path: str = "rules.py",
+    alias: str = "billing",
+) -> int:
     run_id = open_run(workspace, REFERENCE, "submit_reply")
     proposal_id = RuleProposals(workspace).record(
         run_id,
@@ -106,7 +118,7 @@ def _accept(workspace, messages: tuple[str, ...], name: str = "daily-limit") -> 
             name=name,
             statement="A transfer above the daily limit is refused.",
             messages=tuple(Message(text=m) for m in messages),
-            anchors=(Anchor(path_glob="rules.py", repository_alias="billing"),),
+            anchors=(Anchor(path_glob=anchor_path, repository_alias=alias),),
             area="payments",
         ),
         provider="mcp",
@@ -382,6 +394,165 @@ class TestGuidance:
     def test_it_asks_for_the_text_verbatim(self) -> None:
         assert "quote it **exactly**" in MESSAGES
         assert "approximation is worse than nothing" in MESSAGES
+
+
+# -- verification against the code (CON-91) -----------------------------------
+
+
+class TestLiteralFragment:
+    """What a message can be searched for, and when it cannot be."""
+
+    def test_a_plain_message_is_its_own_fragment(self) -> None:
+        assert literal_fragment("Failed to start upload") == "Failed to start upload"
+
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            (
+                "The following files have already been uploaded: <file names>",
+                "The following files have already been uploaded:",
+            ),
+            ("<name> could not be imported while <step>", "could not be imported while"),
+            (
+                "Invalid schema found for %s. Please check it.",
+                "Invalid schema found for",
+            ),
+            ("Upload {count} files or fewer, please", "files or fewer, please"),
+            ("Welcome back, ${user_name} — your limit is unchanged", "— your limit is unchanged"),
+        ],
+    )
+    def test_a_placeholder_cuts_the_fragment(self, text, expected) -> None:
+        """Real messages are format strings, so the full text appears nowhere
+        in the code. The longest literal run is what can actually be found."""
+        assert literal_fragment(text) == expected
+
+    def test_a_line_break_cuts_the_fragment(self) -> None:
+        """`git grep` is line-oriented, so a needle spanning a newline matches
+        nothing — the limit is designed around rather than discovered."""
+        assert (
+            literal_fragment("Please check them:\nThe file will be deleted.")
+            == "The file will be deleted."
+        )
+
+    def test_a_message_with_no_long_run_is_not_checkable(self) -> None:
+        """A message that is almost all placeholder cannot be verified this
+        way. Saying so beats searching for "Refused" — which appears in every
+        codebase — and calling the result a verification."""
+        assert literal_fragment("<a>: <b>") is None
+        assert literal_fragment("Refused") is None
+
+
+SHIPPED = "Failed to start upload, please try again"
+"""A message long enough to be evidence, placed on mainline by the fixture
+below. The shared fixture's longest mainline line is `LIMIT = 100` — eleven
+characters, under `MIN_FRAGMENT` — so it cannot serve here, which is the code
+being right about what counts as evidence rather than a gap in it."""
+
+
+@pytest.fixture
+def speaking_workspace(tmp_path: Path):
+    """A workspace whose registered repository really shows `SHIPPED`."""
+    from helpers import commit_file, git
+
+    bare = tmp_path / "app.git"
+    bare.mkdir()
+    git(bare, "init", "--bare", "--quiet", "--initial-branch=main")
+    clone = tmp_path / "app"
+    git(tmp_path, "clone", "--quiet", str(bare), "app")
+    git(clone, "config", "user.name", "Test Fixture")
+    git(clone, "config", "user.email", "fixture@example.invalid")
+    commit_file(clone, "upload.py", f'ERROR = "{SHIPPED}"\n', "Add the message")
+    git(clone, "push", "--quiet", "origin", "main")
+
+    with Workspace.create(tmp_path / "ws") as ws:
+        Registry(ws).add(str(clone), alias="app", default_branch="main")
+        TicketStore(ws).add(REFERENCE)
+        yield ws
+
+
+class TestVerifyingAgainstTheCode:
+    def test_a_message_present_in_the_code_is_found(self, speaking_workspace) -> None:
+        """The whole point: a stored message is otherwise a claim, held because
+        a reading said so."""
+        _accept(speaking_workspace, (SHIPPED,), anchor_path="upload.py", alias="app")
+
+        checks = verify_messages(speaking_workspace)
+
+        assert len(checks) == 1
+        assert checks[0].verified
+        assert checks[0].found_in[0] == ("app", "upload.py")
+
+    def test_a_message_absent_from_the_code_is_reported_not_refused(
+        self, workspace
+    ) -> None:
+        """D-064's posture. A message can be assembled, translated or held in a
+        resource file this search cannot reach, so refusing a true message
+        because the search was naive is the worse error."""
+        _accept(workspace, ("A wording that appears nowhere at all",))
+
+        checks = verify_messages(workspace)
+
+        assert not checks[0].verified
+        assert checks[0].checkable
+        # Still in the catalogue: reported, never removed.
+        assert len(Catalogue(workspace).find("daily-limit").messages) == 1
+
+    def test_the_fragment_searched_for_is_reported(
+        self, speaking_workspace
+    ) -> None:
+        """A reader has to know what was checked: a match on a fragment is
+        evidence the wording exists, not proof the whole string does."""
+        _accept(
+            speaking_workspace,
+            (f"{SHIPPED} <reference>",),
+            anchor_path="upload.py",
+            alias="app",
+        )
+
+        check = verify_messages(speaking_workspace)[0]
+
+        assert check.fragment == SHIPPED
+        assert check.verified
+
+    def test_an_unverifiable_message_is_neither_found_nor_missing(
+        self, workspace
+    ) -> None:
+        _accept(workspace, ("<a>: <b>",))
+
+        check = verify_messages(workspace)[0]
+
+        assert not check.checkable
+        assert check.found_in == ()
+
+    def test_an_unreadable_repository_is_named(self, workspace, tmp_path) -> None:
+        """Silence about it would make a message living there read as absent
+        from the product (D-070's posture)."""
+        import shutil
+
+        gone = distinct_subject(tmp_path, "gone", "x\n")
+        Registry(workspace).add(str(gone), alias="gone")
+        shutil.rmtree(gone)
+        _accept(workspace, ("A wording that appears nowhere at all",))
+
+        check = verify_messages(workspace)[0]
+
+        assert "gone" in check.unreadable
+
+    def test_no_messages_is_not_an_empty_verdict(self, workspace) -> None:
+        assert verify_messages(workspace) == ()
+
+    def test_the_search_is_literal_rather_than_a_pattern(
+        self, speaking_workspace
+    ) -> None:
+        """User-facing text is full of regular-expression syntax. A message
+        containing `.` must not match any character, or a near-miss would
+        verify."""
+        near_miss = SHIPPED.replace("upload", "uploa.")
+        _accept(
+            speaking_workspace, (near_miss,), anchor_path="upload.py", alias="app"
+        )
+
+        assert not verify_messages(speaking_workspace)[0].verified
 
 
 class TestMigrationFromSchema17:

@@ -8,6 +8,63 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-083 · 2026-11-18 · A message is verified by its longest literal fragment, and absence is reported
+
+**Closes CON-91.** A stored message was a *claim*: Constat held `Failed to start upload` because a
+reading said so, and nothing checked it. This is the strongest verification available without
+running anything — the wording is either in the code or it is not.
+
+**Decision.** `constat message verify` searches every registered repository at its mainline for each
+stored message, literally. A message found nowhere is **reported, never refused**, and a message
+with no searchable text is reported as *not checkable* rather than as absent.
+
+**Searched by its longest literal fragment, because the whole text is normally unsearchable.** Two
+reasons, both ordinary rather than exceptional:
+
+- **Placeholders.** `The following files have already been uploaded: <file names>` exists in the
+  code as a format string, so the full text appears nowhere. Verified on a real repository where the
+  catalogue says `<file names>` and the code says `{names}` — the fragment matched anyway, which is
+  the point of cutting at the placeholder rather than demanding the whole string.
+- **Line breaks.** `git grep` is line-oriented, so a needle spanning a newline matches nothing.
+
+So the message is cut at both, and the longest remaining run is the needle. **The fragment is
+reported with the result**, because a reader has to know what was checked: a match on a fragment is
+evidence the wording exists, not proof the whole string does.
+
+**A floor of twelve characters, below which nothing is checked.** `Refused` appears in every
+codebase; finding it proves nothing, and reporting that as a verified message would be exactly the
+confident-wrong answer this product exists to avoid. A message that is almost all placeholder is
+therefore *not checkable*, and says so — a third state, kept apart from found and not-found because
+collapsing it into either would assert something untrue.
+
+**The search is `--fixed-strings`.** User-facing text is full of regular-expression syntax; a message
+containing `(` must not become a search for a group, and one containing `.` must not match any
+character. Mutation-checked.
+
+**Absence is reported rather than refused** (D-064's posture). A message can be assembled from
+fragments, translated, held in a resource file, or built by a formatter this cannot see. Refusing a
+true message because the search was naive is the worse error, and the output says so in as many
+words rather than leaving a bare NOT FOUND to read as a verdict.
+
+**Consequences.**
+
+- **No schema change.** `git/adapter.py` gains `search_text` — read-only, as everything else there
+  is — and `operations.py` gains `literal_fragment` and `verify_messages`.
+- **An unreadable repository is named in the result.** Silence about it would make a message living
+  there read as absent from the product (D-070's posture).
+- **`constat message list` arrives with it.** D-082 added messages and no way to see them, which
+  made the catalogue's most checkable content invisible.
+- **Verification is on demand, not at submission.** A message is not in the catalogue until a rule
+  carrying it is accepted, so there is nothing to verify at submit time; and a check that ran on
+  every submission would make the gate's cost proportional to how often a reading is re-run.
+- **This does not verify statements, examples or behaviours.** Only the field whose entire value is
+  being verbatim. Everything else remains a reading a human has to judge, which is the division of
+  labour D-066 set.
+
+**Status.** accepted
+
+---
+
 ## D-082 · 2026-11-18 · A message is a verbatim quotation, stored once, exempt from the leakage gate
 
 **Closes CON-82.** A rule could describe what the product does and never show what the product
