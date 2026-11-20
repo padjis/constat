@@ -327,6 +327,83 @@ def scan_document(body: str) -> tuple[DocumentFinding, ...]:
     return tuple(findings)
 
 
+DISCLOSURE: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "security_weakness",
+        # Wording that describes a way in rather than a behaviour. A rule may
+        # say what the product does; it may not say how to defeat it.
+        re.compile(
+            r"\b(?:SQL\s+injection|XSS|CSRF|SSRF|privilege\s+escalation"
+            r"|auth(?:entication|orisation|orization)?\s+bypass"
+            r"|bypass(?:es|ed|ing)?\s+(?:the\s+)?(?:check|auth|validation|guard)"
+            r"|vulnerab\w*|exploitab\w*|remote\s+code\s+execution)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "internal_hostname",
+        re.compile(r"\b[\w-]+\.(?:internal|local|svc|cluster\.local|intranet)\b", re.I),
+    ),
+    (
+        "ip_address",
+        # Dotted quad. The trailing guard rejects a *longer* dotted sequence —
+        # `1.2.3.4.5` is a version, not an address — but must allow a sentence
+        # that ends in one: `(?![\d.])` missed `10.0.0.14.` because of the full
+        # stop, which a first test caught. So the guard is "not followed by
+        # another number", with the dot optional.
+        #
+        # `1.2.3.4` stays ambiguous and is reported: it is a valid address and
+        # a plausible version, and this gate reports rather than decides.
+        re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!\.?\d)"),
+    ),
+    (
+        "connection_string",
+        re.compile(
+            r"\b(?:jdbc:|mongodb(?:\+srv)?://|postgres(?:ql)?://|mysql://"
+            r"|redis://|amqps?://)",
+            re.IGNORECASE,
+        ),
+    ),
+)
+"""What must not reach a published page, beyond a credential (CON-95, D-095).
+
+**Publication only, and deliberately not export.** The credential gate fires on
+every egress (D-047) because a credential is a credential wherever it goes.
+These are different: a provider payload is *evidence read from the code*, which
+legitimately contains hostnames, connection strings and the word "bypass" —
+refusing to export a diff because the code mentions a hostname would make the
+product unusable. A published page is the one egress that cannot be recalled
+(D-058), and the one a whole organisation reads.
+
+**Commercial data is not here, and that is a decision rather than an
+oversight.** CON-95 asked for it. There is no generic detector: a figure with a
+currency is the canonical *legitimate* content of a business rule — "a transfer
+above 500 euros is refused" is this project's own example in `ai/statements.py`
+— so a currency detector would refuse the very sentences the catalogue exists
+to hold. Named customers are equally undetectable without a customer list
+Constat does not have. The honest position is that this gate does not cover
+commercial disclosure, said out loud in the scan's own output rather than
+implied by a clean pass.
+"""
+
+
+def scan_disclosure(body: str) -> tuple[DocumentFinding, ...]:
+    """Disclosure risks in a rendered document, by line.
+
+    Shares `DocumentFinding` with the credential scan because the reader's
+    question is the same — which line, and what kind of thing — and keeping two
+    shapes for one answer is how two reports come to disagree.
+    """
+    findings: list[DocumentFinding] = []
+    seen: set[tuple[int, str]] = set()
+    for number, line in enumerate(body.splitlines(), start=1):
+        for name, pattern in DISCLOSURE:
+            if pattern.search(line) and (number, name) not in seen:
+                seen.add((number, name))
+                findings.append(DocumentFinding(number, name))
+    return tuple(findings)
+
+
 def guard_publication(
     body: str, *, accepted: bool = False
 ) -> tuple[DocumentFinding, ...]:
@@ -342,15 +419,18 @@ def guard_publication(
     `guard_release` does: a caller who forgets to check a boolean still
     publishes.
     """
-    findings = scan_document(body)
+    findings = scan_document(body) + scan_disclosure(body)
     if findings and not accepted:
         locations = "\n".join(f"  - {finding.describe()}" for finding in findings)
         raise PublicationRefused(
             f"refusing to publish this document: {len(findings)} possible "
-            f"credential(s) found in it.\n{locations}\n"
+            f"disclosure(s) found in it.\n{locations}\n"
             "Nothing has been published. A published page cannot be recalled, "
-            "so this refuses by default. Remove the credential from the "
-            "evidence and rotate it, then re-gather. To publish anyway, and "
-            "on the record, pass --accept-scan-findings."
+            "so this refuses by default — a credential needs removing from the "
+            "evidence and rotating; a hostname, an address or a described "
+            "weakness needs taking out of the wording. This gate does not "
+            "cover commercial disclosure: no generic detector exists for it "
+            "(D-095). To publish anyway, and on the record, pass "
+            "--accept-scan-findings."
         )
     return findings

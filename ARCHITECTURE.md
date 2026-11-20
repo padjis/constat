@@ -237,6 +237,7 @@ the same door the MCP server uses (D-045), which is why the manual path cannot r
 | Submit | A reply that cannot be parsed | Returning nothing would read as "no rules were identified" (D-046) |
 | Provider | A call that did not complete | A timeout is not a finding about the code (D-041, D-057) |
 | Publish | A document carrying a credential | A page cannot be recalled; it refuses before cloning (D-058) |
+| Publish | A document carrying an internal hostname, an address, a connection string or described weakness | The one egress a whole organisation reads, and the one that cannot be withdrawn (D-095). **Not refused on export**: code legitimately contains all four |
 | Publish | A target that had to be guessed | A push to a guessed URL is not undone by noticing (D-058) |
 | Gather | Opening a ticket for a reference no repository knows | A typo would become a ticket that cannot be opened again (D-063) |
 | Everywhere | Any non-human acceptance | No tool, CLI or MCP, can accept (D-048, D-055) |

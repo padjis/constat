@@ -2,7 +2,9 @@
 
 **Last updated:** 2026-11-20
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-20):** **CON-10 closed (D-094)** — provenance is labelled per part of a
+**Current session (2026-11-20):** **CON-95 closed (D-095)** — publication refuses internal
+hostnames, addresses, connection strings and described weaknesses, on that door only; commercial
+figures are deliberately not detected and the output says so. Before it, **CON-10 closed (D-094)** — provenance is labelled per part of a
 rule, `unknown` has its first producer, and the three types nothing writes are named in the
 document, the taxonomy and the spec. It was the **last MVP acceptance criterion** with a real gap.
 Before it, **CON-38 closed (D-093)** — cache age is stated in the document
@@ -446,6 +448,56 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
   outside contribution if it should be a company.
 - Q2, Q4, Q8 and Q10 are now resolved (D-010, D-012, D-009, D-011); the product name is resolved
   by D-013.
+
+---
+
+## CON-95 — done when: *publication refuses a document disclosing a weakness or infrastructure* ✅
+
+`D-095` records the decision. This was the last hole in egress: credentials were gated on every path
+out (D-044, D-047) and identity never crossed at all (D-040), but a published page could still carry
+an internal hostname, a connection string, or a sentence describing how to defeat a check.
+
+**Four classes now refuse publication**: `internal_hostname`, `ip_address`, `connection_string`,
+`security_weakness` — same posture as the credential gate, with the override recorded as an
+operation and nothing published on a refusal.
+
+### The asymmetry is the decision
+
+**On publication only, never on export.** A provider payload is *evidence read from the code*, and
+code legitimately contains hostnames, connection strings and the word "bypass". Refusing to export a
+diff for that would make the product unusable. A page is the one egress that cannot be recalled and
+the one a whole organisation reads.
+
+Mutation-checked: applying the gate to export fails the two tests written for exactly that.
+
+### Commercial data is deliberately not detected
+
+CON-95 asked for it. There is no generic detector, and the proof was cheap — a plausible
+currency-figure pattern, written as a mutation, immediately refused:
+
+> "A transfer above 500 euros is refused."
+
+That is this project's own canonical example of a business rule, from `ai/statements.py`. **A
+commercial detector would refuse the sentences the catalogue exists to hold.** So the gate does not
+cover it and says so on both paths: in the refusal message, and in a new clean-pass line after a
+successful publish. Previously a clean pass said nothing at all, which is worse than a stated limit.
+
+### A false negative my own test caught
+
+The guard against version numbers was `(?![\d.])`, which rejected `10.0.0.14.` — an address at the
+end of a sentence, the most likely form in prose. It is now "not followed by another number", which
+keeps `1.2.3.4.5` out and lets the full stop through. `1.2.3.4` is reported, because it is a valid
+address and a plausible version and nothing in the text decides which — this gate reports rather
+than decides.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_disclosure.py` → **33 passed** (new file). **Whole suite**:
+**1364 passed in 181s**, exit 0. No schema change.
+
+Six of the thirty-three assert the direction that matters more than the refusals: real business
+sentences that a careless detector would have refused — a currency amount, a percentage, a version
+number, a file size, and the semicolon rule D-091 had to rescue once already.
 
 ---
 

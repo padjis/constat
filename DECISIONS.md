@@ -8,6 +8,62 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-095 · 2026-11-20 · Publication refuses disclosure, on that door only, and not commercial data
+
+**Closes CON-95**, the last hole in egress. D-044 and D-047 gate credentials on every path out and
+D-040 keeps identity from crossing at all — but a published page could still carry an internal
+hostname, a connection string, or a sentence describing how to defeat a check.
+
+**Decision.** `guard_publication` now refuses four classes beyond a credential: an **internal
+hostname**, an **IP address**, a **connection string**, and **wording that describes a weakness**.
+Same posture as the credential gate — refuse by default, override recorded as an operation, nothing
+published on a refusal.
+
+**On publication only, and this asymmetry is the decision.** The credential gate fires on every
+egress because a credential is a credential wherever it goes. These are not: a provider payload is
+**evidence read from the code**, and code legitimately contains hostnames, connection strings and
+the word "bypass". Refusing to export a diff because the code mentions a hostname would make the
+product unusable. A page is the one egress that cannot be recalled (D-058) and the one a whole
+organisation reads. Mutation-checked: applying the gate to export fails two tests written for
+exactly that.
+
+**Commercial data is not covered, and that is a decision rather than an oversight.** CON-95 asked
+for it. There is no generic detector, and the proof is cheap: a plausible currency-figure pattern was
+written as a mutation and immediately refused
+
+> "A transfer above 500 euros is refused."
+
+— this project's own canonical example of a business rule, from `ai/statements.py`. A commercial
+detector would refuse the sentences the catalogue exists to hold. Named customers are equally
+undetectable without a customer list Constat does not have. So the gate does not cover it, and
+**says so in its own output on both paths**: in the refusal message, and in the clean-pass line
+after a successful publish. A silent pass would be read as proof, which is the posture D-044 set for
+the credential scan's own blind spots.
+
+**`1.2.3.4` is reported and the ambiguity is honest.** It is a valid address and a plausible version,
+and nothing in the text decides which. This gate reports rather than decides, and the override
+exists for exactly this case. `1.2.3` and `1.2.3.4.5` are not addresses and do not fire.
+
+**A false negative found by a test on first writing.** The guard against version numbers was
+`(?![\d.])`, which rejected `10.0.0.14.` — an address at the end of a sentence, the most likely form
+in prose. It is now "not followed by another number", which keeps `1.2.3.4.5` out and lets the full
+stop through.
+
+**Consequences.**
+
+- **`DISCLOSURE` is separate from `DETECTORS`**, because the two have different reaches and keeping
+  them in one list would make the publication-only scope a comment rather than a structure.
+- **`DocumentFinding` is shared** with the credential scan: the reader's question is the same —
+  which line, what kind of thing — and two shapes for one answer is how two reports come to
+  disagree.
+- **The clean pass now says what was scanned and what was not.** Previously it said nothing at all,
+  which is worse than a stated limit.
+- **Product rule 7 is unchanged.** This adds a refusal; it opens nothing.
+
+**Status.** accepted
+
+---
+
 ## D-094 · 2026-11-20 · Provenance is labelled per part, and the three types nothing writes are named
 
 **Closes CON-10**, the last MVP acceptance criterion with a real gap (§ 6.3 #3), and the useful half

@@ -1893,9 +1893,21 @@ def _run_publish(args: argparse.Namespace) -> int:
     print(f"run:        {result.run_id}")
     if result.scan_accepted:
         print(
-            f"\n{len(result.scan_findings)} credential scan finding(s) were "
-            "accepted and published anyway. Recorded as an operation. If any "
-            "is real, rotate it — the page is readable now."
+            f"\n{len(result.scan_findings)} disclosure finding(s) were "
+            "accepted and published anyway. Recorded as an operation. If a "
+            "credential among them is real, rotate it — the page is readable "
+            "now, and deleting it does not unpublish it."
+        )
+    else:
+        # The clean case is stated, including what the scan does not cover. A
+        # silent pass is read as proof, and this one is not (D-044's posture,
+        # D-095's limit).
+        print(
+            "\nScanned for credentials, internal hostnames and addresses, "
+            "connection strings and described weaknesses, and found none. "
+            "**Commercial disclosure is not covered**: no generic detector "
+            "exists for a real customer, price or volume, because a figure "
+            "with a currency is what a business rule legitimately says."
         )
     print(
         "\nThe page is a proposal, not an approval. Its review queue records "
