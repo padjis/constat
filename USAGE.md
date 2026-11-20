@@ -352,6 +352,10 @@ Two that are *not* refusals, and matter:
 
 ## 10. What Constat will not do
 
+> The full account is in **[LIMITS.md](LIMITS.md)**: what it does not do, what it cannot check, what
+> is declared and unused, and what has not been verified. This section is the short version.
+
+
 Not limitations to work around — they are the product.
 
 - **Accept anything by itself.** No command, flag, tool or provider can mark a rule proposal

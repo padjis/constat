@@ -2495,7 +2495,18 @@ def render_state(state: ProductState) -> str:
     claimed = sum(r.claimed_files for r in readable)
     total = sum(r.file_count for r in readable)
     documented = {s.rule.area for s in state.holding if s.rule.area}
-    empty = tuple(a for a in state.areas if a not in documented)
+    # An area whose only rules are agreed-but-unshipped is **not** an area
+    # nobody has written a rule for, and rendering them alike said "an area
+    # with no rule is an intention" about an area that had one. Found by the
+    # demo on first run (CON-20), which is the sort of thing a document read
+    # end to end shows and a unit test does not.
+    pending_areas = {rule.area for rule, _ in state.agreed if rule.area}
+    empty = tuple(
+        a for a in state.areas if a not in documented and a not in pending_areas
+    )
+    waiting = tuple(
+        a for a in state.areas if a not in documented and a in pending_areas
+    )
 
     lines += ["## What this does not describe", ""]
 
@@ -2516,6 +2527,14 @@ def render_state(state: ProductState) -> str:
             lines.append(
                 f"Declared and undocumented: {named}. An area with no rule is "
                 "an intention, not documentation."
+            )
+        if waiting:
+            named = ", ".join(f"*{a}*" for a in waiting)
+            lines.append("")
+            lines.append(
+                f"Declared, with every rule agreed and not yet shipped: {named}. "
+                "Not the same as undocumented — the work exists and has not "
+                "landed."
             )
         lines.append("")
         lines.append(

@@ -2,7 +2,10 @@
 
 **Last updated:** 2026-11-20
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-20):** **CON-98 closed (D-096)** — the review queue reads across the
+**Current session (2026-11-20):** **CON-20 closed (D-097)** — `demo.sh` runs the whole loop with no
+API key and no network, verified from a built wheel in a clean venv, and `LIMITS.md` collects what
+fourteen decisions each said once. The demo found two defects in its first two runs. **The MVP's
+seven acceptance criteria are now met in full.** Before it, **CON-98 closed (D-096)** — the review queue reads across the
 whole workspace, and found a decision awaiting since 2026-11-15 that had been lost track of
 entirely. Before it, **CON-95 closed (D-095)** — publication refuses internal
 hostnames, addresses, connection strings and described weaknesses, on that door only; commercial
@@ -450,6 +453,68 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
   outside contribution if it should be a company.
 - Q2, Q4, Q8 and Q10 are now resolved (D-010, D-012, D-009, D-011); the product name is resolved
   by D-013.
+
+---
+
+## CON-20 — done when: *a new person can run the demo and understand the limits* ✅
+
+`D-097` records the decision. The roadmap's last ticket, and D-088 raised both its halves to near
+the point of the project: a demonstration of practice nobody else can run is a claim about rigour
+rather than a demonstration of it.
+
+**`demo.sh` needs no API key and no network.** It builds a throwaway repository in a temporary
+directory, points `CONSTAT_HOME` at it so your own workspace is untouched, and runs gather → export
+→ read → decide → verify → state → checkpoint → revise → diff. Then it **fails twice on purpose**:
+
+```
+── Refusals are the product working
+   a rule whose anchor names a path nobody supplied is discarded (D-046)
+    `invented` — no anchor grounded in the evidence supplied, or in any registered
+                 repository's mainline
+
+   and a statement that leaks code is refused with the token named (D-066)
+    `leaky` — the statement is not a business statement — it contains a file path:
+              'limits.py'. A rule has to read aloud to a product owner (D-066).
+```
+
+**Verified from a built wheel into a clean virtual environment**, not the development install.
+CON-46 asserts a wheel imports; this is the first time the whole loop has run from one.
+
+### The demo found two defects in its first two runs
+
+1. **Coverage conflated two situations.** With the rule agreed-but-unshipped, the state read
+   *"Declared and undocumented: payments. An area with no rule is an intention, not
+   documentation"* — about an area that had a rule. There is now a third sentence: *"declared, with
+   every rule agreed and not yet shipped"*. Work existing and not having landed is neither
+   documented nor undocumented.
+2. A wording slip in the same section, found by reading the output top to bottom.
+
+Neither was reachable from a unit test, because neither is wrong in isolation — they are wrong in
+*sequence*. **Third time in four days** that running the product found what the suite did not
+(D-091, D-096).
+
+### `LIMITS.md`
+
+Nine sections, assembling what fourteen decision entries each say once: it will not decide, it will
+not write to your code, it assumes trunk-based development, what it cannot check, what is declared
+and unused, what a business reader cannot do, what is deferred, **what has not been verified**, and
+what the project is. Every row cites its decision, so a reader who disagrees has something to argue
+with rather than a tone to object to.
+
+§ 8 is the one that matters: the name is legally unverified (D-086), **zero discovery conversations
+have been held** while every judgement about what a business reader needs was made without one
+(D-088), the provider transport has never been billed (D-057), and an authenticated push has never
+been tried (D-062).
+
+### Tests run
+
+**Whole suite: 1382 passed in 185s**, exit 0 — plus the demo itself, run twice from source and once
+from a clean wheel install.
+
+### The MVP is done
+
+All seven acceptance criteria in `PRODUCT_SPEC` § 6.3 are now met, the last of them — provenance —
+this morning at D-094.
 
 ---
 

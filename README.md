@@ -83,6 +83,7 @@ justifies them. See [ARCHITECTURE.md](ARCHITECTURE.md) § "After the MVP".
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute, and the required DCO sign-off. |
 | [LICENSING_STRATEGY.md](LICENSING_STRATEGY.md) | Why Apache-2.0 + DCO, and what it means for a future sale. |
 | [BRAND_NAME_REVIEW.md](BRAND_NAME_REVIEW.md) | Trademark, domain and positioning review of the working name. |
+| [LIMITS.md](LIMITS.md) | **What Constat does not do**, cannot check, and has not verified. Read it before trusting anything above. |
 | [DISCOVERY.md](DISCOVERY.md) | The discovery script (CON-26): who to ask, what to ask, and the assumptions it tests. |
 
 ## Getting started
@@ -122,6 +123,17 @@ later with `constat config reader`.
 
 **[USAGE.md](USAGE.md) is the manual** — the three ways to have the evidence read, the MCP setup,
 every exit code, and a table of what each refusal means. Start there.
+
+**Or see the whole loop in one command.** `./demo.sh` builds a throwaway repository in a temporary
+directory, runs gather → read → decide → publish-nothing against it, and prints what each step
+demonstrates. It needs **no API key and no network**, and never touches your own `~/.constat`:
+
+```bash
+./demo.sh
+```
+
+It also shows the refusals, which are the product working rather than failing — an ungrounded
+anchor and a statement that leaks code are both discarded with the reason named.
 
 Run the tests:
 

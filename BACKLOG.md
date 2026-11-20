@@ -74,7 +74,7 @@ Ticket register. The single source of truth for *what work exists*; the single s
 | CON-17 | Link pull requests to change proposals | A proposal can be traced to its originating PR. | ⬜ |
 | CON-18 | Add traceability references | A reviewer can navigate from a proposal to its supporting artefacts. | ⬜ |
 | CON-19 | Run a realistic multi-change scenario | A repeatable demo shows the product-level value, not just a Git diff. | ⬜ no longer the *first* cross-repo work — CON-32 makes the set primary |
-| CON-20 | Package the MVP and document limits | A new person can run the demo and understand what Constat does and does not do. | ⬜ **raised in priority (D-088)** — close to the point of the project now that it is a demonstration, rather than a packaging chore |
+| CON-20 | Package the MVP and document limits | A new person can run the demo and understand what Constat does and does not do. | ✅ D-097 — `demo.sh` (no API key, no network, verified from a built wheel in a clean venv) and `LIMITS.md` (nine sections, every row citing its decision). The demo found two defects in its first two runs |
 
 ---
 

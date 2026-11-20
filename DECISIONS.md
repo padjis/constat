@@ -8,6 +8,63 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-097 · 2026-11-20 · The demo is a script, the limits are a document, and the demo found two defects
+
+**Closes CON-20**, the roadmap's last ticket: "a new person can run the demo and understand what
+Constat does and does not do." Two halves, and D-088 raised both to near the point of the project —
+a demonstration of practice that nobody else can run is a claim about rigour rather than a
+demonstration of it.
+
+**Decision.** `demo.sh` at the repository root, and `LIMITS.md` beside the README.
+
+**The demo needs no API key and no network.** It builds a throwaway repository in a temporary
+directory, points `CONSTAT_HOME` at it so a reader's own workspace is untouched, and runs the whole
+loop: gather, export the payload, submit a reading by hand, decide, verify the message, show the
+product before and after the work lands, take a checkpoint, revise, diff the versions, and then
+**fail twice on purpose** — an ungrounded anchor and a statement that leaks code, each refused with
+its reason named. A demo that needed a key would be a demo of somebody's billing relationship, and
+the evidence pipeline runs with no provider by design (D-003).
+
+**Verified from a built wheel into a clean virtual environment**, not from the development install.
+CON-46 already asserts a wheel imports; this is the first time the whole loop has run from one.
+
+**The demo found two defects in its first two runs**, which is the argument for it:
+
+1. **Coverage conflated two situations.** An area whose only rules were agreed-but-unshipped read as
+   *"Declared and undocumented: payments. An area with no rule is an intention, not
+   documentation"* — said about an area that had a rule. Fixed: a third sentence names "declared,
+   with every rule agreed and not yet shipped", because the work existing and not having landed is
+   neither documented nor undocumented.
+2. A smaller wording slip in the same section, found reading the output end to end.
+
+Neither was reachable from a unit test, because neither is wrong in isolation — they are wrong in
+sequence, which only a document read from top to bottom shows. That is now the third time in four
+days that running the product found what the suite did not (D-091, D-096).
+
+**`LIMITS.md` assembles what fourteen decision entries each say once.** Nine sections: it will not
+decide, it will not write to your code, it assumes trunk-based development, what it cannot check,
+what is declared and unused, what a business reader cannot do, what is deferred, **what has not been
+verified**, and what the project is. Every row cites the decision that made it, so a reader who
+disagrees has something to argue with rather than a tone to object to.
+
+The section that matters most is § 8. It states in one place that the name is legally unverified
+(D-086), that **zero discovery conversations have been held** while every judgement about what a
+business reader needs was made without one (D-088), that the provider transport has never been
+billed (D-057), and that an authenticated push has never been tried (D-062).
+
+**Consequences.**
+
+- **`README.md` indexes both** and offers `./demo.sh` beside the tests, describing the refusals as
+  the product working rather than failing.
+- **`USAGE.md` § 10 points at `LIMITS.md`** rather than duplicating it, so the short version and the
+  full account cannot drift.
+- **The MVP's definition of done is now met in full.** All seven acceptance criteria in
+  `PRODUCT_SPEC` § 6.3 are satisfied, the last of them — provenance — at D-094 this morning.
+
+**Status.** accepted
+
+---
+
 ## D-096 · 2026-11-20 · The review queue is readable across the workspace, and found a forgotten decision
 
 **Closes CON-98.** Every other query in `RuleProposals` was scoped to a ticket, so *"what is

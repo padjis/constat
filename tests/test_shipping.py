@@ -242,6 +242,37 @@ class TestUnshippedWork:
         assert state.agreed == ()
 
 
+class TestCoverageDistinguishesPendingFromUndocumented:
+    def test_an_area_whose_rule_is_unshipped_is_not_called_undocumented(
+        self, pending
+    ) -> None:
+        """Found by the demo on first run (CON-20). An area whose only rules
+        are agreed-but-unshipped had read as "an area with no rule is an
+        intention" — said about an area that had one. The work exists and has
+        not landed, which is a third thing."""
+        workspace, _clone = pending
+        _gather_and_accept(workspace)
+
+        rendered = render_state(product_state(workspace))
+
+        assert "every rule agreed and not yet shipped: *payments*" in rendered
+        assert "Declared and undocumented: *payments*" not in rendered
+
+    def test_an_area_with_no_rule_at_all_still_reads_as_undocumented(
+        self, pending
+    ) -> None:
+        """The distinction has to cut both ways."""
+        from constat.store import Areas
+
+        workspace, _clone = pending
+        Areas(workspace).declare("payouts", declared_by="a person")
+        _gather_and_accept(workspace)
+
+        rendered = render_state(product_state(workspace))
+
+        assert "Declared and undocumented: *payouts*" in rendered
+
+
 class TestWhatCannotBeChecked:
     def test_a_rule_with_no_evidence_pointer_stays_in_the_picture(
         self, shipped
