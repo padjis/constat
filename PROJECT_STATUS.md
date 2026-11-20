@@ -2,7 +2,9 @@
 
 **Last updated:** 2026-11-20
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-20):** **CON-95 closed (D-095)** — publication refuses internal
+**Current session (2026-11-20):** **CON-98 closed (D-096)** — the review queue reads across the
+whole workspace, and found a decision awaiting since 2026-11-15 that had been lost track of
+entirely. Before it, **CON-95 closed (D-095)** — publication refuses internal
 hostnames, addresses, connection strings and described weaknesses, on that door only; commercial
 figures are deliberately not detected and the output says so. Before it, **CON-10 closed (D-094)** — provenance is labelled per part of a
 rule, `unknown` has its first producer, and the three types nothing writes are named in the
@@ -448,6 +450,57 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
   outside contribution if it should be a company.
 - Q2, Q4, Q8 and Q10 are now resolved (D-010, D-012, D-009, D-011); the product name is resolved
   by D-013.
+
+---
+
+## CON-98 — done when: *the review queue can be read across the whole workspace* ✅
+
+`D-096` records the decision. Every other query was scoped to a ticket, so *"what is waiting?"*
+required already knowing which tickets to name — which is how a review queue stops being a queue.
+
+**It found a forgotten decision on the first run.** Against the live workspace:
+
+```
+12 rule proposal(s) across the workspace:
+
+awaiting (5):
+  628
+    [6] a-first-launch-works — (unplaced)
+  baseline-app-install
+    [9] an-unrecognised-link-sends-a-visitor-to-the-right-place — app install · from a baseline
+    [10] the-ios-app-is-not-available-and-says-so — app install · from a baseline
+    [11] the-app-is-free-with-no-subscription — app install · from a baseline
+    [12] the-website-is-a-preview-of-the-app — app install · from a baseline
+
+accepted (3):  …
+rejected (4):  …
+```
+
+**Proposal 6 has been awaiting since 2026-11-15** and this file last mentioned it on the day it was
+made. Nothing in the product could have surfaced it: asking required naming ticket 628, and nothing
+pointed at 628 any more. One command, one recovered decision — which is the clearest argument this
+ticket could have made for itself.
+
+**No schema change.** The states were stored at CON-51 and rendered per ticket at CON-52. The data
+was there; the question could not be asked, and three sessions of building sat on top of that.
+
+**Compact on purpose**: one line per reading with its area and whether it came from a baseline.
+The per-ticket view answers *what does this say*; this one answers *what is waiting*, and detail per
+proposal would bury the only number a reader came for. Awaiting is first and named as the only
+actionable state.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_workspace_queue.py` → **16 passed** (new file). **Whole
+suite**: **1380 passed in 184s**, exit 0.
+
+**Mutation-checked:** falling back to the full set when a state matches nothing fails the test
+written for it. A mistyped filter silently showing the whole workspace reads as an answer.
+
+### Still waiting on you
+
+Five proposals, four from the 2026-11-19 baseline of the install and landing pages, and proposal 6
+from 2026-11-15.
 
 ---
 

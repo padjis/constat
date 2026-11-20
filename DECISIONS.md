@@ -8,6 +8,61 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-096 · 2026-11-20 · The review queue is readable across the workspace, and found a forgotten decision
+
+**Closes CON-98.** Every other query in `RuleProposals` was scoped to a ticket, so *"what is
+waiting?"* required already knowing which tickets to name — which is how a review queue stops being
+a queue.
+
+**Decision.** `constat rule proposals` with no reference lists every reading in the workspace,
+grouped by state and then by ticket, one line each. With a reference it keeps the detailed per-ticket
+view unchanged. `--state` narrows to one of `awaiting`, `accepted`, `rejected`.
+
+**No schema change.** The states have been stored since CON-51 and rendered per ticket since CON-52.
+The data was there; the question could not be asked. Worth recording because the gap was not a
+missing feature so much as a missing *read* — and three sessions of building sat on top of it.
+
+**It found a forgotten decision on the first run.** Against the live workspace:
+
+```
+awaiting (5):
+  628
+    [6] a-first-launch-works — (unplaced)
+  baseline-app-install
+    [9] … [10] … [11] … [12] …
+```
+
+Proposal **6 has been awaiting a decision since 2026-11-15** and had been lost track of entirely —
+`PROJECT_STATUS` last mentioned it on the day it was made. Nothing in the product could have
+surfaced it, because asking required naming ticket 628, and nothing pointed at 628 any more. That is
+the ticket earning itself in one command.
+
+**Compact on purpose.** One line per reading, with the area and whether it came from a baseline
+(CON-89) — enough to choose what to look at, and no more. The per-ticket view answers *what does
+this say* with statements, examples and messages; this one answers *what is waiting*, and a page of
+detail per proposal would bury the only number a reader came for.
+
+**Awaiting is listed first and named as the only actionable state**, with `rule accept` and
+`rule reject` as the only door to either (D-048). A queue that presented all three states as
+equivalent would invite a reader to think a rejection needed action.
+
+**A mistyped filter shows nothing, not everything.** Mutation-checked: falling back to the full set
+when a state matches nothing fails the test written for it. Silently widening reads as an answer,
+which is the failure product rule 1 exists to prevent at every scale.
+
+**Consequences.**
+
+- **`StoredRuleProposal.reference` is populated by every query**, not just the new one, so a caller
+  never has to know which query filled it in. Three queries gained a ticket join.
+- **The per-ticket view is untouched**, and a test asserts the detailed output still appears for a
+  reference. The two views answer different questions and neither replaces the other.
+- **Five proposals in the live workspace are awaiting a decision**, four of them from the 2026-11-19
+  baseline and one from 2026-11-15.
+
+**Status.** accepted
+
+---
+
 ## D-095 · 2026-11-20 · Publication refuses disclosure, on that door only, and not commercial data
 
 **Closes CON-95**, the last hole in egress. D-044 and D-047 gate credentials on every path out and

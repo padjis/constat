@@ -231,13 +231,35 @@ def build_parser() -> argparse.ArgumentParser:
     rule_history.add_argument("rule_id", metavar="RULE_ID", type=int)
 
     rule_proposals = rule_actions.add_parser(
-        "proposals", help="list the rule proposals awaiting a decision"
+        "proposals",
+        help="list the rule proposals awaiting a decision",
+        description=(
+            "With a reference, every reading for that ticket in full. With no "
+            "reference, every reading in the workspace grouped by state — "
+            'which is how "what is waiting?" gets asked without already '
+            "knowing which tickets to name."
+        ),
     )
-    rule_proposals.add_argument("reference", metavar="REF")
+    rule_proposals.add_argument(
+        "reference",
+        metavar="REF",
+        nargs="?",
+        default=None,
+        help="a ticket reference. Omit it for the whole workspace.",
+    )
     rule_proposals.add_argument(
         "--all",
         action="store_true",
-        help="include rule proposals already decided",
+        help="include rule proposals already decided (per-ticket view only)",
+    )
+    rule_proposals.add_argument(
+        "--state",
+        choices=("awaiting", "accepted", "rejected"),
+        default=None,
+        help=(
+            "show only one state, in the workspace view. Omit for all three, "
+            "grouped."
+        ),
     )
 
     document = subparsers.add_parser(
@@ -790,6 +812,59 @@ def _report_submission(result) -> int:
     return EXIT_OK
 
 
+def _report_workspace_queue(proposals, state: str | None) -> int:
+    """Every reading in the workspace, grouped by state then ticket (CON-98).
+
+    Compact on purpose: one line per reading. The per-ticket view answers "what
+    does this say" and prints statements, examples and messages; this one
+    answers "what is waiting", and a page of detail per proposal would bury the
+    only number a reader came for.
+
+    Awaiting comes first because it is the only state anybody can act on.
+    """
+    found = proposals.across_workspace(state)
+    if not found:
+        if state is not None:
+            print(f"No rule proposals in state {state!r}.")
+        else:
+            print("No rule proposals in this workspace.")
+            print()
+            print("That is not a statement that the product has no rules —")
+            print("nothing has read any ticket's evidence yet.")
+        return EXIT_OK
+
+    order = ("awaiting", "accepted", "rejected")
+    grouped: dict[str, list] = {name: [] for name in order}
+    for item in found:
+        grouped[item.decision or "awaiting"].append(item)
+
+    print(f"{len(found)} rule proposal(s) across the workspace:")
+    for name in order:
+        items = grouped[name]
+        if not items:
+            continue
+        print()
+        print(f"{name} ({len(items)}):")
+        # Grouped by ticket within a state, because a reviewer works through
+        # one ticket at a time and a flat list by id interleaves them.
+        by_ticket: dict[str, list] = {}
+        for item in items:
+            by_ticket.setdefault(item.reference or "(unknown ticket)", []).append(item)
+        for reference, readings in sorted(by_ticket.items()):
+            print(f"  {reference}")
+            for item in readings:
+                area = item.proposal.area or "(unplaced)"
+                origin = " · from a baseline" if item.from_baseline else ""
+                print(f"    [{item.id}] {item.proposal.name} — {area}{origin}")
+
+    if grouped["awaiting"]:
+        print()
+        print("Only the awaiting ones can be acted on. See one in full with")
+        print("`constat rule proposals <REF>`, then `rule accept` or")
+        print("`rule reject` — which is the only door to either (D-048).")
+    return EXIT_OK
+
+
 def _report_proposals(
     proposals, reference: str, include_decided: bool, evidence=None
 ) -> int:
@@ -1186,6 +1261,10 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                 return EXIT_OK
 
             if args.rule_action == "proposals":
+                if args.reference is None:
+                    return _report_workspace_queue(
+                        RuleProposals(workspace), args.state
+                    )
                 stored_for_report = RuleProposals(workspace).for_ticket(
                     args.reference
                 )

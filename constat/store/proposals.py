@@ -48,6 +48,12 @@ class StoredRuleProposal:
     decided_at: str | None = None
     rationale: str | None = None
 
+    reference: str | None = None
+    """The ticket this reading was made for.
+
+    Populated by every query, because the workspace-wide queue (CON-98) has to
+    say which ticket a proposal belongs to and a second lookup per row would
+    make "what is waiting?" cost one query per answer."""
     run_kind: str | None = None
     """What kind of run produced this reading — `submit_reply`, `document` or
     `baseline` (CON-89).
@@ -266,16 +272,24 @@ class RuleProposals:
 
     def find(self, proposal_id: int) -> StoredRuleProposal | None:
         row = self._workspace.execute(
-            "SELECT p.*, r.kind AS run_kind FROM rule_proposal p "
-            "JOIN run r ON r.id = p.run_id WHERE p.id = ?",
+            "SELECT p.*, r.kind AS run_kind, t.reference AS reference "
+            "FROM rule_proposal p "
+            "JOIN run r ON r.id = p.run_id "
+            "JOIN document d ON d.id = r.document_id "
+            "JOIN ticket t ON t.id = d.ticket_id "
+            "WHERE p.id = ?",
             (proposal_id,),
         ).fetchone()
         return None if row is None else self._hydrate(row)
 
     def for_run(self, run_id: int) -> tuple[StoredRuleProposal, ...]:
         rows = self._workspace.execute(
-            "SELECT p.*, r.kind AS run_kind FROM rule_proposal p "
-            "JOIN run r ON r.id = p.run_id WHERE p.run_id = ? ORDER BY p.id",
+            "SELECT p.*, r.kind AS run_kind, t.reference AS reference "
+            "FROM rule_proposal p "
+            "JOIN run r ON r.id = p.run_id "
+            "JOIN document d ON d.id = r.document_id "
+            "JOIN ticket t ON t.id = d.ticket_id "
+            "WHERE p.run_id = ? ORDER BY p.id",
             (run_id,),
         ).fetchall()
         return tuple(self._hydrate(row) for row in rows)
@@ -288,7 +302,8 @@ class RuleProposals:
         table exists.
         """
         rows = self._workspace.execute(
-            "SELECT p.*, r.kind AS run_kind FROM rule_proposal p "
+            "SELECT p.*, r.kind AS run_kind, t.reference AS reference "
+            "FROM rule_proposal p "
             "JOIN run r ON r.id = p.run_id "
             "JOIN document d ON d.id = r.document_id "
             "JOIN ticket t ON t.id = d.ticket_id "
@@ -317,6 +332,38 @@ class RuleProposals:
     def undecided(self, reference: str) -> tuple[StoredRuleProposal, ...]:
         """Readings a human has not answered yet — the review queue."""
         return tuple(p for p in self.for_ticket(reference) if not p.is_decided)
+
+    def across_workspace(
+        self, state: str | None = None
+    ) -> tuple[StoredRuleProposal, ...]:
+        """Every reading in the workspace, oldest first (CON-98).
+
+        **The question this answers could not be asked before.** Every other
+        query here is scoped to a ticket, so "what is waiting?" required
+        already knowing which tickets to name — which is how a review queue
+        stops being a queue. The states were stored from CON-51; only the
+        cross-ticket read was missing.
+
+        `state` filters on the decision: `awaiting` for anything undecided,
+        or an exact decision (`accepted`, `rejected`). An unknown value returns
+        nothing rather than everything, because a mistyped filter silently
+        showing the whole workspace is worse than showing none of it.
+        """
+        rows = self._workspace.execute(
+            "SELECT p.*, r.kind AS run_kind, t.reference AS reference "
+            "FROM rule_proposal p "
+            "JOIN run r ON r.id = p.run_id "
+            "JOIN document d ON d.id = r.document_id "
+            "JOIN ticket t ON t.id = d.ticket_id "
+            "ORDER BY p.id"
+        ).fetchall()
+        found = tuple(self._hydrate(row) for row in rows)
+
+        if state is None:
+            return found
+        if state == "awaiting":
+            return tuple(p for p in found if not p.is_decided)
+        return tuple(p for p in found if p.decision == state)
 
     def candidates_for(
         self, anchors: tuple[Anchor, ...]
@@ -427,6 +474,7 @@ class RuleProposals:
         return StoredRuleProposal(
             id=row["id"],
             run_id=row["run_id"],
+            reference=row["reference"] if "reference" in keys else None,
             run_kind=row["run_kind"] if "run_kind" in keys else None,
             proposal=RuleProposal(
                 name=row["name"],
