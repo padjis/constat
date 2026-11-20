@@ -8,6 +8,58 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-098 · 2026-11-20 · An area can be documented over MCP, and the prompt names the areas that exist
+
+**Closes CON-101.** The tool D-080 left unbuilt, plus a gap that only became visible once it
+existed.
+
+**Decision.** `baseline_area_tool(area, reply, reference=None)` is the fifth MCP tool, and the
+`baseline` prompt is the third prompt.
+
+**The tool is a wrapper and nothing more.** The scope refusal, the mainline grounding, the revision
+pointers and the append-only storage are all `operations.baseline_area`, unchanged — which is what
+ARCHITECTURE § 2 requires of every tool here. The only thing added is a door.
+
+D-080 chose the agent-driven shape for a baseline *because* an agent already has the repository and
+can read it directly, and then left the only door at the command line. The reasoning and the surface
+disagreed; this is the surface catching up, not a new capability.
+
+`reference` defaults to `baseline-<area>`, so documenting an area in a fresh workspace needs nothing
+from a person first, and the result reports `opened_reference` — because an invented reference turns
+up in `ticket list`, and a reference appearing there unannounced reads as work somebody forgot
+about.
+
+**The prompt names the areas that already exist, and that is the part worth recording.**
+`baseline_area` builds a payload carrying the whole catalogue, but uses it only to ground anchors and
+spot duplicates — it never returns it. So an agent documenting an area could not see which areas
+existed, and D-079's defence against "ads" arriving beside "advertising" depends on exactly that
+sight. The ticket path gets it from `get_payload`; this path had nothing. The question that found it
+was asked out loud: *will this baseline be incremental and depend on the areas in context?* Yes to
+the first, no to the second, which is why the second is now fixed.
+
+**Pending areas are named alongside declared ones**, because an area is declared by acceptance
+(D-079). Listing only declared areas would tell two baselines run back to back that there are none,
+and the second would coin the synonym the first had already avoided.
+
+**What the tool does not do.** It does not declare the area. A proposal that coins one reports it in
+`new_areas` and the catalogue still has no such area until somebody accepts a rule in it — otherwise
+an agent could populate the structure coverage is measured against with no decision behind it. A
+test asserts the catalogue is still empty after a baseline is stored.
+
+**Consequences.** `EXPOSED_TOOLS` is five and `EXPOSED_PROMPTS` is three; both are asserted against
+the live server, and `FORBIDDEN_TOOLS` is still absent from both. The count is not the policy — the
+absence is. Each prompt takes exactly one argument, and `baseline` takes an *area* rather than a
+reference, because a baseline has no ticket; the test that asserted "every prompt takes a reference"
+was narrowed to "exactly one argument, and it is the one thing the user already knows".
+
+Five mutations were run and each was killed by one intended test: dropping the declared-area
+sentence, folding out-of-area readings into `discarded`, hard-coding `opened_reference` to true,
+dropping pending areas, and failing to exclude a declared area from the pending list.
+
+**Status.** accepted
+
+---
+
 ## D-097 · 2026-11-20 · The demo is a script, the limits are a document, and the demo found two defects
 
 **Closes CON-20**, the roadmap's last ticket: "a new person can run the demo and understand what

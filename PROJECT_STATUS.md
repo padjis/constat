@@ -2,7 +2,14 @@
 
 **Last updated:** 2026-11-20
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-20):** **CON-20 closed (D-097)** — `demo.sh` runs the whole loop with no
+**Current session (2026-11-20):** **CON-101 closed (D-098)** — an area can be documented over
+MCP. `baseline_area_tool` is the fifth tool and a thin wrapper over `operations.baseline_area`; the
+`baseline` prompt is the third prompt and, unlike the other two, takes an *area* rather than a
+reference because a baseline has no ticket. The question "will this baseline depend on the areas in
+context?" found the real gap: `baseline_area` builds a payload carrying the whole catalogue and uses
+it only to ground anchors, never returning it, so an agent could not see which areas existed — which
+is precisely what D-079 relies on to stop "ads" arriving beside "advertising". The prompt now names
+them, declared and pending both, since an area is declared by acceptance. Before it, **CON-20 closed (D-097)** — `demo.sh` runs the whole loop with no
 API key and no network, verified from a built wheel in a clean venv, and `LIMITS.md` collects what
 fourteen decisions each said once. The demo found two defects in its first two runs. **The MVP's
 seven acceptance criteria are now met in full.** Before it, **CON-98 closed (D-096)** — the review queue reads across the

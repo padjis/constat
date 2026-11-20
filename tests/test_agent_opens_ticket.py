@@ -262,7 +262,11 @@ class TestTheChangeIsNarrow:
         names = sorted(t.name for t in asyncio.run(server.list_tools()))
 
         assert names == sorted(EXPOSED_TOOLS)
-        assert len(EXPOSED_TOOLS) == 4
+        # Named rather than counted. A literal count said "four" and meant
+        # "no tool for opening a ticket"; CON-101 added a fifth tool for an
+        # unrelated reason and broke an assertion about this change. The
+        # absence is the property — the number never was.
+        assert not [n for n in names if "ticket" in n or "open" in n]
 
     def test_get_payload_does_not_open_a_ticket(self, clean: str):
         """Only the step that gathers may open one. `get_payload` exports

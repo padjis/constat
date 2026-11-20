@@ -442,6 +442,297 @@ class TestMcpIsExemptFromTheProviderGate:
         assert "no_provider" not in " ".join(EXPOSED_TOOLS)
 
 
+class TestDocumentingAnAreaOverMcp:
+    """CON-101. The tool D-080 left unbuilt.
+
+    That decision chose the agent-driven shape for a baseline *because* an
+    agent already has the repository and can read it directly — and then left
+    the only door at the command line, so the reasoning and the surface
+    disagreed. The tool closes that, and adds nothing else: every refusal
+    below is `operations.baseline_area` behaving exactly as the CLI makes it
+    behave (D-098).
+    """
+
+    REPLY = json.dumps(
+        {
+            "rules": [
+                {
+                    "name": "daily-limit",
+                    "statement": "A transfer above the daily limit is refused.",
+                    "anchors": [{"path_glob": "rules.py"}],
+                    "area": "payments",
+                }
+            ]
+        }
+    )
+
+    def test_it_is_in_the_exposed_list(self):
+        assert "baseline_area_tool" in EXPOSED_TOOLS
+
+    def test_a_reading_is_stored_and_not_accepted(self, home):
+        result = json_of(
+            call(home, "baseline_area_tool", area="payments", reply=self.REPLY)
+        )
+
+        assert len(result["stored"]) == 1
+        assert result["accepted"] is False
+
+    def test_it_needs_no_ticket(self, home):
+        """The cold start this exists for. A baseline is not a unit of work, so
+        requiring a reference would mean inventing one by hand first."""
+        result = json_of(
+            call(home, "baseline_area_tool", area="payments", reply=self.REPLY)
+        )
+
+        assert result["reference"] == "baseline-payments"
+        assert result["opened_reference"] is True
+
+    def test_the_invented_reference_is_reported_as_opened(self, home):
+        """Because it turns up in `ticket list`, and a reference appearing
+        there unannounced reads as work somebody forgot about."""
+        first = json_of(
+            call(home, "baseline_area_tool", area="payments", reply=self.REPLY)
+        )
+        second = json_of(
+            call(home, "baseline_area_tool", area="payments", reply=self.REPLY)
+        )
+
+        assert first["opened_reference"] is True
+        assert second["opened_reference"] is False
+
+    def test_it_says_which_revision_it_described(self, home):
+        """A baseline has no diff, so the only thing locating it in history is
+        the mainline commit it was read at (D-080)."""
+        result = json_of(
+            call(home, "baseline_area_tool", area="payments", reply=self.REPLY)
+        )
+
+        described = result["described_at"]
+        assert [d["repository"] for d in described] == ["billing"]
+        assert len(described[0]["revision"]) == 40
+
+    def test_a_second_call_adds_rather_than_replaces(self, home):
+        """Incremental by construction: proposals are append-only, so running
+        it twice cannot quietly drop the first reading."""
+        call(home, "baseline_area_tool", area="payments", reply=self.REPLY)
+        call(
+            home,
+            "baseline_area_tool",
+            area="payments",
+            reply=json.dumps(
+                {
+                    "rules": [
+                        {
+                            "name": "a-refusal-names-the-limit",
+                            "statement": "A refused transfer tells the customer the limit.",
+                            "anchors": [{"path_glob": "rules.py"}],
+                            "area": "payments",
+                        }
+                    ]
+                }
+            ),
+        )
+
+        with Workspace.open(home) as workspace:
+            waiting = RuleProposals(workspace).across_workspace("awaiting")
+
+        assert {p.proposal.name for p in waiting} == {
+            "daily-limit",
+            "a-refusal-names-the-limit",
+        }
+
+    def test_a_reading_of_another_area_is_kept_apart_from_a_refusal(self, home):
+        """An out-of-area reading is a correct reading of the wrong area, not a
+        malformed one, and reporting the two together mislabelled it (D-080)."""
+        result = json_of(
+            call(
+                home,
+                "baseline_area_tool",
+                area="payments",
+                reply=json.dumps(
+                    {
+                        "rules": [
+                            {
+                                "name": "sign-in-locks",
+                                "statement": "An account locks after five failed sign-ins.",
+                                "anchors": [{"path_glob": "rules.py"}],
+                                "area": "access",
+                            }
+                        ]
+                    }
+                ),
+            )
+        )
+
+        assert [r["name"] for r in result["out_of_area"]] == ["sign-in-locks"]
+        assert result["discarded"] == []
+        assert result["stored"] == []
+
+    def test_an_ungrounded_anchor_is_still_discarded(self, home):
+        """The gate that makes a baseline worth reading. Nothing supplies
+        evidence here, so an anchor is checked against mainline instead — and
+        an invented path fails the same way it does on the ticket path."""
+        result = json_of(
+            call(
+                home,
+                "baseline_area_tool",
+                area="payments",
+                reply=json.dumps(
+                    {
+                        "rules": [
+                            {
+                                "name": "invented",
+                                "statement": "Something happens somewhere.",
+                                "anchors": [{"path_glob": "no/such/file.py"}],
+                                "area": "payments",
+                            }
+                        ]
+                    }
+                ),
+            )
+        )
+
+        assert result["stored"] == []
+        assert [r["name"] for r in result["discarded"]] == ["invented"]
+
+    def test_a_statement_that_leaks_code_is_refused(self, home):
+        """One door, one set of gates (D-045)."""
+        result = call(
+            home,
+            "baseline_area_tool",
+            area="payments",
+            reply=json.dumps(
+                {
+                    "rules": [
+                        {
+                            "name": "leaky",
+                            "statement": "A transfer is refused by rules.py.",
+                            "anchors": [{"path_glob": "rules.py"}],
+                            "area": "payments",
+                        }
+                    ]
+                }
+            ),
+        )
+
+        assert [r["name"] for r in json_of(result)["discarded"]] == ["leaky"]
+
+    def test_coining_an_area_is_reported_and_not_declared(self, home):
+        """D-079 declares an area **by acceptance**, and a baseline must not be
+        the exception: a proposal that invents "payments" tells the reviewer it
+        did, and the catalogue still has no such area until somebody accepts.
+        Otherwise an agent could populate the structure coverage is measured
+        against without a decision."""
+        result = json_of(
+            call(home, "baseline_area_tool", area="payments", reply=self.REPLY)
+        )
+
+        coined = list(result["new_areas"].values())
+        assert [c["area"] for c in coined] == ["payments"]
+        with Workspace.open(home) as workspace:
+            assert Catalogue(workspace).areas() == ()
+
+    def test_it_works_with_no_provider_configured(self, home, monkeypatch):
+        """The machine this path was designed for. The host supplies the model,
+        so there is nothing for Constat to be configured with (D-045, D-059)."""
+        monkeypatch.delenv("CONSTAT_AI_PROVIDER", raising=False)
+
+        result = json_of(
+            call(home, "baseline_area_tool", area="payments", reply=self.REPLY)
+        )
+
+        assert len(result["stored"]) == 1
+
+
+class TestTheBaselinePromptNamesTheAreasThatExist:
+    """The gap the tool opened, and the reason to check it separately.
+
+    `baseline_area` builds a payload carrying the whole catalogue, but uses it
+    only to ground anchors and spot duplicates — it never returns it. So an
+    agent documenting an area could not see which areas already existed, and
+    D-079's defence against "ads" arriving beside "advertising" depends on
+    exactly that. The ticket path gets it from `get_payload`; this path had
+    nothing until the prompt said it.
+    """
+
+    def rendered(self, home: str, area: str = "payments") -> str:
+        got = asyncio.run(build_server(home).get_prompt("baseline", {"area": area}))
+        return got.messages[0].content.text
+
+    def _declare(self, home: str, *areas: str) -> None:
+        from constat.store.areas import Areas
+
+        with Workspace.open(home) as workspace:
+            for area in areas:
+                Areas(workspace).declare(area, declared_by="a person")
+
+    def test_the_declared_areas_are_named(self, home):
+        self._declare(home, "advertising", "access")
+
+        text = self.rendered(home)
+
+        assert "advertising" in text and "access" in text
+
+    def test_it_asks_for_a_synonym_to_be_called_out(self, home):
+        self._declare(home, "advertising")
+
+        text = self.rendered(home, "ads")
+
+        assert "under another name" in text
+
+    def test_an_area_only_proposed_is_named_as_awaiting(self, home):
+        """The hole the declared-areas list alone leaves. An area is declared
+        by acceptance (D-079), so two baselines run back to back would both be
+        told "no areas yet" and the second would coin the very synonym the
+        first had already avoided."""
+        call(
+            home,
+            "baseline_area_tool",
+            area="payments",
+            reply=TestDocumentingAnAreaOverMcp.REPLY,
+        )
+
+        text = self.rendered(home, "ads")
+
+        assert "awaiting a decision in **payments**" in text
+        assert "no areas yet" not in text
+
+    def test_a_declared_area_is_not_also_listed_as_awaiting(self, home):
+        """Or the same name appears twice in one sentence, which reads as two
+        areas rather than one."""
+        self._declare(home, "payments")
+        call(
+            home,
+            "baseline_area_tool",
+            area="payments",
+            reply=TestDocumentingAnAreaOverMcp.REPLY,
+        )
+
+        text = self.rendered(home, "ads")
+
+        assert text.count("**payments**") == 1
+        assert "awaiting a decision" not in text
+
+    def test_an_empty_catalogue_says_so_rather_than_listing_nothing(self, home):
+        """"The catalogue already has these areas:" followed by nothing reads
+        as a bug, and an agent cannot tell it from a failed lookup."""
+        text = self.rendered(home)
+
+        assert "no areas yet" in text
+        assert "already has these areas" not in text
+
+    def test_it_still_renders_without_a_workspace(self, tmp_path):
+        """A prompt that refused because `constat init` had not been run would
+        be worse than one with a sentence missing: the rest is still correct."""
+        text = asyncio.run(
+            build_server(str(tmp_path / "absent")).get_prompt(
+                "baseline", {"area": "payments"}
+            )
+        ).messages[0].content.text
+
+        assert "payments" in text
+
+
 class TestThePrompts:
     """CON-66. A tool is what the model chooses to call; a prompt is what the
     *user* invokes, and clients surface it as a slash command.
@@ -456,11 +747,18 @@ class TestThePrompts:
 
         return asyncio.run(build_server("/tmp").list_prompts())
 
-    def rendered(self, name: str, reference: str = "622") -> str:
+    #: The one argument each prompt takes. A baseline has no ticket, so there
+    #: is no reference to give it (CON-101, D-098).
+    ARGUMENT = {"document": "reference", "review": "reference", "baseline": "area"}
+
+    def rendered(self, name: str, value: str = "622") -> str:
         import asyncio
 
+        argument = self.ARGUMENT[name]
+        if name == "baseline" and value == "622":
+            value = "payments"
         got = asyncio.run(
-            build_server("/tmp").get_prompt(name, {"reference": reference})
+            build_server("/tmp").get_prompt(name, {argument: value})
         )
         return got.messages[0].content.text
 
@@ -473,9 +771,15 @@ class TestThePrompts:
             sorted(EXPOSED_PROMPTS)
         )
 
-    def test_each_takes_a_reference(self):
+    def test_each_takes_exactly_one_argument(self):
+        """And it is the one thing the user already knows: the ticket
+        reference, or — for a baseline, which has no ticket — the area. A
+        prompt that needed two would be a form, and a slash command is not a
+        form."""
         for prompt in self.prompts():
-            assert [a.name for a in prompt.arguments or []] == ["reference"]
+            assert [a.name for a in prompt.arguments or []] == [
+                self.ARGUMENT[prompt.name]
+            ]
 
     def test_the_document_prompt_drives_the_whole_loop(self):
         text = self.rendered("document")
