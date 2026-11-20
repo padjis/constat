@@ -374,7 +374,15 @@ def build_parser() -> argparse.ArgumentParser:
     repo_add = repo_actions.add_parser(
         "add", help="register a local repository"
     )
-    repo_add.add_argument("path", metavar="PATH", help="path to a Git repository")
+    repo_add.add_argument(
+        "path",
+        metavar="PATH_OR_URL",
+        help=(
+            "a path to a Git repository, or a remote URL to clone into the "
+            "workspace cache. Anything that is neither an openable path nor a "
+            "recognised remote form is refused rather than guessed at."
+        ),
+    )
     repo_add.add_argument(
         "--name", metavar="ALIAS", help="alias (default: the directory name)"
     )
@@ -389,6 +397,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     repo_actions.add_parser("list", help="list registered repositories")
+
+    repo_fetch = repo_actions.add_parser(
+        "fetch",
+        help="refresh a cached remote from its origin",
+        description=(
+            "Fetch a registered remote again and record when. A local path has "
+            "nothing to fetch — it is read where it is — and asking is refused "
+            "rather than silently succeeding, because a recorded fetch time "
+            "would then be a claim about a copy that does not exist."
+        ),
+    )
+    repo_fetch.add_argument("alias", metavar="ALIAS")
 
     repo_remove = repo_actions.add_parser(
         "remove", help="unregister a repository (the repository itself is untouched)"
@@ -2048,11 +2068,29 @@ def _run_repo(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                 entry = registry.add(args.path, args.name, args.default_branch)
                 print(f"registered: {entry.alias}")
                 print(f"  source:         {entry.source}")
+                if entry.cache_path is not None:
+                    # Said rather than left to be discovered: a clone exists,
+                    # it is inside the workspace, and it is as old as the fetch
+                    # time beside it.
+                    print(f"  cached at:      {entry.cache_path}")
+                    print(f"  fetched:        {entry.last_fetched_at}")
                 print(f"  identity:       {entry.identity}")
                 print(f"  default branch: {entry.default_branch}")
                 print()
                 print("Identity is the root commit, so this stays the same")
                 print("repository if the checkout moves or is re-cloned.")
+                if entry.cache_path is not None:
+                    print()
+                    print("A clone with no checkout, inside the workspace:")
+                    print("`repo remove` deletes it, `repo fetch` refreshes it,")
+                    print("and what it holds is as old as its last fetch.")
+                return EXIT_OK
+
+            if args.repo_action == "fetch":
+                entry = registry.refresh(args.alias)
+                print(f"fetched: {entry.alias}")
+                print(f"  from:    {entry.source}")
+                print(f"  fetched: {entry.last_fetched_at}")
                 return EXIT_OK
 
             if args.repo_action == "list":
@@ -2064,6 +2102,9 @@ def _run_repo(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                 for entry in entries:
                     print(f"  {entry.alias}")
                     print(f"    source:         {entry.source}")
+                    if entry.cache_path is not None:
+                        print(f"    cached:         {entry.cache_path}")
+                        print(f"    fetched:        {entry.last_fetched_at}")
                     print(f"    default branch: {entry.default_branch}")
                     print(f"    identity:       {entry.identity[:12]}")
                 return EXIT_OK

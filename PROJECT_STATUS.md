@@ -1,8 +1,13 @@
 # Project status
 
-**Last updated:** 2026-11-19
+**Last updated:** 2026-11-20
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-19):** **Constat was run in earnest on a real area for the first time** —
+**Current session (2026-11-20):** **CON-35 closed (D-092)** — a remote URL is registered and cloned
+into the workspace, read through the unchanged read-only layer. `--mirror` was the first attempt and
+broke fourteen tests: it has no remote-tracking namespace, which D-028 and D-068 are built on.
+Unblocks CON-38.
+
+**2026-11-19:** **Constat was run in earnest on a real area for the first time** —
 the install and landing pages of `237feed-ui` — and found in under a minute a defect that
 twenty-nine tests and a mutation check had not: the leakage gate refused a semicolon, and the live
 catalogue's own accepted rule R-2 contains one. Fixed as **CON-100 (D-091)**; four rule proposals
@@ -436,6 +441,78 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
   outside contribution if it should be a company.
 - Q2, Q4, Q8 and Q10 are now resolved (D-010, D-012, D-009, D-011); the product name is resolved
   by D-013.
+
+---
+
+## CON-35 — done when: *a remote URL is cloned into a cache and read like any repository* ✅
+
+`D-092` records the decision. `PRODUCT_SPEC` § 6 has promised this since 2026-11-08 — "a remote is
+registered by URL and cloned into a local cache" — and the schema carried `source_kind`,
+`cache_path` and `last_fetched_at` from CON-32 without ever populating one of them.
+
+**Live, against a real remote:**
+
+```
+registered: origin
+  source:         file:///…/origin.git
+  cached at:      /…/ws/cache/origin
+  fetched:        2026-11-20 15:37:21+00:00
+  identity:       5d0dacee107a…
+  default branch: main
+```
+
+and then, through the **unchanged** read-only layer:
+
+```
+ticket 700: document updated
+    origin: pending — 1 commit(s)
+
+alias: origin | status: pending | commits: 1
+   c0a1c4e52064 700: raise the limit | files: ['rules.py']
+```
+
+### `--mirror` was wrong, and the way it was wrong is the finding
+
+A mirror is the obvious choice: every ref, no working tree, smallest cache. **It broke fourteen
+tests on the first run, all for one reason.** A mirror puts the remote's branches straight into
+`refs/heads/*` and has no remote-tracking namespace at all, so `refs/remotes/origin/HEAD` does not
+exist — and D-028 resolves the default branch from exactly that ref, while D-068 resolves mainline
+from `origin/<branch>`. **Constat's entire read-only layer is built on a namespace a mirror does not
+have.**
+
+`--no-checkout` keeps the namespace and still materialises no files, so the cache behaves exactly
+like a local clone. That is what § 6 promised and what makes the six downstream call sites need no
+special case.
+
+### Three properties, each tested
+
+| | |
+| --- | --- |
+| A remote is recognised **by form**, never by elimination | A mistyped path fails as a missing path, not as a clone |
+| A refusal **discards its clone** | Identity is the root commit (D-025), so a duplicate is only knowable after cloning |
+| The cache is **inside the workspace** | One `rm -r ~/.constat` removes everything Constat owns |
+
+**Mutation-checked:** "anything that is not a directory is a remote" fails three tests; keeping the
+clone after a refused registration fails the test written for it.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_remote_cache.py` → **37 passed** (new file). **Whole suite**:
+**1299 passed in 176s**, exit 0. No schema change — the columns were already there.
+
+### Two things I got wrong, both caught
+
+1. **The first fetch test asserted the wrong ref.** A fetch moves `origin/main`, not the cache's
+   local `main` — and `origin/main` is the one Constat reads as mainline (D-068), so the test now
+   checks the ref that matters.
+2. **`repo add`'s own output said "a mirror clone"** after I had switched away from one. Caught by
+   reading the real output rather than by a test, which is the same lesson as yesterday's semicolon.
+
+### Deliberately not done
+
+- **No automatic refresh.** Nothing fetches on its own, so a cache is as old as its last
+  `repo fetch` — said in the command's output, and the reason **CON-38** is next.
+- **The document does not yet state cache age.** That is CON-38, now unblocked.
 
 ---
 

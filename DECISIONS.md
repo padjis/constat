@@ -8,6 +8,69 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-092 · 2026-11-20 · A remote is cloned into the workspace, with no checkout and no credentials
+
+**Closes CON-35**, which `PRODUCT_SPEC` § 6 has promised since 2026-11-08: "a remote is registered
+by URL and cloned into a local cache; everything is then read with the same read-only Git layer."
+The schema has carried `source_kind`, `cache_path` and `last_fetched_at` since CON-32 and never
+populated one of them.
+
+**Decision.** `repo add` accepts a remote URL and clones it into
+`<workspace>/cache/<alias>`. `source` stays the URL — the record of where the repository came
+from — and `cache_path` is where it lives. Everything downstream opens
+`RegisteredRepository.local_path`, never `source`. `repo fetch` refreshes a cache and records when;
+`repo remove` deletes it.
+
+**Inside the workspace, not beside it.** One `rm -r ~/.constat` then removes everything Constat owns
+and nothing it does not. A cache in a separate location would outlive the workspace that knows about
+it, leaving clones nobody can account for.
+
+**`--no-checkout`, and not `--mirror`, which was the first attempt and broke fourteen tests.** A
+mirror looks obviously right: every ref, no working tree, smallest cache. But a mirror puts the
+remote's branches straight into `refs/heads/*` and has **no remote-tracking namespace at all**, so
+`refs/remotes/origin/HEAD` does not exist — and D-028 resolves the default branch from exactly that
+ref, while D-068 resolves mainline from `origin/<branch>`. Constat's entire read-only layer is built
+on that namespace. `--no-checkout` keeps it and still materialises no files, so the cache behaves
+*exactly* like a local clone, which is what § 6 promised.
+
+**This does not widen the subject-repository guarantee.** ARCHITECTURE § 6 says Constat is read-only
+against every repository it reads, with one opt-in exception for publishing (D-058) and one for
+`merge_on_accept` (D-062). A cache clone writes **nothing to the remote**: it is a read whose result
+was kept. `constat/git/cache.py` is a third writer in `git/` and its reach is Constat's own
+directory — three writers, three reaches, one file each, so the reach is legible from the layout.
+
+**A remote is recognised by form, never by elimination.** `https://`, `git://`, `ssh://`, `file://`
+and the scp-like `git@host:path`. Anything else is treated as a path, so **a mistyped path fails as
+a missing path** rather than being cloned from. Mutation-checked: "anything that is not a directory
+is a remote" fails three tests.
+
+**Identity is only knowable after the clone**, because it is the root commit (D-025) — two different
+URLs can be one repository, and the same URL can be typed two ways. So a duplicate is detected late
+and **the clone is then discarded**. A refusal that left a directory behind would make the next
+attempt fail on `clone`'s own exists-check for a reason the user never caused. Also
+mutation-checked.
+
+**No credentials, ever.** The clone uses git's own helpers, as `merge.py` does for its push. A URL
+needing authentication Constat cannot supply fails as a clone failure with git's own message, and
+nothing is remembered.
+
+**Consequences.**
+
+- **`RegisteredRepository.local_path` exists and must be used.** Six call sites in `operations.py`
+  read `source` directly before this; one property is why that cannot drift back.
+- **CON-38 is unblocked** — "every document states when each repository's cache was last fetched"
+  was impossible with no cache. `last_fetched_at` is now populated and rendered by `repo list`,
+  though not yet in the document.
+- **A fetch moves the remote-tracking refs and not the cache's local branches**, which is correct:
+  mainline is `origin/<branch>` (D-068), so the local branch is not the picture. The first test
+  asserted the wrong ref and was corrected.
+- **No automatic refresh.** Nothing fetches on its own, so a cache is as old as its last `repo
+  fetch` — stated in the command's own output and the reason CON-38 matters.
+
+**Status.** accepted
+
+---
+
 ## D-091 · 2026-11-19 · A semicolon is punctuation; the leakage gate had come to refuse a live rule
 
 **Narrows D-066**, found on the **first real use** of the baseline path against a real repository.

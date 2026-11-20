@@ -151,7 +151,7 @@ def _collect_repository(
     entry: RegisteredRepository, reference: str, limits: ExcerptLimits
 ) -> RepositoryFindings:
     try:
-        repo = discover_repository(entry.source)
+        repo = discover_repository(entry.local_path)
     except RepositoryError as exc:
         from .tickets import TicketMatch as _Match
 
@@ -749,7 +749,7 @@ def mainline_files(
         if aliases is not None and entry.alias not in aliases:
             continue
         try:
-            repo = discover_repository(entry.source)
+            repo = discover_repository(entry.local_path)
             mainline = resolve_mainline(repo, entry.default_branch)
             revision = resolve_revision(repo, mainline.ref)
             files[entry.alias] = frozenset(summarise_state(repo, revision).paths)
@@ -1155,7 +1155,7 @@ def _mainline_revisions(workspace: Workspace) -> tuple[tuple[str, str], ...]:
     revisions = []
     for entry in Registry(workspace).list():
         try:
-            repo = discover_repository(entry.source)
+            repo = discover_repository(entry.local_path)
             mainline = resolve_mainline(repo, entry.default_branch)
             revision = resolve_revision(repo, mainline.ref)
             revisions.append((entry.alias, revision.sha))
@@ -1683,7 +1683,7 @@ def land_ticket(workspace: Workspace, reference: str) -> Landing:
 
     for entry in Registry(workspace).list():
         try:
-            repo = discover_repository(entry.source)
+            repo = discover_repository(entry.local_path)
         except RepositoryError as exc:
             # Unreadable is not "nothing to merge". A repository that cannot
             # be opened may well hold the ticket's branch, and reporting it as
@@ -1896,7 +1896,7 @@ def product_state(
 
     for entry in entries:
         try:
-            repo = discover_repository(entry.source)
+            repo = discover_repository(entry.local_path)
             mainline = resolve_mainline(repo, entry.default_branch)
             revision = resolve_revision(repo, mainline.ref)
             state = summarise_state(repo, revision)
@@ -2102,7 +2102,7 @@ def verify_messages(workspace: Workspace) -> tuple[MessageCheck, ...]:
     unreadable = []
     for entry in Registry(workspace).list():
         try:
-            repo = discover_repository(entry.source)
+            repo = discover_repository(entry.local_path)
             mainline = resolve_mainline(repo, entry.default_branch)
             targets.append((entry.alias, repo, resolve_revision(repo, mainline.ref)))
         except RepositoryError:

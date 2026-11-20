@@ -109,10 +109,23 @@ class RegisteredRepository(Frozen):
     default_branch: str = Field(min_length=1)
     added_at: datetime
     cache_path: str | None = None
+    """Where a remote's clone lives inside the workspace (CON-35). None for a
+    local path, which needs no copy."""
     last_fetched_at: datetime | None = None
     """When the local copy was last refreshed. None for a local path, which is
     always current. Unstated staleness is the same class of failure as
     unstated truncation (D-027)."""
+
+    @property
+    def local_path(self) -> str:
+        """Where to open this repository on disk.
+
+        The cache for a remote, the registered path for a local one. **Every
+        caller must use this rather than `source`**: `source` is what the user
+        typed and the record of where the repository came from, and for a remote
+        that is a URL no Git command can open. Six call sites read `source`
+        directly before CON-35; one property is why that cannot drift back."""
+        return self.cache_path or self.source
 
 
 class Behaviour(Frozen):

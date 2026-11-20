@@ -63,6 +63,16 @@ class Workspace:
         self._connection = connection
         self.path = path
 
+    @property
+    def home(self) -> Path:
+        """The workspace directory — everything Constat owns lives under it.
+
+        `path` is the database file; this is its parent. Named because CON-35's
+        cache belongs *inside* the workspace, so one `rm -r` removes everything
+        Constat owns and nothing it does not.
+        """
+        return self.path.parent
+
     # -- lifecycle ---------------------------------------------------------
 
     @classmethod

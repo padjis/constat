@@ -1,19 +1,41 @@
-"""The repository registry (D-027, CON-32).
+"""The repository registry (D-027, CON-32, CON-35).
 
 Add, list and remove the repositories a workspace knows about. Registration
 resolves and stores two things that must not be re-guessed later: the
 repository's durable identity (D-025) and its default branch (D-028).
+
+**A remote is cloned into the workspace's own cache** (CON-35, D-092). `source`
+stays the URL the user typed — the record of where the repository came from —
+and `cache_path` is where it lives on disk. Callers open `local_path`, never
+`source`, because for a remote no Git command can open the latter.
+
+**Identity is only knowable after the clone**, since it is the root commit
+(D-025). So a duplicate remote is detected *after* cloning and the clone is
+then discarded, which costs a clone to learn something no URL comparison could
+tell: two different URLs can be the same repository, and the same URL can be
+typed two ways.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
+from pathlib import Path
+
 from ..errors import AlreadyRegistered, NotRegistered
 from ..git.adapter import Repository, discover_repository, resolve_default_branch, root_commits
 from ..git.adapter import Revision
+from ..git import cache
 from ..models import RegisteredRepository
 from .workspace import Workspace, utc_now
+
+CACHE_DIRECTORY = "cache"
+"""Where clones live, inside the workspace directory.
+
+Inside rather than beside, so one `rm -r` removes everything Constat owns and
+nothing it does not. A cache in a separate location would outlive the workspace
+that knows about it, leaving clones nobody can account for.
+"""
 
 
 def _row_to_model(row) -> RegisteredRepository:
@@ -57,12 +79,17 @@ class Registry:
         alias: str | None = None,
         default_branch: str | None = None,
     ) -> RegisteredRepository:
-        """Register a local repository.
+        """Register a local path or a remote URL.
 
-        Raises the existing repository errors for a bad path, so "that is not
-        a repository" is reported the same way everywhere. Remote URLs arrive
-        with CON-35.
+        Raises the existing repository errors for a bad path, so "that is not a
+        repository" is reported the same way everywhere. A remote is cloned
+        into the workspace cache first (CON-35); anything that is neither an
+        openable path nor a recognised remote form is refused rather than
+        guessed at.
         """
+        if cache.looks_remote(path):
+            return self._add_remote(path, alias, default_branch)
+
         repo = discover_repository(path)
         branch = default_branch or resolve_default_branch(repo)
         identity = _identity_of(repo, branch)
@@ -92,6 +119,89 @@ class Registry:
         found = self.find(name)
         assert found is not None  # just inserted
         return found
+
+    def _add_remote(
+        self, url: str, alias: str | None, default_branch: str | None
+    ) -> RegisteredRepository:
+        """Clone a remote into the cache and register it.
+
+        The ordering is the design, and it mirrors D-062's: the clone happens
+        first because nothing about the repository — not its identity, not its
+        default branch — can be known without it, and the clone is **discarded
+        again** if registration is then refused. A refusal must not leave a
+        directory behind that the next attempt trips over.
+        """
+        name = alias or cache.cache_name(url)
+        if self.find(name) is not None:
+            raise AlreadyRegistered(
+                f"an unrelated repository is already registered as {name!r}. "
+                "Choose another alias with --name."
+            )
+
+        destination = Path(self._workspace.home) / CACHE_DIRECTORY / name
+        cache.clone(url, destination)
+
+        try:
+            repo = discover_repository(str(destination))
+            branch = default_branch or resolve_default_branch(repo)
+            identity = _identity_of(repo, branch)
+
+            existing = self.find_by_identity(identity)
+            if existing is not None:
+                raise AlreadyRegistered(
+                    f"this repository is already registered as "
+                    f"{existing.alias!r} ({existing.source}). It is the same "
+                    f"repository: both share root commit {identity[:12]}. Two "
+                    "different URLs can point at one repository, which is why "
+                    "this is only knowable after cloning."
+                )
+        except Exception:
+            # Including the duplicate above. The clone was made to learn the
+            # identity; if the answer is "we already have this", the copy has
+            # served its purpose and keeping it would be a directory nobody
+            # can account for.
+            cache.discard(destination)
+            raise
+
+        now = utc_now()
+        self._workspace.execute(
+            "INSERT INTO repository "
+            "(alias, source, source_kind, cache_path, identity, "
+            " default_branch, added_at, last_fetched_at) "
+            "VALUES (?, ?, 'remote', ?, ?, ?, ?, ?)",
+            (name, url, str(destination), identity, branch, now, now),
+        )
+        found = self.find(name)
+        assert found is not None  # just inserted
+        return found
+
+    def refresh(self, alias: str) -> RegisteredRepository:
+        """Fetch a cached remote again, and record when.
+
+        Refuses for a local path rather than pretending to succeed: there is no
+        cache to refresh, and a recorded fetch time would be a claim about a
+        copy that does not exist.
+        """
+        found = self.find(alias)
+        if found is None:
+            known = ", ".join(r.alias for r in self.list()) or "none"
+            raise NotRegistered(
+                f"no repository registered as {alias!r}. Registered: {known}."
+            )
+        if found.cache_path is None:
+            raise NotRegistered(
+                f"{alias!r} is a local path ({found.source}), not a cached "
+                "remote. There is nothing to fetch: it is read where it is."
+            )
+
+        cache.fetch(found.cache_path)
+        self._workspace.execute(
+            "UPDATE repository SET last_fetched_at = ? WHERE alias = ?",
+            (utc_now(), alias),
+        )
+        refreshed = self.find(alias)
+        assert refreshed is not None
+        return refreshed
 
     def find(self, alias: str) -> RegisteredRepository | None:
         row = self._workspace.execute(
@@ -124,4 +234,9 @@ class Registry:
                 f"no repository registered as {alias!r}. Registered: {known}."
             )
         self._workspace.execute("DELETE FROM repository WHERE alias = ?", (alias,))
+        if found.cache_path is not None:
+            # The clone is Constat's own copy, so removing the registration
+            # removes it. A local path is untouched for the opposite reason:
+            # it is not ours.
+            cache.discard(found.cache_path)
         return found
