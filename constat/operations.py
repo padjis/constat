@@ -280,6 +280,58 @@ def describe_age(moment, now=None) -> str:
     return "just now"
 
 
+def describe_branching(signal) -> tuple[str, ...]:
+    """What was seen about this repository's branching model (CON-97, D-076).
+
+    Returns nothing when the repository looks trunk-based, because a reassuring
+    paragraph on every `repo add` is how a warning stops being read. When there
+    is something to say it says three things in order: **what Constat will
+    treat as shipped**, **what it saw**, and **what would go wrong** — in that
+    order, because the consequence is the part that makes the first two worth
+    reading.
+
+    A warning and never a refusal (D-076). The signal is a naming convention,
+    and refusing on a convention would reject a legitimate repository that
+    happens to use the word.
+    """
+    if not signal.looks_like_git_flow:
+        return ()
+
+    lines = [
+        f"Constat will treat {signal.mainline} as the product as shipped.",
+        "",
+    ]
+
+    if signal.integration_is_default:
+        lines.append(
+            f"This repository's default branch is {signal.default_branch!r}, "
+            "which is the name Git Flow gives the branch work is integrated "
+            "into *before* release."
+        )
+    for name, count in signal.ahead_of_mainline:
+        lines.append(
+            f"Branch {name!r} carries {count} commit(s) that {signal.mainline} "
+            "does not, and its name is one teams give the branch they release "
+            "from."
+        )
+
+    lines.extend(
+        [
+            "",
+            f"If you do release from {signal.mainline}, nothing here is "
+            "wrong. If you release from somewhere else, Constat will report "
+            "work as shipped when it has only been integrated — and `constat "
+            "state` would present unreleased behaviour as the product's "
+            "current behaviour.",
+            "",
+            "Constat supports trunk-based development: one mainline, and that "
+            "mainline is what is shipped. Pass --default-branch to name a "
+            "different one. See LIMITS.md section 3.",
+        ]
+    )
+    return tuple(lines)
+
+
 def describe_freshness(entry, now=None) -> str:
     """What a reader must know about how current this repository's copy is
     (CON-38, D-093).

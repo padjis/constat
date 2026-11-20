@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import textwrap
 from pathlib import Path
 
 from . import __version__
@@ -43,6 +44,7 @@ from .ai import as_dict as payload_as_dict
 from .ai import resolve as resolve_provider
 from .operations import (
     baseline_area,
+    describe_branching,
     verify_messages,
     export_payload,
     gather,
@@ -2157,6 +2159,7 @@ def _run_repo(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
             if args.repo_action == "add":
                 entry = registry.add(args.path, args.name, args.default_branch)
+                signal = registry.branching_of(entry)
                 print(f"registered: {entry.alias}")
                 print(f"  source:         {entry.source}")
                 if entry.cache_path is not None:
@@ -2167,6 +2170,15 @@ def _run_repo(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                     print(f"  fetched:        {entry.last_fetched_at}")
                 print(f"  identity:       {entry.identity}")
                 print(f"  default branch: {entry.default_branch}")
+                # The ref actually read, not just the configured branch name
+                # (CON-97). "default branch: main" is configuration; mainline
+                # is what every answer about shipped behaviour is measured
+                # against (D-028, D-068), and when it falls back to a local
+                # branch that is a weaker claim a reader should see.
+                print(f"  mainline:       {signal.mainline}")
+                if not signal.from_remote:
+                    print("                  (a local branch — no "
+                          "remote-tracking ref for it)")
                 print()
                 print("Identity is the root commit, so this stays the same")
                 print("repository if the checkout moves or is re-cloned.")
@@ -2175,6 +2187,23 @@ def _run_repo(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                     print("A clone with no checkout, inside the workspace:")
                     print("`repo remove` deletes it, `repo fetch` refreshes it,")
                     print("and what it holds is as old as its last fetch.")
+                # Said at registration, because this is the moment the choice
+                # is being made (CON-97, D-076). A warning, never a refusal,
+                # and `describe_branching` returns nothing for a repository
+                # that looks trunk-based.
+                warning = describe_branching(signal)
+                if warning:
+                    print()
+                    print("Warning — this may not be trunk-based:")
+                    # Wrapped here rather than in the sentences, because they
+                    # interpolate branch names and commit counts and so cannot
+                    # be hand-wrapped the way the rest of this output is.
+                    for line in warning:
+                        if not line:
+                            print()
+                            continue
+                        for wrapped in textwrap.wrap(line, width=72):
+                            print(f"  {wrapped}")
                 return EXIT_OK
 
             if args.repo_action == "fetch":

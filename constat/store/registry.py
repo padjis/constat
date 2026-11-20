@@ -26,6 +26,7 @@ from ..errors import AlreadyRegistered, NotRegistered
 from ..git.adapter import Repository, discover_repository, resolve_default_branch, root_commits
 from ..git.adapter import Revision
 from ..git import cache
+from ..git.branching import BranchingSignal, inspect_branching
 from ..models import RegisteredRepository
 from .workspace import Workspace, utc_now
 
@@ -174,6 +175,21 @@ class Registry:
         found = self.find(name)
         assert found is not None  # just inserted
         return found
+
+    def branching_of(self, entry: RegisteredRepository) -> BranchingSignal:
+        """What branching model a registered repository looks like it uses.
+
+        Deliberately **not** folded into `add`'s return value (CON-97). Adding
+        a second field there would change the type every caller already
+        depends on, for a signal only registration reads — and it is a read,
+        so a caller that wants it can ask later. `repo list` is the obvious
+        second caller and is not one yet.
+
+        Opened through `local_path`, never `source`: the cache for a remote,
+        the registered path for a local one (D-092).
+        """
+        repo = discover_repository(entry.local_path)
+        return inspect_branching(repo, entry.default_branch)
 
     def refresh(self, alias: str) -> RegisteredRepository:
         """Fetch a cached remote again, and record when.

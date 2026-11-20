@@ -15,6 +15,7 @@ from .adapter import (
     resolve_revision,
     root_commits,
 )
+from .branching import BranchingSignal, inspect_branching
 from .diff import (
     ChangeSummary,
     ChangeType,
@@ -26,6 +27,7 @@ from .diff import (
 )
 
 __all__ = [
+    "BranchingSignal",
     "ChangeSummary",
     "MainlineRef",
     "ChangeType",
@@ -39,6 +41,7 @@ __all__ = [
     "resolve_default_branch",
     "root_commits",
     "find_merge_base",
+    "inspect_branching",
     "resolve_mainline",
     "resolve_revision",
     "summarise_state",

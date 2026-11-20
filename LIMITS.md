@@ -41,6 +41,12 @@ your production line, Constat draws a confident wrong picture — `README.md` ha
 model breaks. In short: Git Flow, long-lived parallel release lines, environment branches and
 fork-based workflows are out of scope today. D-076
 
+**It no longer draws that picture silently.** `repo add` names the mainline ref it resolved, and warns
+when the repository looks like Git Flow: a default branch called `develop`, or a
+`master`/`main`/`production` branch carrying commits mainline does not. A warning and never a
+refusal, because what is detectable is a naming convention rather than a fact about a release
+process — and it is deliberately quiet for a repository that looks trunk-based. D-101
+
 **Product rule 6 is therefore unmet.** "Release streams are distinct" is an invariant the product
 states and the code does not hold. It is intended work rather than a deferred maybe (D-090, CON-99),
 and until it lands the limit stands.

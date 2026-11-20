@@ -2,7 +2,14 @@
 
 **Last updated:** 2026-11-20
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-20):** **CON-11 closed (D-099) and CON-84 withdrawn (D-100)** — two
+**Current session (2026-11-20):** **CON-97 closed (D-101)** — `repo add` names the mainline ref it
+resolved and warns when the repository looks like Git Flow, at exit 0 and silently for anything that
+looks trunk-based. `LIMITS.md` § 3 no longer says the limit is undetected, though the limit itself
+stands. Two findings came out of mutation testing rather than from tests that were missing: a
+`name != default_branch` guard that can never fire and was removed, and a cache test that asserted
+the wrong field so it never read a remote-tracking ref. A first draft also warned on a branch called
+`release`, which D-031 says in terms is the supported case. Before it, **CON-11 closed (D-099) and
+CON-84 withdrawn (D-100)** — two
 items of bookkeeping with a reason each. CON-11's "safe and useful across realistic Git cases" was
 satisfied by accumulation rather than by a session of its own, and closing it names the two cases
 that are *not* tested: shallow clones and submodules, both now in `LIMITS.md` § 8. CON-84's glossary

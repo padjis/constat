@@ -8,6 +8,65 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-101 · 2026-11-20 · Registration names the mainline and warns on a Git Flow shape
+
+**Closes CON-97**, the one consequence D-076 wrote down for later.
+
+**Decision.** `constat/git/branching.py` resolves what Constat will treat as the shipped product and
+looks for the two shapes D-076 named. `repo add` prints the mainline ref for every repository, and a
+warning for the ones that look like Git Flow.
+
+**Exit 0, always.** The signal is a naming convention, and a naming convention is evidence about a
+team's habits rather than a fact about their release process: a repository with a `production`
+branch may be trunk-based with a deployment pointer, and one whose default is `develop` may ship
+from it. So this reports what it saw, says what Constat will therefore treat as shipped, and names
+the consequence — that `constat state` would otherwise present unreleased behaviour as current
+behaviour — then leaves the conclusion to the person registering it.
+
+**Silent when it looks trunk-based.** `describe_branching` returns nothing rather than a
+reassurance, because a paragraph on every `repo add` is how a warning stops being read.
+
+**Both sides of the comparison use remote-tracking refs**, which is the part that took two attempts.
+Mainline is `origin/main` (D-028, D-068), so a `master` ahead of a *stale local* `main` is one fetch
+behind rather than a second release line. The candidate side needed the same rule and did not have
+it: a first implementation fell back to a local ref unconditionally, so a developer with an old
+local `master` would have been told their project was not trunk-based — a statement about their
+machine. The fallback now applies only when mainline itself is local, where local refs are all there
+is and comparing them is the only honest option. A test pins each direction.
+
+**`release` is not a signal, and nearly was.** A first draft of `RELEASE_NAMES` included `release`
+and `stable`. **D-031 says in terms that work ahead of mainline may sit on `release/*`**, so that
+draft warned about the supported case. The list stays at what D-076 named — `master`, `main`,
+`production` — plus `prod` as the same word.
+
+**One piece of dead code was removed rather than tested around.** The candidate loop had a
+`name != default_branch` guard so a repository whose default is `main` would not warn about itself.
+It can never fire: both sides resolve to the same ref and the count is zero. A mutation survived,
+which is how it was found — the same shape as the `cat-file -e` branch D-087 removed. A guard that
+cannot be reached reads as a protection that exists.
+
+**Consequences.**
+
+- `LIMITS.md` § 3 no longer says the limit is undetected. It still says the limit stands: a warning
+  is disclosure, not support, and product rule 6 remains unmet until CON-99.
+- `repo add` now prints a `mainline:` line for every repository, and marks it when it fell back to a
+  local branch — a weaker claim than a shared ref, and one a reader should not have to infer.
+- The signal is a separate read (`Registry.branching_of`) rather than a field on `add`'s return
+  value, which would have changed a type every caller depends on for something only registration
+  reads. `repo list` is the obvious second caller and is deliberately not one yet.
+- **Repositories registered before this lands never see the warning.** Nothing re-inspects on read.
+  That is accepted rather than fixed: re-warning on every command is noise, and `repo remove` then
+  `repo add` is the way to see it.
+
+Eleven mutations were run. Nine were killed by one intended test each; two survived and both were
+findings rather than missing tests — the dead guard above, and a cache test that asserted
+`looks_like_git_flow` where the integration signal already satisfied it, so it never read a
+remote-tracking ref at all.
+
+**Status.** accepted
+
+---
+
 ## D-100 · 2026-11-20 · No glossary: a term's meaning lives in the rule that uses it
 
 **Withdraws CON-84.**
