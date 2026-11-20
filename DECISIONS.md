@@ -8,6 +8,75 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-100 · 2026-11-20 · No glossary: a term's meaning lives in the rule that uses it
+
+**Withdraws CON-84.**
+
+**Decision.** The catalogue does not carry business term definitions, and no glossary is rendered.
+
+**Context.** CON-84 was the smallest item of the cluster that came out of reviewing this design
+against prior experience of the problem, and its own row already said to drop it if the rules read
+clearly without one. Two tickets that landed first changed the question: CON-80 gave every rule
+worked examples (D-077), and CON-82 gave it the exact user-visible message, stored verbatim
+(D-082). A reader asking "what does *settlement window* mean here?" is served better by a rule that
+states the behaviour, instantiates it twice and quotes what the user is told than by a one-line
+definition elsewhere on the page.
+
+**The argument against is structural, not economy of effort.** A glossary is a second home for a
+definition, and a rule version is frozen at acceptance while a glossary entry would not be — so the
+two can come to contradict each other with nothing to detect it. That is the same reasoning D-081
+used to keep a citation flat and stored rather than derived, and D-082 used to store a message once
+on its exact text: one fact, one home.
+
+**Consequences.** A term genuinely used across areas with no rule defining it has nowhere to live.
+That is the real cost, and it is accepted on the evidence available — which is no real catalogue
+large enough to show the problem. Reopen as a new ticket, not by reviving CON-84, if one does.
+
+**Status.** accepted
+
+---
+
+## D-099 · 2026-11-20 · CON-11 is satisfied by accumulation, with two Git cases named as untested
+
+**Closes CON-11**, whose done-when was "the report remains safe and useful across realistic Git
+cases."
+
+**Decision.** Closed without a session of its own, because thirty-odd sessions of testing did the
+work it described.
+
+**What is actually covered.** 1399 tests. `tests/test_git_adapter.py` alone covers a missing path, a
+path that is a file, a directory that is not a repository, a distinct message for each of those
+failure modes, resolution from a subdirectory, detached HEAD, bare repositories, unborn HEAD in a
+fresh repository, unknown revisions reported with the name, a revision shaped like a flag, an
+ambiguous revision refused rather than guessed, and annotated versus lightweight tags. Around it:
+diffs including merge commits and renames, binary files, the remote cache and its staleness, and the
+integrity rules in ARCHITECTURE § 5 each with their own test. Mutation testing has been standard
+throughout, which is the part that makes the count mean something.
+
+**Two realistic cases are untested, and closing the ticket must not bury them:**
+
+1. **Shallow clones.** Nothing creates one. `git log` and `merge-base --is-ancestor` against a
+   truncated history is exactly the shape that produced the D-087 lesson — exit 128 is not an
+   answer — so the behaviour is plausible rather than known.
+2. **Submodules.** Never exercised. A registered repository containing one is read as whatever
+   `git` reports for a gitlink, which has not been looked at.
+
+Neither is a defect report; both are gaps in what has been run. They go in `LIMITS.md` § 8 rather
+than into a new ticket, because inventing a ticket for each unexercised case is how a backlog stops
+meaning anything — raise one if either turns up in real use.
+
+**Consequences.** CON-11 cannot be reopened to mean "test more"; a specific untested case is a
+specific new ticket.
+
+**A correction to D-097, which is not rewritten.** That entry and `LIMITS.md` both said the document
+assembled "fourteen" decision entries. It cited twenty-six at the time and twenty-eight now. The
+living document is corrected; D-097 keeps its wording, because an entry that gets edited to stay
+right is no longer a record of what was decided.
+
+**Status.** accepted
+
+---
+
 ## D-098 · 2026-11-20 · An area can be documented over MCP, and the prompt names the areas that exist
 
 **Closes CON-101.** The tool D-080 left unbuilt, plus a gap that only became visible once it

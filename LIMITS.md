@@ -5,8 +5,8 @@ Version 1 · 2026-11-20 · the honest half of CON-20
 `README.md` says what Constat is for and `USAGE.md` says how to run it. This says what it does
 **not** do, what it has **not verified**, and where it states an intention it does not yet meet.
 
-It exists because every one of these is recorded somewhere in `DECISIONS.md` — fourteen entries
-deep by now — and a reader should not have to assemble them. Nothing here is a bug report. Each
+It exists because every one of these is recorded somewhere in `DECISIONS.md` — twenty-eight
+entries as of this version — and a reader should not have to assemble them. Nothing here is a bug report. Each
 item is a decision, with the entry that made it.
 
 ---
@@ -84,8 +84,12 @@ multi-agent orchestration · automatic approval · any *required* AI API call. `
 unchanged since 2026-11-08.
 
 Also unbuilt, each with a ticket: forge metadata and pull-request linkage (CON-16, CON-17),
-traceability references (CON-18), a glossary (CON-84), Confluence/GitBook/GitLab publishing backends
-(CON-59), and providers other than Anthropic (CON-62, CON-63).
+traceability references (CON-18), Confluence/GitBook/GitLab publishing backends (CON-59), and
+providers other than Anthropic (CON-62, CON-63).
+
+**A glossary is withdrawn rather than unbuilt** (D-100). A term's meaning lives in the rule that uses
+it — its statement, its worked examples (D-077) and the exact message a user sees (D-082) — and a
+definition in a second place can contradict a frozen version with nothing to detect it.
 
 ## 8. What has not been verified
 
@@ -95,6 +99,8 @@ traceability references (CON-18), a glossary (CON-84), Confluence/GitBook/GitLab
 | **The problem** | Zero discovery conversations have been held. Every design judgement in this repository about what a business reader needs was made without one present. `DISCOVERY.md` holds the script; CON-26 holds the count, which is nought. D-088 |
 | **The provider transport** | The Anthropic path is implemented and has never been billed. The MCP path is what has been exercised. D-057 |
 | **An authenticated push** | `merge_on_accept` has only ever pushed to a bare repository on disk. Credential-helper behaviour and a protected-branch refusal are both untested. D-062 |
+| **A shallow clone** | Nothing creates one. `git log` and `merge-base --is-ancestor` against a truncated history is the shape that produced the D-087 lesson — exit 128 is not an answer — so the behaviour is plausible, not known. D-099 |
+| **A submodule** | Never exercised. A registered repository containing one is read as whatever `git` reports for a gitlink, which has not been looked at. D-099 |
 
 ## 9. What this project is
 

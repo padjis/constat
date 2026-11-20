@@ -2,7 +2,13 @@
 
 **Last updated:** 2026-11-20
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-20):** **CON-101 closed (D-098)** — an area can be documented over
+**Current session (2026-11-20):** **CON-11 closed (D-099) and CON-84 withdrawn (D-100)** — two
+items of bookkeeping with a reason each. CON-11's "safe and useful across realistic Git cases" was
+satisfied by accumulation rather than by a session of its own, and closing it names the two cases
+that are *not* tested: shallow clones and submodules, both now in `LIMITS.md` § 8. CON-84's glossary
+is withdrawn on a structural argument — a term's meaning lives in the rule that uses it, and a
+definition in a second place can contradict a frozen version with nothing to detect it. Before
+them, **CON-101 closed (D-098)** — an area can be documented over
 MCP. `baseline_area_tool` is the fifth tool and a thin wrapper over `operations.baseline_area`; the
 `baseline` prompt is the third prompt and, unlike the other two, takes an *area* rather than a
 reference because a baseline has no ticket. The question "will this baseline depend on the areas in
@@ -11,7 +17,7 @@ it only to ground anchors, never returning it, so an agent could not see which a
 is precisely what D-079 relies on to stop "ads" arriving beside "advertising". The prompt now names
 them, declared and pending both, since an area is declared by acceptance. Before it, **CON-20 closed (D-097)** — `demo.sh` runs the whole loop with no
 API key and no network, verified from a built wheel in a clean venv, and `LIMITS.md` collects what
-fourteen decisions each said once. The demo found two defects in its first two runs. **The MVP's
+twenty-eight decisions each said once. The demo found two defects in its first two runs. **The MVP's
 seven acceptance criteria are now met in full.** Before it, **CON-98 closed (D-096)** — the review queue reads across the
 whole workspace, and found a decision awaiting since 2026-11-15 that had been lost track of
 entirely. Before it, **CON-95 closed (D-095)** — publication refuses internal
