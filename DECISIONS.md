@@ -8,6 +8,60 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-094 · 2026-11-20 · Provenance is labelled per part, and the three types nothing writes are named
+
+**Closes CON-10**, the last MVP acceptance criterion with a real gap (§ 6.3 #3), and the useful half
+of it turned out to be the opposite of what the ticket implied.
+
+**Decision.** Three things:
+
+1. **Every document carries a provenance legend**, generated from the taxonomy so it cannot drift
+   from it, and placed last because it is reference rather than content.
+2. **A rule's parts are labelled separately.** The statement, behaviours and examples are a reading;
+   the anchors are `observed_fact` — paths somebody can look at; a message is a **quotation whose
+   truth is checkable and has not been checked here** (CON-91 does that, on demand).
+3. **`unknown` gets its first producer.** An unreadable repository is tagged, because "could not be
+   read" and "contributed nothing" are different claims and only the second is a finding.
+
+**Three of the seven types have no producer, and saying so is the ticket's real content.**
+`ProvenanceType`'s docstring promised the opposite — "the rest exist so CON-10 extends the taxonomy
+rather than inventing it" — which read as a commitment to populate all seven. It should not be kept:
+
+| Type | Why nothing writes it |
+| --- | --- |
+| `test_evidence` | Nothing runs tests and no test result is read. No ticket owns this. |
+| `requirement_ref` | Nothing is ingested; supplied traceability is CON-18. |
+| `assumption` | Every inference is either a reading or an admission. Nothing between them has needed a third word. |
+
+`assumption` is the interesting one. "Stated inference not backed by evidence" sounds like a real
+category until you look for an instance: a rule proposal is `ai_interpretation`, an anchor resting
+on mainline is still observed, a decider's name taken from git config is recorded as `inferred`
+within its own field (D-061), and everything Constat cannot determine is `unknown`. The gap is not
+an oversight to fill but a distinction the design does not make.
+
+**They are kept rather than removed.** The taxonomy is the product's stated vocabulary, and a reader
+should find the gap rather than a tidied enum that hides it. `PRODUCT_SPEC` § 7.1 gains a *Produced?*
+column saying the same thing, and the document's legend lists all seven with the reason for each
+absence — so the absence cannot be mistaken for having been checked.
+
+**Consequences.**
+
+- **The legend is generated, and a test asserts it covers every member** of `ProvenanceType`. A type
+  added with no entry in either dictionary fails that test, which is the only thing keeping the
+  legend true. Mutation-checked by deleting an entry: three tests fail.
+- **The legend is unconditional**, including on an evidence-only document — the one most likely to
+  be read as plain fact, and therefore the one that needs it most.
+- **A message is never presented as verified by a document.** Its provenance line says what would
+  check it. That is the difference between a quotation and a verified quotation, and conflating them
+  would be the failure D-082 took care to avoid.
+- **Acceptance criterion 3 is marked met** in `PRODUCT_SPEC` § 6.3, with what met it.
+- **No schema change.** Provenance on stored records is unchanged; what changed is what the document
+  says about which kind of claim each line is.
+
+**Status.** accepted
+
+---
+
 ## D-093 · 2026-11-20 · Cache age is stated everywhere and judged nowhere
 
 **Closes CON-38.** D-027 put this beside bounded excerpts deliberately: **unstated staleness is the

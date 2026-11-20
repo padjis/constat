@@ -2,7 +2,10 @@
 
 **Last updated:** 2026-11-20
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-20):** **CON-38 closed (D-093)** — cache age is stated in the document
+**Current session (2026-11-20):** **CON-10 closed (D-094)** — provenance is labelled per part of a
+rule, `unknown` has its first producer, and the three types nothing writes are named in the
+document, the taxonomy and the spec. It was the **last MVP acceptance criterion** with a real gap.
+Before it, **CON-38 closed (D-093)** — cache age is stated in the document
 and in `constat state`, and judged in neither: no threshold, no verdict, and an unrecorded fetch
 says the age cannot be said. Before it, **CON-35 closed (D-092)** — a remote URL is registered and cloned
 into the workspace, read through the unchanged read-only layer. `--mirror` was the first attempt and
@@ -443,6 +446,66 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
   outside contribution if it should be a company.
 - Q2, Q4, Q8 and Q10 are now resolved (D-010, D-012, D-009, D-011); the product name is resolved
   by D-013.
+
+---
+
+## CON-10 — done when: *every claim has a provenance type; unsupported claims are visibly uncertain* ✅
+
+`D-094` records the decision. This was the last MVP acceptance criterion with a real gap
+(`PRODUCT_SPEC` § 6.3 #3), and **the useful half turned out to be the opposite of what the ticket
+implied.**
+
+Seven provenance types were declared at CON-07 and two were ever written. The obvious reading of
+CON-10 is "populate the rest". Looking for instances, three of them have no producer and should not
+pretend otherwise:
+
+| Type | Why nothing writes it |
+| --- | --- |
+| `test_evidence` | Nothing runs tests and no test result is read |
+| `requirement_ref` | Nothing is ingested; supplied traceability is CON-18 |
+| `assumption` | Every inference is either a reading or an admission |
+
+**`assumption` is the interesting one.** "Stated inference not backed by evidence" sounds like a real
+category until you look for an instance: a rule proposal is `ai_interpretation`, an anchor resting
+on mainline is still observed, a decider's name from git config is recorded as `inferred` inside its
+own field (D-061), and everything Constat cannot determine is `unknown`. It is **not a gap to fill
+but a distinction the design does not make** — and `ProvenanceType`'s docstring promised the
+opposite ("the rest exist so CON-10 extends the taxonomy"), which is now corrected.
+
+**What every document now ends with:**
+
+```
+## How to read this
+
+- `observed_fact` — Read directly from a repository: a commit, a path, a diff excerpt.
+- `ai_interpretation` — A reading of that evidence. Carries no authority until a person accepts it.
+- `unknown` — Constat could not determine this. Not a finding, and never read as one.
+- `human_decision` — A person's acceptance, rejection or retirement, with their name as they gave it.
+
+Three types in the taxonomy are produced by nothing today, and are listed so their absence is
+not mistaken for their having been checked: …
+```
+
+**A rule's parts no longer share one label.** The statement is a reading; the anchors are
+`observed_fact`, paths somebody can look at; a message is a quotation whose truth is checkable and
+**has not been checked by the document** — which is the difference D-082 took care to preserve.
+
+**`unknown` has a producer at last:** an unreadable repository is tagged, so "could not be read"
+never renders like "contributed nothing". Only the second is a finding.
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_provenance.py` → **13 passed** (new file). **Whole suite**:
+**1331 passed in 180s**, exit 0. No schema change.
+
+**Mutation-checked:** deleting one entry from the legend's dictionaries fails three tests, and making
+an unreadable repository read as "contributed nothing" fails the test written for it.
+
+### Also corrected
+
+`PRODUCT_SPEC` § 7.1 gains a **Produced?** column, and § 6.3's criterion 3 is marked met with what
+met it. The taxonomy is the product's stated vocabulary; a reader should find the gap rather than a
+tidied list that hides it.
 
 ---
 

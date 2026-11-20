@@ -203,6 +203,63 @@ def _collect_repository(
     )
 
 
+PRODUCED_PROVENANCE = {
+    "observed_fact": "Read directly from a repository: a commit, a path, a diff excerpt.",
+    "ai_interpretation": "A reading of that evidence. Carries no authority until a person accepts it.",
+    "unknown": "Constat could not determine this. Not a finding, and never read as one.",
+    "human_decision": "A person's acceptance, rejection or retirement, with their name as they gave it.",
+}
+"""The provenance types Constat actually produces, and what each means here.
+
+Four of the seven in `ProvenanceType`. The other two — `test_evidence` and
+`requirement_ref` — have **no producer** (see `UNPRODUCED_PROVENANCE`), and
+`assumption` has none either: every inference Constat makes is either a reading
+(`ai_interpretation`) or an admission (`unknown`), and nothing in between has
+turned out to need a third word.
+"""
+
+UNPRODUCED_PROVENANCE = {
+    "test_evidence": "nothing runs tests, and no test result is read (no ticket owns this yet)",
+    "requirement_ref": "no requirement or issue is ingested; supplied traceability is CON-18",
+    "assumption": "every inference is either a reading or an admission, so this has no distinct producer",
+}
+"""Declared in the taxonomy and written by nothing (CON-10, D-094).
+
+Stated rather than quietly carried. An enum member nobody writes is a promise
+the code does not keep, and a reader who finds `assumption` in the taxonomy is
+entitled to know that no path produces it — PRODUCT_SPEC § 7.1 now says so too.
+"""
+
+
+def provenance_legend() -> list[str]:
+    """How to read the provenance labels, generated from the taxonomy.
+
+    Built from the dictionaries above rather than written out, so a type that
+    gains or loses a producer cannot leave a legend behind that still describes
+    the old shape. A test asserts the legend covers every member of
+    `ProvenanceType` — which is what stops the two halves drifting apart.
+    """
+    lines = [
+        "## How to read this",
+        "",
+        "Every claim above is one of these, and the distinction is the point "
+        "(product rule 3):",
+        "",
+    ]
+    for name, meaning in PRODUCED_PROVENANCE.items():
+        lines.append(f"- `{name}` — {meaning}")
+    lines += [
+        "",
+        "Three types in the taxonomy are produced by nothing today, and are "
+        "listed so their absence is not mistaken for their having been checked:",
+        "",
+    ]
+    for name, why in UNPRODUCED_PROVENANCE.items():
+        lines.append(f"- `{name}` — {why}")
+    lines.append("")
+    return lines
+
+
 def describe_age(moment, now=None) -> str:
     """How long ago `moment` was, in words a reader can act on.
 
@@ -523,7 +580,19 @@ def _render_rules(
         lines.append("")
         lines.append(f"{proposal.statement}")
         lines.append("")
-        lines.append(f"Provenance: `{proposal.provenance.value}`.")
+        # The parts of a rule do not share one provenance, and saying they do
+        # was the gap CON-10 closed. A statement is a reading; an anchor is a
+        # path somebody can look at; a message is a quotation whose truth is
+        # checkable and has not been checked here.
+        lines.append(f"Provenance: `{proposal.provenance.value}` — the")
+        lines.append("statement, behaviours and examples are a reading of the")
+        lines.append("evidence. Anchors are `observed_fact`: the paths exist,")
+        if proposal.messages:
+            lines.append("verified below. Messages are quotations of what the")
+            lines.append("product shows a user — `constat message verify`")
+            lines.append("checks them against the code; this document has not.")
+        else:
+            lines.append("verified below.")
         lines.append("")
         if proposal.behaviours:
             lines.append("Behaviours:")
@@ -647,7 +716,15 @@ def render(
         lines.append("")
 
         if finding.error:
-            lines += [f"Could not be read: {finding.error}", ""]
+            # Tagged `unknown`, which is the type's first real producer. An
+            # unreadable repository is not a repository that contributed
+            # nothing: the second is a finding and the first is an admission,
+            # and a reader must be able to tell them apart (product rule 1).
+            lines += [
+                f"`unknown` — could not be read: {finding.error}. Nothing below "
+                "is a statement about this repository.",
+                "",
+            ]
             continue
 
         if finding.status is TicketStatus.LANDED:
@@ -721,6 +798,12 @@ def render(
             "and this document carries no authority until a human approves a "
             "version of it."
         )
+
+    # Last, because it is reference rather than content — and unconditional,
+    # because a document whose labels are explained only sometimes teaches a
+    # reader to ignore them (CON-10).
+    lines.append("")
+    lines += provenance_legend()
     return "\n".join(lines)
 
 

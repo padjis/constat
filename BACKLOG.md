@@ -54,7 +54,7 @@ Ticket register. The single source of truth for *what work exists*; the single s
 | --- | --- | --- | --- |
 | CON-08 | ~~Classify changes conservatively~~ | — | 🔁 **superseded by CON-40..43.** Classification by code signal was dissolved: D-034 removed flags, D-038 removed migrations, D-035 established that rules are business statements no signal can produce. |
 | CON-09 | Generate the first report | A developer can understand the report without reading raw command output. | ✅ D-056 — business and evidence halves, rendered from stored state; usable as PR markdown |
-| CON-10 | Separate facts from interpretation | Every claim has a provenance type; unsupported claims are visibly uncertain. | ⬜ |
+| CON-10 | Separate facts from interpretation | Every claim has a provenance type; unsupported claims are visibly uncertain. | ✅ D-094 — a generated legend in every document, a rule's parts labelled separately, and `unknown` tagged where Constat cannot tell. **Three of the seven types have no producer and are named as such** — including `assumption`, which turns out to be a distinction the design does not make |
 | CON-11 | Strengthen quality with tests | The report remains safe and useful across realistic Git cases. | ⬜ |
 
 ## Phase 4 — Human governance and history

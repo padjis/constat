@@ -51,9 +51,26 @@ class SelectionKind(str, Enum):
 class ProvenanceType(str, Enum):
     """PRODUCT_SPEC.md section 7.1. Every claim carries exactly one.
 
-    Only `observed_fact` is produced today — everything Constat currently
-    emits is read directly from Git. The rest exist so CON-10 extends the
-    taxonomy rather than inventing it.
+    **Four of these have producers; three do not** (CON-10, D-094). The
+    docstring here used to say "only `observed_fact` is produced today... the
+    rest exist so CON-10 extends the taxonomy rather than inventing it", which
+    read as a promise that CON-10 would populate all seven. It did not, and
+    saying which were left empty is the more useful half of the ticket:
+
+    - `observed_fact` — evidence read from a repository.
+    - `ai_interpretation` — a reading of it, pinned on `RuleProposal`.
+    - `unknown` — an admission, tagged where Constat cannot determine something.
+    - `human_decision` — an acceptance, rejection or retirement.
+
+    And the three with no producer, listed in `operations.UNPRODUCED_PROVENANCE`
+    with the reason for each: `test_evidence` (nothing runs tests),
+    `requirement_ref` (nothing is ingested; CON-18), and `assumption` — every
+    inference Constat makes is either a reading or an admission, and nothing
+    between them has turned out to need a third word.
+
+    They are kept rather than removed because the taxonomy is the product's
+    stated vocabulary and a reader should find the gap rather than a tidied
+    enum that hides it. The document's legend names them for the same reason.
     """
 
     OBSERVED_FACT = "observed_fact"

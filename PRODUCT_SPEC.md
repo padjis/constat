@@ -130,7 +130,10 @@ Taken verbatim from the roadmap; these are the MVP's definition of done.
    Release-to-release comparison is no longer in scope; a release tag is normally an ancestor of
    mainline, so it has no mainline framing.
 3. The report links each important claim to inspectable evidence, or clearly labels it as an
-   inference.
+   inference. **Met 2026-11-20 (D-094, CON-10):** every document carries a provenance legend, a
+   rule's parts are labelled separately — the statement is a reading, the anchors are paths that
+   exist, a message is an unchecked quotation — and `unknown` is tagged where Constat cannot
+   determine something, so "could not be read" never renders like "contributed nothing".
 4. The proposal is structured and understandable to both a developer and a business stakeholder.
 5. A human can edit, approve or reject a proposal.
 6. An approved baseline is stored with its source revisions and decision metadata; later work does
@@ -176,15 +179,25 @@ These are invariants. A change that breaks one of them is a defect, not a trade-
 
 Every claim in a report carries exactly one provenance type:
 
-| Type | Meaning | Source of truth |
-| --- | --- | --- |
-| `observed_fact` | Directly read from the repository. | Git |
-| `test_evidence` | Observed test result or test-file change. | Test run / Git |
-| `requirement_ref` | A requirement or issue supplied by a human or integration. | External, supplied |
-| `ai_interpretation` | Generated explanation or impact assessment. | AI provider |
-| `assumption` | Stated inference not backed by evidence. | Constat logic |
-| `unknown` | Constat could not determine this. | — |
-| `human_decision` | A reviewer's edit, approval or rejection. | Reviewer |
+| Type | Meaning | Source of truth | Produced? |
+| --- | --- | --- | --- |
+| `observed_fact` | Directly read from the repository. | Git | ✅ |
+| `test_evidence` | Observed test result or test-file change. | Test run / Git | ❌ nothing runs tests |
+| `requirement_ref` | A requirement or issue supplied by a human or integration. | External, supplied | ❌ nothing is ingested (CON-18) |
+| `ai_interpretation` | Generated explanation or impact assessment. | AI provider | ✅ |
+| `assumption` | Stated inference not backed by evidence. | Constat logic | ❌ no distinct producer |
+| `unknown` | Constat could not determine this. | — | ✅ |
+| `human_decision` | A reviewer's edit, approval or rejection. | Reviewer | ✅ |
+
+**The fourth column was added 2026-11-20 (D-094, CON-10).** Four of the seven have producers and
+three do not, and that is stated here rather than left for a reader to discover by grepping. A type
+in a taxonomy that nothing writes is a promise the code does not keep.
+
+`assumption` is the interesting absence: every inference Constat makes turns out to be either a
+reading of evidence (`ai_interpretation`) or an admission that it cannot tell (`unknown`), and
+nothing between them has needed a third word. The three are kept rather than removed, because this
+table is the product's stated vocabulary and a reader should find the gap rather than a tidied list
+that hides it. Each rendered document carries the same distinction in its own legend.
 
 ## 8. What to measure
 
