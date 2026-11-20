@@ -203,6 +203,58 @@ def _collect_repository(
     )
 
 
+def describe_age(moment, now=None) -> str:
+    """How long ago `moment` was, in words a reader can act on.
+
+    Deliberately coarse — "3 days ago", not a duration to the second. The
+    reader's question is "is this old enough to matter", and false precision
+    invites a confidence the number does not carry.
+    """
+    from datetime import datetime, timezone
+
+    now = now or datetime.now(timezone.utc)
+    seconds = max(0, int((now - moment).total_seconds()))
+    if seconds < 90:
+        return "just now"
+    for size, unit in ((86400, "day"), (3600, "hour"), (60, "minute")):
+        if seconds >= size:
+            count = seconds // size
+            return f"{count} {unit}{'s' if count != 1 else ''} ago"
+    return "just now"
+
+
+def describe_freshness(entry, now=None) -> str:
+    """What a reader must know about how current this repository's copy is
+    (CON-38, D-093).
+
+    **Stated for every repository, judged for none.** There is no staleness
+    threshold here and there should not be: "older than a week is stale" is a
+    judgement about somebody's release cadence, and D-027 asked for disclosure
+    rather than a verdict — the same posture CON-76 took for mainline drift,
+    which reports counts and leaves the conclusion to a person.
+
+    A local path is read where it is, so there is nothing to be stale. Saying
+    so anyway costs one clause and stops the absence of a fetch time reading as
+    a missing field.
+    """
+    if entry.cache_path is None:
+        return "Read in place, so as current as the checkout on disk."
+    if entry.last_fetched_at is None:
+        # Registered before CON-35 populated the column, which cannot happen
+        # today — no path writes a cache without a fetch time. Reported rather
+        # than assumed current, because an unknown age is not a recent one.
+        return (
+            "Read from a cache whose last fetch was never recorded, so how old "
+            "this is cannot be said."
+        )
+    return (
+        f"Read from a cache fetched {describe_age(entry.last_fetched_at, now)} "
+        f"({entry.last_fetched_at.isoformat(timespec='seconds')}). Nothing "
+        "refreshes it on its own, so the evidence below is as old as that — "
+        "`constat repo fetch` brings it up to date."
+    )
+
+
 PR_BODY_LIMIT = 65_536
 """GitHub's pull-request body limit.
 
@@ -555,6 +607,11 @@ def render(
             else f"`{entry.default_branch}`"
         )
         lines.append(f"Measured against {measured}.")
+        lines.append("")
+        # Unstated staleness is the same class of failure as unstated
+        # truncation (D-023, D-027): a document that reads as current while
+        # resting on a week-old cache is confidently wrong about the present.
+        lines.append(describe_freshness(entry))
         own = finding.match.excluded_own_commits
         if own:
             # Stated, not performed silently. Every other omission in this
@@ -1728,6 +1785,10 @@ class RepositoryState:
     alias: str
     mainline: MainlineRef | None
     revision: str | None
+    fetched_at: datetime | None = None
+    """When this repository's cache was last fetched, or None for a local path
+    read in place (CON-38). A picture of "now" assembled from a stale cache is
+    a picture of whenever that cache was fetched."""
     file_count: int = 0
     claimed_files: int = 0
     error: str | None = None
@@ -1922,6 +1983,7 @@ def product_state(
                 alias=entry.alias,
                 mainline=mainline,
                 revision=revision.sha,
+                fetched_at=entry.last_fetched_at if entry.cache_path else None,
                 file_count=state.file_count,
                 claimed_files=len(claimed),
             )
@@ -2207,6 +2269,14 @@ def render_state(state: ProductState) -> str:
             lines.append(
                 "  - no remote-tracking ref, so this is only as current as "
                 "this clone"
+            )
+        if repo.fetched_at is not None:
+            # A picture of "now" assembled from a cache fetched a week ago is a
+            # picture of last week, and this view's whole claim is to be of the
+            # revisions it names (CON-38).
+            lines.append(
+                f"  - read from a cache fetched {describe_age(repo.fetched_at)}; "
+                "nothing refreshes it on its own"
             )
     lines.append("")
 

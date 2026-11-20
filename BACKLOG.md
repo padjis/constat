@@ -240,7 +240,7 @@ first seven sessions assumed. The Git and evidence layers are unaffected.
 | CON-35 | Remote clone-and-cache | A remote URL is cloned into a local cache and read like any local repository; fetch time is recorded. | ✅ D-092 — `--no-checkout` rather than `--mirror`, which has no remote-tracking namespace and breaks D-028 and D-068. Inside the workspace; a refused registration discards its clone; no credentials stored |
 | CON-36 | Default-branch resolution | Each repository's default branch is resolved and stored, never assumed to be `main`. | ✅ delivered with CON-32 |
 | CON-37 | Merged-ticket semantics | A ticket whose work is already merged still produces a document rather than an empty one. | ✅ resolved by D-030; implementation lands with CON-34 |
-| CON-38 | Cache staleness disclosure | Every document states when each repository's cache was last fetched. | ⬜ **unblocked and next** (D-092) — `last_fetched_at` is populated and shown by `repo list`; the document does not yet say it |
+| CON-38 | Cache staleness disclosure | Every document states when each repository's cache was last fetched. | ✅ D-093 — stated in the document and in `constat state`, judged in neither: no threshold, no verdict, and an unrecorded fetch reports that the age cannot be said rather than defaulting to current |
 
 ---
 

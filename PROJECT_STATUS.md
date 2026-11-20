@@ -2,7 +2,9 @@
 
 **Last updated:** 2026-11-20
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-20):** **CON-35 closed (D-092)** — a remote URL is registered and cloned
+**Current session (2026-11-20):** **CON-38 closed (D-093)** — cache age is stated in the document
+and in `constat state`, and judged in neither: no threshold, no verdict, and an unrecorded fetch
+says the age cannot be said. Before it, **CON-35 closed (D-092)** — a remote URL is registered and cloned
 into the workspace, read through the unchanged read-only layer. `--mirror` was the first attempt and
 broke fourteen tests: it has no remote-tracking namespace, which D-028 and D-068 are built on.
 Unblocks CON-38.
@@ -441,6 +443,56 @@ $ constat --nope           → error: unrecognized arguments: --nope   (exit 2)
   outside contribution if it should be a company.
 - Q2, Q4, Q8 and Q10 are now resolved (D-010, D-012, D-009, D-011); the product name is resolved
   by D-013.
+
+---
+
+## CON-38 — done when: *every document states when each repository's cache was last fetched* ✅
+
+`D-093` records the decision. D-027 put this beside bounded excerpts on purpose — **unstated
+staleness is the same class of failure as unstated truncation** — and it was impossible until
+CON-35, because there was no cache to be stale.
+
+**Live, with a cache backdated nine days:**
+
+```
+### billing
+
+Measured against `origin/main`.
+
+Read from a cache fetched 9 days ago (2026-11-11T09:00:00+00:00). Nothing refreshes it on its
+own, so the evidence below is as old as that — `constat repo fetch` brings it up to date.
+```
+
+and in the product state, which needs it most:
+
+```
+- **billing** at `origin/main` `b27538a54899` — 1 file(s), 0 claimed by a rule (0.0%)
+  - read from a cache fetched 9 days ago; nothing refreshes it on its own
+```
+
+**Stated everywhere, judged nowhere.** No threshold: "older than a week is stale" is a judgement
+about somebody's release cadence, not a fact about their repository. A test asserts a cache fetched
+**400 days ago** reports "400 days ago" and that *stale*, *out of date*, *too old* and *warning*
+appear nowhere — and a mutation adding a verdict fails it.
+
+**Three states, not two:** a known fetch time, a local path read in place, and a fetch time nobody
+recorded — which says the age *cannot be said* rather than defaulting to current. An unknown age is
+not a recent one (D-031's posture). Mutation-checked.
+
+**Coarse on purpose**, and a future timestamp reads as "just now" rather than a negative age, because
+two machines with skewed clocks should not produce "-5 hours ago".
+
+### Tests run
+
+`.venv/bin/python -m pytest tests/test_cache_staleness.py` → **19 passed** (new file). **Whole
+suite**: **1318 passed in 180s**, exit 0. No schema change.
+
+### Deliberately not done
+
+- **No auto-refresh on render.** Fetching while rendering would make a read command write, and make
+  two runs of the same command describe two different products.
+- **The payload is unchanged.** Cache age is context for a human weighing a document, not for a
+  model reading evidence.
 
 ---
 

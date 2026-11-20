@@ -8,6 +8,54 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-093 · 2026-11-20 · Cache age is stated everywhere and judged nowhere
+
+**Closes CON-38.** D-027 put this beside bounded excerpts deliberately: **unstated staleness is the
+same class of failure as unstated truncation.** It was impossible until CON-35, because there was no
+cache to be stale.
+
+**Decision.** Every repository in a document, and in `constat state`, says how current Constat's
+copy of it is. A cached remote names the fetch time and its age in words; a local path says it is
+read in place. **No threshold is applied and no verdict is given.**
+
+**Why no threshold.** "Older than a week is stale" is a judgement about somebody's release cadence,
+not a fact about their repository. CON-76 set the posture for mainline drift — report the count,
+leave the conclusion to a person — and this is the same question one layer out. A test asserts that
+a cache fetched **400 days ago** is reported as "400 days ago" and that the words *stale*, *out of
+date*, *too old* and *warning* appear nowhere in the sentence. Mutation-checked by adding a verdict.
+
+**Coarse on purpose.** "3 days ago", not a duration to the second. The reader's question is whether
+it is old enough to matter, and false precision invites a confidence the number does not carry. A
+future timestamp — two machines with skewed clocks — reads as "just now" rather than as a negative
+age.
+
+**Three states, not two.** Fetched at a known time; read in place with no cache; and **fetched at a
+time nobody recorded**, which is reported as "how old this is cannot be said" rather than defaulting
+to current. An unknown age is not a recent one, which is D-031's posture for exactly this ambiguity.
+That third case cannot arise today — no path writes a cache without a fetch time — and is handled
+because the column is nullable and a future path might.
+
+**A local path says so too**, which costs one clause and stops the absence of a fetch time reading
+as a missing field. In `constat state` the opposite choice was made: a local repository gets no line
+at all there, because a per-repository list of "nothing to disclose" is noise rather than honesty.
+
+**Consequences.**
+
+- **The sentence sits beside "Measured against …"**, because both answer the same question — how far
+  to trust this — one by naming the ref and the other by saying how old the copy of it is.
+- **`RepositoryState.fetched_at`** carries it into the product state, which needs it most: that
+  view's entire claim is to be of the revisions it names, and a picture assembled from a week-old
+  cache is a picture of last week.
+- **Nothing is auto-refreshed**, and the sentence says so with the command that would. Fetching on
+  render would make a read command write, and make two runs of the same command describe two
+  different products.
+- **The payload is unchanged.** Cache age is context for a human deciding how much to trust a
+  document, not for a model reading evidence.
+
+**Status.** accepted
+
+---
+
 ## D-092 · 2026-11-20 · A remote is cloned into the workspace, with no checkout and no credentials
 
 **Closes CON-35**, which `PRODUCT_SPEC` § 6 has promised since 2026-11-08: "a remote is registered
