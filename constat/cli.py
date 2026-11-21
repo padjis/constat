@@ -336,28 +336,76 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    publish = subparsers.add_parser(
-        "publish",
-        help="publish a ticket's document to a documentation target",
+    review = subparsers.add_parser(
+        "review",
+        help="put a ticket's proposals where they are decided",
         description=(
             "Write the ticket's stored document to a documentation target, so "
-            "the people who decide about a rule can read it where they work. "
-            "This is the only command that writes outside the workspace: "
-            "gathering never publishes, and accepting never publishes. What "
-            "lands on the page is exactly what `document --show` prints — "
-            "nothing is re-rendered here. Publishing a document approves "
-            "nothing in it."
+            "the people who decide about a rule can read it where they work "
+            "(CON-107). The page carries each rule proposal with its id, and "
+            "`decisions/<REF>.md` beside it is where a reviewer writes a "
+            "verdict. What lands is exactly what `document --show` prints — "
+            "nothing is re-rendered here, and circulating a document approves "
+            "nothing in it. The catalogue page is refreshed at the same time, "
+            "so the record never lags behind what has been decided."
         ),
     )
-    publish.add_argument(
-        "reference",
-        metavar="REF",
-        nargs="?",
+    review.add_argument("reference", metavar="REF")
+    review.add_argument(
+        "--target",
+        default=None,
+        metavar="URL",
         help=(
-            "the ticket to publish. Omit it to publish only the catalogue "
-            "page. Naming a ticket publishes that ticket's document and "
-            "refreshes the catalogue page too, so publishing always leaves "
-            "the catalogue current (CON-106)."
+            "the documentation repository to write to. Omit it to derive the "
+            "target from the current repository's remote; an unrecognised host "
+            "is refused rather than guessed at."
+        ),
+    )
+    review.add_argument(
+        "--repository",
+        default=None,
+        metavar="PATH",
+        help="the repository whose remote names the target (default: the working directory)",
+    )
+    review.add_argument(
+        "--read-decisions",
+        action="store_true",
+        help=(
+            "read back the decisions a reviewer wrote in the target instead of "
+            "writing anything. Reports them; records nothing. Works on any git "
+            "repository — no forge API and no token."
+        ),
+    )
+    review.add_argument(
+        "--record-decisions",
+        action="store_true",
+        help=(
+            "record what a reviewer wrote in the target against the "
+            "catalogue, instead of writing a page. Who decided comes from the "
+            "commit, so there is no --by here. Reading the same commit twice "
+            "records nothing the second time."
+        ),
+    )
+    review.add_argument(
+        "--accept-scan-findings",
+        action="store_true",
+        help=(
+            "write the page even though the credential scan found something "
+            "in the document. Recorded as an operation. A published page "
+            "cannot be recalled, so this is never the default."
+        ),
+    )
+
+    publish = subparsers.add_parser(
+        "publish",
+        help="publish the catalogue as the record of what was agreed",
+        description=(
+            "Write the catalogue — what `constat state` renders — to a single "
+            "page on the documentation target, so the people the "
+            "documentation is for can read what the product does (D-110). It "
+            "shows rules a person has already accepted, so nothing on it can "
+            "be decided: a proposal awaiting a verdict is on its ticket's "
+            "page, which `constat review <REF>` writes."
         ),
     )
     publish.add_argument(
@@ -377,31 +425,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="the repository whose remote names the target (default: the working directory)",
     )
     publish.add_argument(
-        "--read-decisions",
-        action="store_true",
-        help=(
-            "read back the decisions a reviewer wrote in the target instead of "
-            "publishing. Reports them; records nothing. Works on any git "
-            "repository — no forge API and no token."
-        ),
-    )
-    publish.add_argument(
-        "--record-decisions",
-        action="store_true",
-        help=(
-            "record what a reviewer wrote in the target against the "
-            "catalogue, instead of publishing. Who decided comes from the "
-            "commit, so there is no --by here. Reading the same commit twice "
-            "records nothing the second time."
-        ),
-    )
-    publish.add_argument(
         "--accept-scan-findings",
         action="store_true",
         help=(
             "publish even though the credential scan found something in the "
-            "document. Recorded as an operation. A published page cannot be "
-            "recalled, so this is never the default."
+            "catalogue. A published page cannot be recalled, so this is never "
+            "the default."
         ),
     )
 
@@ -2348,13 +2377,23 @@ def _record_decisions(workspace, args, target) -> int:
     return EXIT_OK
 
 
-def _run_publish(args: argparse.Namespace) -> int:
-    """Publish a ticket's document, or say why nothing was published.
+def _run_review(args: argparse.Namespace) -> int:
+    """Put a ticket's proposals where they are decided (CON-107).
 
-    Every failure path here prints "nothing has been published" rather than a
-    bare error. A user who cannot tell whether a document left the machine has
-    to assume it did, and for a document that may carry a credential that is
-    the difference between rotating a key and not.
+    The act `publish <REF>` used to perform, under a name that says which of
+    the two moments it is. A ticket page before any decision carries the
+    queue and is a thing to circulate; the catalogue page after is a thing to
+    keep. One verb for both made the first invisible — `LOOP.md` drew
+    publishing only after the decision, which left the off-CLI approval path
+    (D-105, D-106) unreachable from the documented loop.
+
+    The decision flags live here rather than on `publish` because this is the
+    only page that carries proposals. The catalogue page has none.
+
+    Every failure path prints "nothing has been published" rather than a bare
+    error. A user who cannot tell whether a document left the machine has to
+    assume it did, and for a document that may carry a credential that is the
+    difference between rotating a key and not.
     """
     try:
         with Workspace.open(args.workspace) as workspace:
@@ -2373,59 +2412,49 @@ def _run_publish(args: argparse.Namespace) -> int:
                 )
                 return EXIT_USAGE
 
-            if (args.read_decisions or args.record_decisions) and (
-                args.reference is None
-            ):
-                # A decision is written against a rule proposal, and proposals
-                # live on a ticket's page. The catalogue page carries none.
-                print(
-                    f"{PROG}: error: name the ticket whose decisions to read. "
-                    "A verdict is written against a rule proposal, and the "
-                    "catalogue page has none on it to decide.",
-                    file=sys.stderr,
-                )
-                return EXIT_USAGE
-
             if args.record_decisions:
-                return _record_decisions(workspace, args, target)
+                recorded = _record_decisions(workspace, args, target)
+                if recorded == EXIT_OK:
+                    # Recording accepts rules, so the catalogue the record
+                    # page shows has changed. Leaving it stale would publish
+                    # a catalogue that disagrees with the decisions just read
+                    # from the target it was published to.
+                    _refresh_catalogue(args, target)
+                return recorded
 
             if args.read_decisions:
                 return _report_decisions(workspace, args, target)
 
-            if args.reference is None:
-                result = publish_state(
+            # Counted before publishing, while the workspace is open: this
+            # is what tells a reader whether the page is a thing to decide on
+            # or a record of decisions already taken.
+            waiting = len(RuleProposals(workspace).undecided(args.reference))
+
+            result = publish_document(
+                workspace,
+                args.reference,
+                target,
+                repository=args.repository,
+                accept_scan_findings=args.accept_scan_findings,
+            )
+            # The ticket page is live from here on, so a failure refreshing
+            # the catalogue must not read as "nothing was published".
+            try:
+                state_result = publish_state(
                     workspace,
                     target,
                     repository=args.repository,
                     accept_scan_findings=args.accept_scan_findings,
                 )
-                state_result = None
-            else:
-                result = publish_document(
-                    workspace,
-                    args.reference,
-                    target,
-                    repository=args.repository,
-                    accept_scan_findings=args.accept_scan_findings,
+            except (PublishError, ProviderError) as exc:
+                print(f"published:  {result.ref.describe()}")
+                print(
+                    f"\n{PROG}: error: the ticket page is published; the "
+                    f"catalogue page was not refreshed: {exc}. Run "
+                    "`constat publish` to bring it up to date.",
+                    file=sys.stderr,
                 )
-                # The ticket page is live from here on, so a failure refreshing
-                # the catalogue must not read as "nothing was published".
-                try:
-                    state_result = publish_state(
-                        workspace,
-                        target,
-                        repository=args.repository,
-                        accept_scan_findings=args.accept_scan_findings,
-                    )
-                except (PublishError, ProviderError) as exc:
-                    print(f"published:  {result.ref.describe()}")
-                    print(
-                        f"\n{PROG}: error: the ticket page is published; the "
-                        f"catalogue page was not refreshed: {exc}. Run "
-                        "`constat publish` to bring it up to date.",
-                        file=sys.stderr,
-                    )
-                    return EXIT_PUBLISH
+                return EXIT_PUBLISH
     except InvalidInput as exc:
         # The reserved catalogue page name, reached before any target exists.
         # A refusal must read as a refusal: a traceback here would look like a
@@ -2448,10 +2477,8 @@ def _run_publish(args: argparse.Namespace) -> int:
         return EXIT_WORKSPACE
 
     print(f"published:  {result.ref.describe()}")
-    if result.run_id is not None:
-        print(f"run:        {result.run_id}")
-    if state_result is not None:
-        print(f"catalogue:  {state_result.ref.describe()}")
+    print(f"run:        {result.run_id}")
+    print(f"catalogue:  {state_result.ref.describe()}")
     if result.scan_accepted:
         print(
             f"\n{len(result.scan_findings)} disclosure finding(s) were "
@@ -2470,31 +2497,110 @@ def _run_publish(args: argparse.Namespace) -> int:
             "exists for a real customer, price or volume, because a figure "
             "with a currency is what a business rule legitimately says."
         )
-    if args.reference is None:
-        # The catalogue page alone. Saying what it is *not* matters more here
-        # than on a ticket page: it looks like the authoritative document, and
-        # a reviewer who writes a verdict on it would be writing into a page
-        # that is rewritten in full on the next publish.
+    if waiting:
         print(
-            "\nThis is the catalogue: rules a person has already accepted. "
-            "**Nothing on it can be decided** — a rule awaiting a decision is "
-            "on its ticket's page, which is where a verdict is written. The "
-            "page is rewritten in full each time it is published, so nothing "
-            "written into it survives."
-        )
-        print(
-            "\nNo operation was recorded. This page belongs to no ticket, and "
-            "an operation needs one — so `ticket show` will not list this "
-            "publication. The rules on it each carry their own decision."
+            f"\ncirculated for review — {waiting} proposal(s) on this page "
+            "await a decision. A reviewer writes one line per proposal in the "
+            "`decisions/` file beside it and commits; record what they wrote "
+            f"with `constat review {args.reference} --record-decisions`. Or "
+            "decide here with `constat rule accept <ID>`."
         )
     else:
         print(
-            "\nThe ticket page is a proposal, not an approval, and nothing on "
-            "it records a decision. A reviewer writes one line per proposal in "
-            "the `decisions/` file beside it and commits; you record what they "
-            "wrote with `constat publish <REF> --record-decisions`. Or decide "
-            "here with `constat rule accept <ID> --by <who>`."
+            "\npublished as a record — every proposal on this page is "
+            "decided, so there is nothing on it awaiting a verdict."
         )
+    return EXIT_OK
+
+
+def _refresh_catalogue(args: argparse.Namespace, target) -> None:
+    """Bring the catalogue page up to date, and never fail the caller.
+
+    Called after decisions are recorded, because recording accepts rules and
+    a record page that disagrees with the decisions just read from the target
+    it was published to is worse than one that is merely old. Reported rather
+    than raised: the decisions *are* recorded and durable by this point, and
+    an error here must not read as though they were not (D-062's posture for
+    the merge, applied to the page).
+    """
+    try:
+        with Workspace.open(args.workspace) as workspace:
+            result = publish_state(
+                workspace,
+                target,
+                repository=args.repository,
+                accept_scan_findings=args.accept_scan_findings,
+            )
+    except (PublishError, ProviderError, RepositoryError, WorkspaceError) as exc:
+        print(
+            f"\nThe decisions are recorded. The catalogue page was not "
+            f"refreshed: {exc}. Run `constat publish` to bring it up to date.",
+            file=sys.stderr,
+        )
+        return
+    print(f"\ncatalogue:  {result.ref.describe()}")
+
+
+def _run_publish(args: argparse.Namespace) -> int:
+    """Publish the catalogue — the record of what was agreed (D-110).
+
+    No reference: this page is the whole catalogue, not one ticket's reading.
+    A proposal awaiting a verdict is on its ticket's page, which
+    `constat review <REF>` writes, and the decision flags live there because
+    that is the only page carrying proposals.
+    """
+    try:
+        with Workspace.open(args.workspace) as workspace:
+            target = None
+            if args.target is not None:
+                target = GitPages(args.target)
+
+            result = publish_state(
+                workspace,
+                target,
+                repository=args.repository,
+                accept_scan_findings=args.accept_scan_findings,
+            )
+    except PublishError as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_PUBLISH
+    except ProviderError as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_PUBLISH
+    except RepositoryError as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_REPOSITORY
+    except WorkspaceError as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_WORKSPACE
+
+    print(f"published:  {result.ref.describe()}")
+    if result.scan_accepted:
+        print(
+            f"\n{len(result.scan_findings)} disclosure finding(s) were "
+            "accepted and published anyway. If a credential among them is "
+            "real, rotate it — the page is readable now, and deleting it does "
+            "not unpublish it."
+        )
+    else:
+        print(
+            "\nScanned for credentials, internal hostnames and addresses, "
+            "connection strings and described weaknesses, and found none. "
+            "**Commercial disclosure is not covered**: no generic detector "
+            "exists for a real customer, price or volume, because a figure "
+            "with a currency is what a business rule legitimately says."
+        )
+    print(
+        "\nThis is the catalogue: rules a person has already accepted. "
+        "**Nothing on it can be decided** — a rule awaiting a decision is on "
+        "its ticket's page, written by `constat review <REF>`. The page is "
+        "rewritten in full each time, so nothing written into it survives."
+    )
+    print(
+        "\nNo operation was recorded. This page belongs to no ticket, and an "
+        "operation needs one — so `ticket show` will not list this "
+        "publication. The rules on it each carry their own decision."
+    )
     return EXIT_OK
 
 
@@ -2841,6 +2947,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "rule":
         return _run_rule(args, parser)
+
+    if args.command == "review":
+        return _run_review(args)
 
     if args.command == "publish":
         return _run_publish(args)

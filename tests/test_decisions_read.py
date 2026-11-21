@@ -373,7 +373,7 @@ class TestTheCommandLine:
         capsys.readouterr()
 
         code = main(
-            ["--workspace", home, "publish", "402", "--target", str(wiki),
+            ["--workspace", home, "review", "402", "--target", str(wiki),
              "--read-decisions"]
         )
 
@@ -394,7 +394,7 @@ class TestTheCommandLine:
         home = self._home(tmp_path)
         capsys.readouterr()
 
-        main(["--workspace", home, "publish", "402", "--target", str(wiki),
+        main(["--workspace", home, "review", "402", "--target", str(wiki),
               "--read-decisions"])
 
         out = capsys.readouterr().out
@@ -410,7 +410,7 @@ class TestTheCommandLine:
         home = self._home(tmp_path)
         capsys.readouterr()
 
-        main(["--workspace", home, "publish", "402", "--target", str(wiki),
+        main(["--workspace", home, "review", "402", "--target", str(wiki),
               "--read-decisions"])
 
         out = capsys.readouterr().out
@@ -425,7 +425,7 @@ class TestTheCommandLine:
         home = self._home(tmp_path)
         capsys.readouterr()
 
-        main(["--workspace", home, "publish", "999", "--target", str(wiki),
+        main(["--workspace", home, "review", "999", "--target", str(wiki),
               "--read-decisions"])
 
         out = capsys.readouterr().out
@@ -442,7 +442,7 @@ class TestTheCommandLine:
         home = self._home(tmp_path)
         capsys.readouterr()
 
-        main(["--workspace", home, "publish", "402", "--target", str(wiki),
+        main(["--workspace", home, "review", "402", "--target", str(wiki),
               "--read-decisions"])
 
         out = capsys.readouterr().out
@@ -459,7 +459,7 @@ class TestTheCommandLine:
         before = git(wiki, "rev-parse", "HEAD")
         capsys.readouterr()
 
-        main(["--workspace", home, "publish", "402", "--target", str(wiki),
+        main(["--workspace", home, "review", "402", "--target", str(wiki),
               "--read-decisions"])
 
         assert git(wiki, "rev-parse", "HEAD") == before

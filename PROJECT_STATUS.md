@@ -1029,6 +1029,21 @@ nothing on it can be decided. No operation is recorded for it — `operation.doc
 `NOT NULL` and the page belongs to no ticket, so `ticket show` will not list it, which is stated
 rather than hidden.
 
+**Then the loop turned out to be drawn wrong, and CON-107 (D-111) fixed it.** The author's
+question did it: *if publishing happens after acceptance, the page is documentation — so how can
+anyone approve on it?* Correct. A ticket page carries the **undecided** queue, and the decisions
+file beside it is keyed by proposal id, so the approval path D-105 and D-106 built needs
+publishing to happen **before** the verdict. `LOOP.md` had it after, which made the capability
+unreachable from the documented loop. One verb for two moments is what hid it, so there are now
+two: `constat review <REF>` circulates a ticket page and refreshes the catalogue, `constat
+publish` writes the catalogue alone, and the decision flags live on `review` because it is the
+only page carrying proposals. The command reports which moment it is at — *circulated for review,
+N await a decision* or *published as a record* — read from the queue rather than asserted by a
+flag, because a flag could disagree with the catalogue and a count cannot. `--record-decisions`
+refreshes the catalogue too: recording accepts rules, and two pages on one remote must not
+contradict each other. D-058's "the only command that writes outside the workspace" is amended to
+two commands and one gate; the property was never the count.
+
 Then the original question stands: publish against a real target and see whether anything comes
 back. Both halves are built (D-105, D-106) and **neither has run outside a test** — `publish` is
 the one spine step `demo.sh` does not cover, and the target has only ever been a bare repository on

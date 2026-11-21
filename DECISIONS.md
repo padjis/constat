@@ -8,6 +8,71 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-111 · 2026-11-21 · `review` circulates a ticket, `publish` records the catalogue
+
+**Closes CON-107. Amends D-058's "only command" phrasing**, not its substance.
+
+**Decision.** `constat review <REF>` writes a ticket's page and refreshes the
+catalogue page; `constat publish` writes the catalogue alone and takes no
+reference. The decision flags — `--read-decisions`, `--record-decisions` —
+move to `review`, which is the only page that carries proposals.
+
+**Context: the loop was drawn with publishing in the wrong place.** `LOOP.md`
+had *document → decide → publish*, and the author asked the obvious question
+of it: if publishing happens after acceptance, the page is documentation, so
+how can anyone approve on it? They were right. A ticket page carries the
+**undecided queue** (`operations.py:554`), and the decisions file seeded
+beside it says "the number is the rule proposal's id, shown on the document
+page beside each rule". The approval path D-105 and D-106 built needs
+publishing to happen **before** the decision — so the diagram made the
+capability unreachable.
+
+One verb for both moments is what hid it. `publish 622` meant *circulate this
+for a verdict* before any decision and *keep this as a record* after, and
+nothing in the name distinguished them.
+
+**The command says which moment it is at, read from the queue rather than
+asserted by a flag:**
+
+```
+circulated for review — 4 proposal(s) on this page await a decision
+published as a record — every proposal on this page is decided
+```
+
+A flag would let the two disagree with the catalogue. Counting undecided
+proposals cannot.
+
+**`--record-decisions` now refreshes the catalogue page.** Recording accepts
+rules, so the record changed; leaving it stale would put two pages on one
+remote contradicting each other about what was agreed. Reported and never
+raised if it fails: the decisions are recorded and durable by then, and an
+error reading as "they were not" is the failure D-062's posture exists to
+prevent.
+
+**What D-058 keeps and what it loses.** Two commands now write outside the
+workspace where there was one. The property worth holding was never the count
+— it is that **every exit goes through one port and one scanner**, and both
+commands call the same `publish/` and the same `guard_publication`. The
+sentence is amended to say two commands and one gate. Nothing else writes
+outside the workspace.
+
+**`publish <REF>` is removed rather than deprecated**, on the reasoning
+D-109 used for `analyse` and `snapshot`: no users, and two ways to say one
+thing is worse than a rename that will never be cheaper than today.
+
+**Consequences.**
+
+- `LOOP.md` is four steps and a decision, with `review` before it and
+  `publish` after. The spine is longer and it is no longer wrong.
+- A reviewer reading the output learns whether there is anything for them to
+  do, which is the question they actually have.
+- The flags cannot be asked of the catalogue page at all now — `review`
+  requires a reference, so the parser enforces what a runtime check used to.
+
+**Status.** accepted
+
+---
+
 ## D-110 · 2026-11-21 · The catalogue is published as a page of its own
 
 **Closes CON-106.**

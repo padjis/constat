@@ -1,6 +1,6 @@
 # The command loop, end to end
 
-Version 0.2 · 2026-11-21 · the commands as they exist today
+Version 0.3 · 2026-11-21 · the commands as they exist today
 
 This is the operational view: **what you actually type, who types it, and what happens when it
 refuses.** Only commands a person runs appear below — the MCP tools an agent calls in between are
@@ -24,15 +24,17 @@ flowchart TD
 
     DECIDE{"<b>A person decides, rule by rule</b><br/>reviewer — accept or reject"}
 
-    PUBLISH["<b>constat publish 402</b><br/>operator — the ticket's evidence page, and the<br/>catalogue page refreshed with it (D-110)"]
+    CIRCULATE["<b>constat review 402</b><br/>operator — the ticket page, carrying each proposal<br/>with its id, where the people who decide read it"]
+
+    PUBLISH["<b>constat publish</b><br/>operator — the catalogue: the record of<br/>what was agreed (D-110)"]
 
     WAYS["<b>Not in an MCP client?</b><br/>constat ticket add 402, then either a provider<br/>reads it or constat rule submit --from does"]
     DISCARD["<b>What the reading discards</b><br/>an anchor naming a path not in the evidence ·<br/>a near-duplicate, flagged not merged ·<br/>code leaking into business prose"]
-    DOORS["<b>Two doors, and a model is behind neither</b><br/>constat rule accept 1 --by you ·<br/>or approve on the published page, attributed by git blame"]
+    DOORS["<b>Two doors, and a model is behind neither</b><br/>constat rule accept 1 ·<br/>or commit a verdict on the circulated page, then<br/>constat review 402 --record-decisions"]
     REWORKNOTE["<b>Reject means inconclusive, not wrong</b><br/>another pull request is expected · the critique<br/>itself is NOT carried into the next reading — CON-47/48"]
 
     SETUP -.- WORK
-    WORK --> DOC --> DECIDE
+    WORK --> DOC --> CIRCULATE --> DECIDE
     DECIDE -->|"every rule decided"| PUBLISH
     DECIDE -.->|"not accepted — rework"| WORK
     PUBLISH -->|"next ticket"| WORK
@@ -49,7 +51,7 @@ flowchart TD
     classDef gap fill:#FAF0F1,stroke:#8C2F39,color:#8C2F39
     classDef setup fill:#F7F8FA,stroke:#9AA5B1,color:#404A56
 
-    class DOC,PUBLISH cmd
+    class DOC,CIRCULATE,PUBLISH cmd
     class WORK people
     class DECIDE decide
     class WAYS,DISCARD,DOORS note
@@ -57,8 +59,11 @@ flowchart TD
     class SETUP setup
 ```
 
-Three steps and a decision. Everything else Constat can do is a question you ask of it, not a stage
-the work passes through — those are in [Any time](#any-time) below.
+Four steps and a decision. **`review` comes before the decision and `publish` after it**, which is
+the distinction that matters: the ticket page is something you circulate to get a verdict, the
+catalogue page is the record of the verdicts already given. Everything else Constat can do is a
+question you ask of it, not a stage the work passes through — those are in
+[Any time](#any-time) below.
 
 ---
 
@@ -101,8 +106,9 @@ no rules were identified.
 
 An approval made by someone who never opens a terminal is therefore **better evidenced** than one
 made at the command line. The second door is reached by committing a verdict beside the published
-document and running `constat publish 402 --record-decisions`; `--read-decisions` shows what
-Constat read without recording anything.
+document and running `constat review 402 --record-decisions`; `--read-decisions` shows what
+Constat read without recording anything. Recording refreshes the catalogue page too, so the record
+never lags behind the decisions.
 
 **There is no `accept` tool on any MCP surface**, and a test asserts the *live* tool list to keep it
 that way. A tick on the published page is inert on purpose — a checkbox carries no author.
@@ -137,7 +143,7 @@ None of these are stages in the loop. They are questions you ask of the catalogu
 | Command | Answers |
 | --- | --- |
 | `constat state` | what the product does now, and what is agreed but not yet shipped |
-| `constat publish` | the same picture, as a page where the people who decide can read it |
+| `constat publish` | the same picture, as a page the people the documentation is for can read |
 | `constat rule proposals` | everything awaiting a decision, across every ticket |
 | `constat rule show R-1` | one rule as the catalogue holds it |
 | `constat rule history R-1` | every accepted version of one rule, by citation or name |

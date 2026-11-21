@@ -172,7 +172,7 @@ class TestPublishingATicket:
         code = main(
             [
                 "--workspace", str(Path(subject.path).parent),
-                "publish", "622", "--target", wiki,
+                "review", "622", "--target", wiki,
             ]
         )
 
@@ -192,7 +192,7 @@ class TestPublishingATicket:
         main(
             [
                 "--workspace", str(Path(subject.path).parent),
-                "publish", "622", "--target", wiki,
+                "review", "622", "--target", wiki,
             ]
         )
 
@@ -212,7 +212,7 @@ class TestTheCataloguePageNameIsReserved:
         code = main(
             [
                 "--workspace", str(Path(subject.path).parent),
-                "publish", STATE_REFERENCE, "--target", wiki,
+                "review", STATE_REFERENCE, "--target", wiki,
             ]
         )
 
@@ -226,7 +226,7 @@ class TestTheCataloguePageNameIsReserved:
         main(
             [
                 "--workspace", str(Path(subject.path).parent),
-                "publish", STATE_REFERENCE, "--target", wiki,
+                "review", STATE_REFERENCE, "--target", wiki,
             ]
         )
 
@@ -234,14 +234,84 @@ class TestTheCataloguePageNameIsReserved:
 
     def test_reading_decisions_needs_a_ticket(self, subject, wiki) -> None:
         """A verdict is written against a rule proposal, and the catalogue
-        page carries none."""
+        page carries none.
+
+        Enforced by the parser since CON-107 rather than by a runtime check:
+        the decision flags live on `review`, which requires a reference, so
+        there is no form of the command that asks the catalogue page for
+        decisions.
+        """
         from constat.cli import main
 
-        code = main(
+        with pytest.raises(SystemExit) as raised:
+            main(
+                [
+                    "--workspace", str(Path(subject.path).parent),
+                    "review", "--read-decisions", "--target", wiki,
+                ]
+            )
+
+        assert raised.value.code == 2
+
+    def test_the_catalogue_command_takes_no_reference(self, subject, wiki) -> None:
+        """`publish` is the catalogue and nothing else now (CON-107)."""
+        from constat.cli import main
+
+        with pytest.raises(SystemExit) as raised:
+            main(
+                [
+                    "--workspace", str(Path(subject.path).parent),
+                    "publish", "622", "--target", wiki,
+                ]
+            )
+
+        assert raised.value.code == 2
+
+
+# -- which of the two moments the page is at ---------------------------------
+
+
+class TestThePageSaysWhichMomentItIsAt:
+    """Read from the queue rather than asserted by a flag (CON-107).
+
+    The same command does two things depending on when it is run: before any
+    decision the ticket page is a thing to circulate, after it is a record.
+    Saying which costs nothing and answers the question a reviewer actually
+    has — is there anything here for me to do.
+    """
+
+    def test_an_undecided_page_says_it_is_circulated_for_review(
+        self, subject, wiki, capsys
+    ) -> None:
+        from constat.cli import main
+
+        record(subject, a_reading())  # stored, not accepted
+        capsys.readouterr()
+
+        main(
             [
                 "--workspace", str(Path(subject.path).parent),
-                "publish", "--read-decisions", "--target", wiki,
+                "review", "622", "--target", wiki,
             ]
         )
 
-        assert code == 2
+        out = capsys.readouterr().out
+        assert "circulated for review" in out
+        assert "1 proposal(s) on this page await a decision" in out
+
+    def test_a_decided_page_says_it_is_a_record(
+        self, subject, wiki, capsys
+    ) -> None:
+        from constat.cli import main
+
+        _accept_a_rule(subject)
+        capsys.readouterr()
+
+        main(
+            [
+                "--workspace", str(Path(subject.path).parent),
+                "review", "622", "--target", wiki,
+            ]
+        )
+
+        assert "published as a record" in capsys.readouterr().out

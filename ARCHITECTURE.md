@@ -49,7 +49,7 @@ flowchart TD
     end
 
     subgraph OUT["Egress — every exit is gated by the same scanner"]
-        PUB["publish/ — the one write outside the workspace (D-058)"]
+        PUB["publish/ — the only write outside the workspace (D-058)"]
     end
 
     subgraph GOV["Governance — a human is the only writer"]
@@ -156,14 +156,14 @@ sequenceDiagram
         Constat->>Store: baseline a frozen rule version
         Note over Dev,Store: the CLI is one door, a commit in the target the other
 
-        Dev->>Constat: publish 622
+        Dev->>Constat: review 622
         Constat->>Store: read the stored document, then scan it
         Constat->>Pages: clone, write the page, commit, push
         Constat->>Store: record the publication as an operation
         Note over Constat,Pages: a credential refuses before anything is cloned
     else Accepted on the page instead (D-106)
         Dev->>Pages: commit "approved" beside the published document
-        Dev->>Constat: publish 622 --record-decisions
+        Dev->>Constat: review 622 --record-decisions
         Constat->>Pages: clone, read the decisions file, git blame each line
         Constat->>Store: the same Review.accept, with channel and verification
         Note over Constat,Store: identity comes from the commit, never from the text
@@ -271,7 +271,7 @@ export CONSTAT_AI_PROVIDER=anthropic            # and ANTHROPIC_API_KEY
 constat ticket add 622                          # gathers, reads, fills the queue
 constat rule proposals 622                      # the review queue
 constat rule accept 1 --by you                  # a human decides
-constat publish 622                             # where the business audience reads it
+constat review 622                              # where the business audience reads it
 ```
 
 **Without one**, the same loop runs with the reading done by hand. Every tool is a CLI command, so

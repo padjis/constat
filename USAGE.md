@@ -224,31 +224,36 @@ nothing has read its evidence yet.
 ## 6. Publish it
 
 ```bash
-constat publish                          # the catalogue, as `state` renders it
-constat publish 622                      # ticket 622, and the catalogue refreshed
-constat publish 622 --target <git-url>   # target named explicitly
+constat review 622                       # the ticket page, and the catalogue refreshed
+constat review 622 --target <git-url>    # target named explicitly
+constat publish                          # the catalogue alone, as `state` renders it
 ```
 
 Two kinds of page, for the two audiences product rule 8 asks for (D-110):
 
 | Page | Holds | Decisions |
 | --- | --- | --- |
-| `the-product-as-it-stands.md` | every accepted rule, by area — the business explanation | none: nothing on it can be decided |
-| `<REF>.md` | one ticket's evidence and its review queue — the technical view | this is where a verdict is written |
+| `<REF>.md` | one ticket's evidence and its review queue — the technical view | this is where a verdict is written. Written by `constat review <REF>` |
+| `the-product-as-it-stands.md` | every accepted rule, by area — the business explanation | none: nothing on it can be decided. Written by `constat publish` |
 
-**Publishing a ticket refreshes the catalogue page too**, so the catalogue is never stale. With no
-reference, only the catalogue page is written — which is how a rule accepted from a baseline, with
-no ticket that changed it, reaches a page at all.
+**Two commands, because they are two moments** (D-111). Before anyone has decided, a ticket page is
+something you *circulate*: `constat review 622` writes it, and the output says how many proposals
+await a decision. Afterwards the same command writes the same page as a record, and says so.
+`constat publish` writes the catalogue — the record of what was agreed.
 
-The catalogue page is rewritten in full each time, so nothing written into it survives, and
-`--read-decisions` / `--record-decisions` refuse without a reference: a verdict is written against
-a rule proposal, and the catalogue page carries none. `the-product-as-it-stands` is a **reserved**
+`review` refreshes the catalogue page too, and so does `--record-decisions`, so the record never
+lags behind the decisions. `publish` alone is how a rule accepted from a baseline, with no ticket
+that changed it, reaches a page.
+
+The catalogue page is rewritten in full each time, so nothing written into it survives. The
+decision flags live on `review` and nowhere else: a verdict is written against a rule proposal, and
+the catalogue page carries none. `the-product-as-it-stands` is a **reserved**
 reference — a ticket cannot be published over it.
 
 By default the target is the wiki of the current repository's remote. An unrecognised host
 **refuses** rather than guessing: a push to a guessed URL is not undone by noticing afterwards.
 
-This is the only command that writes outside the workspace. Gathering never publishes, accepting
+`review` and `publish` are the only commands that write outside the workspace, and both go through the same scanner. Gathering never publishes, accepting
 never publishes, and publishing approves nothing.
 
 > On GitHub and GitLab a wiki does not exist until you open it once in the browser. An existing but
@@ -269,8 +274,8 @@ each rule on the page:
 They commit and push it, in the browser or otherwise. Then:
 
 ```bash
-constat publish 622 --read-decisions     # report what is there; records nothing
-constat publish 622 --record-decisions   # record it against the catalogue
+constat review 622 --read-decisions      # report what is there; records nothing
+constat review 622 --record-decisions    # record it against the catalogue
 ```
 
 **Do not write your name in the file.** Who decided is taken from the commit, which the repository

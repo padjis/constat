@@ -646,7 +646,7 @@ class TestTheCommandLine:
             [
                 "--workspace",
                 home,
-                "publish",
+                "review",
                 REFERENCE,
                 "--target",
                 str(wiki),
@@ -667,6 +667,25 @@ class TestTheCommandLine:
         assert "A Business Reviewer" in out
         with Workspace.open(home) as ws:
             assert RuleProposals(ws).find(1).decision == "accepted"
+
+    def test_recording_refreshes_the_catalogue_page(
+        self, tmp_path, wiki, published, home, capsys
+    ):
+        """CON-107. Recording accepts rules, so the catalogue changed.
+
+        Leaving the record page stale would publish a catalogue that
+        disagrees with the decisions just read from the target it was
+        published to — the two pages contradicting each other on the same
+        remote.
+        """
+        decide_in_target(tmp_path, wiki, "1: approved\n")
+
+        self._publish(home, wiki, "--record-decisions")
+
+        assert "catalogue:" in capsys.readouterr().out
+        clone = tmp_path / "after-recording"
+        git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
+        assert (clone / "the-product-as-it-stands.md").exists()
 
     def test_a_refusal_exits_non_zero_so_a_script_cannot_miss_it(
         self, tmp_path, wiki, published, home, capsys

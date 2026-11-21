@@ -29,7 +29,7 @@ exception at all:
 | | |
 | --- | --- |
 | `merge_on_accept` | **Off by default.** With it on, accepting a rule merges the ticket's branch into the default branch and pushes. The merge happens in a temporary clone; the registered repository is never written to; every ambiguity refuses. D-062 |
-| `constat publish` | Writes one Markdown page to a documentation target. Never to a subject repository, never a code push, never a pull-request comment. D-058 |
+| `constat review` / `constat publish` | Write one Markdown page to a documentation target. Never to a subject repository, never a code push, never a pull-request comment. D-058 |
 | The remote cache | Cloning a registered URL writes **inside the workspace** (`~/.constat/cache/`). Nothing is written to the remote: it is a read whose result was kept. D-092 |
 
 No credentials are ever stored. Git's own helpers supply them, and a URL needing authentication
@@ -86,9 +86,9 @@ deliberately so: it needs a disclosure decision first.
 
 ## 6. What a business reader cannot do
 
-**They can now decide, and that gap is closed.** `constat publish` puts a document where a business
+**They can now decide, and that gap is closed.** `constat review <REF>` puts a document where a business
 audience can read it and seeds a decision file beside it they can write in — any git repository, no
-forge API, no token. Since D-106 `constat publish <REF> --record-decisions` records what they wrote
+forge API, no token. Since D-106 `constat review <REF> --record-decisions` records what they wrote
 against the catalogue, with the decider taken from the commit rather than from a typed name, so an
 approval made there is better evidenced than a CLI `--by` string. `--read-decisions` still reports
 without recording, for seeing what Constat read first.
