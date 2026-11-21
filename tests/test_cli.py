@@ -433,7 +433,15 @@ class TestTicketCommands:
         ws = self._ws(tmp_path)
         capsys.readouterr()
 
-        assert main(["--workspace", ws, "ticket", "add", "622", "--no-provider"]) == 0
+        # `--even-if-absent` because this workspace has no repositories and
+        # CON-105 refuses a reference nothing could recognise. The subject
+        # here is the document, not the guard.
+        code = main(
+            ["--workspace", ws, "ticket", "add", "622", "--no-provider",
+             "--even-if-absent"]
+        )
+
+        assert code == 0
         out = capsys.readouterr().out
         assert "opened ticket: 622" in out
         assert "Document written" in out
@@ -444,15 +452,24 @@ class TestTicketCommands:
 
     def test_add_is_refused_twice(self, tmp_path, capsys):
         ws = self._ws(tmp_path)
-        main(["--workspace", ws, "ticket", "add", "622", "--no-provider"])
+        main(
+            ["--workspace", ws, "ticket", "add", "622", "--no-provider",
+             "--even-if-absent"]
+        )
         capsys.readouterr()
 
-        assert main(["--workspace", ws, "ticket", "add", "622", "--no-provider"]) == 4
+        assert main(
+            ["--workspace", ws, "ticket", "add", "622", "--no-provider",
+             "--even-if-absent"]
+        ) == 4
         assert "already exists" in capsys.readouterr().err
 
     def test_list_and_show(self, tmp_path, capsys):
         ws = self._ws(tmp_path)
-        main(["--workspace", ws, "ticket", "add", "622", "--no-provider"])
+        main(
+            ["--workspace", ws, "ticket", "add", "622", "--no-provider",
+             "--even-if-absent"]
+        )
         capsys.readouterr()
 
         assert main(["--workspace", ws, "ticket", "list"]) == 0
@@ -505,8 +522,13 @@ class TestTicketCommands:
         main(["--workspace", ws, "ticket", "add", "88", "--no-provider"])
         assert "s: landed" in capsys.readouterr().out
 
-        main(["--workspace", ws, "ticket", "add", "99999", "--no-provider"])
-        assert "s: not_found" in capsys.readouterr().out
+        # Changed by CON-105, and the distinction is sharper for it: landed
+        # work opens a ticket, a reference nothing recognises is refused
+        # outright rather than opening one that reports `not_found`.
+        code = main(["--workspace", ws, "ticket", "add", "99999", "--no-provider"])
+
+        assert code == 4
+        assert "matched no commits" in capsys.readouterr().err
 
 
 class TestDocumentCommand:
@@ -605,7 +627,14 @@ class TestDocumentCommand:
         main(["--workspace", ws, "init"])
         capsys.readouterr()
 
-        assert main(["--workspace", ws, "ticket", "add", "900", "--no-provider"]) == 0
+        # `--even-if-absent` because the workspace has no repositories; the
+        # subject is what `ticket add` reports once it has opened one.
+        code = main(
+            ["--workspace", ws, "ticket", "add", "900", "--no-provider",
+             "--even-if-absent"]
+        )
+
+        assert code == 0
         assert "no rules identified" in capsys.readouterr().out
 
     def test_ticket_add_exits_five_on_a_provider_fault(

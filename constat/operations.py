@@ -1602,6 +1602,18 @@ def _open_for_reference(
         TicketStore(workspace).add(reference)
         return
 
+    if not findings:
+        # Nothing was searched, so "matched no commits" would blame the
+        # reference for the registry being empty. The distinction matters for
+        # the same reason the unreadable-repository one does: absence of
+        # evidence is not evidence of absence.
+        raise ReferenceMatchedNothing(
+            f"no repositories are registered, so {reference!r} could not be "
+            "looked for. Register one with `constat repo add <path>`, or open "
+            f"the ticket anyway with `constat ticket add {reference} "
+            "--even-if-absent`."
+        )
+
     unreadable = [f for f in findings if f.error is not None]
     coverage = f"searched {len(findings)} repository(ies)"
     if unreadable:
@@ -1614,8 +1626,8 @@ def _open_for_reference(
         f"reference {reference!r} matched no commits: {coverage}. No ticket "
         "was opened: a reference that matches nothing is more often a typo "
         "than a ticket, and an empty ticket cannot be opened again. Open one "
-        f"deliberately with `constat ticket add {reference}` if it should "
-        "exist anyway."
+        f"deliberately with `constat ticket add {reference} --even-if-absent` "
+        "if it should exist anyway."
     )
 
 

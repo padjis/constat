@@ -17,6 +17,7 @@ from . import __version__
 from .config import build_request, build_snapshot_request
 from .git.adapter import configured_identity
 from .errors import (
+    AlreadyRegistered,
     InvalidInput,
     NotRegistered,
     ProviderError,
@@ -408,6 +409,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     ticket_add = ticket_actions.add_parser("add", help="open a ticket")
     ticket_add.add_argument("reference", metavar="REF", help="e.g. 622, ABC-123")
+    ticket_add.add_argument(
+        "--even-if-absent",
+        action="store_true",
+        help=(
+            "open it although no registered repository mentions the "
+            "reference. For work that has not started, or is tracked somewhere "
+            "Constat cannot see. Without this a reference nothing recognises "
+            "is refused, because a typo becomes a permanent empty ticket the "
+            "workspace then refuses to open again (D-063)."
+        ),
+    )
     ticket_add.add_argument(
         "--accept-scan-findings",
         action="store_true",
@@ -2536,17 +2548,45 @@ def _run_ticket(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
                 # worse than no ticket, because `ticket add` then refuses to
                 # open it again (D-059).
                 _refuse_without_a_provider(args, workspace)
-                entry = tickets.add(args.reference)
-                print(f"opened ticket: {entry.reference}")
 
-                # Fill the document immediately. Opening a ticket and then
-                # requiring a second command to populate it would leave an
-                # empty document lying around that says nothing.
-                result = gather(
-                    workspace,
-                    entry.reference,
-                    accept_scan_findings=args.accept_scan_findings,
-                )
+                # The duplicate guard runs first either way, so the message
+                # for an existing ticket does not depend on which path the
+                # reference would have taken.
+                if tickets.find(args.reference) is not None:
+                    raise AlreadyRegistered(
+                        f"ticket {args.reference!r} already exists. Its "
+                        "document is where further operations accumulate; "
+                        "opening it again would not create a second one."
+                    )
+
+                # CON-105: search before opening, so a reference no repository
+                # knows is refused here as it already is on the agent path
+                # (D-063). The reasoning there was that a mistyped reference at
+                # a terminal should be a question rather than a new ticket —
+                # and the terminal was the one place not asking.
+                #
+                # `--even-if-absent` keeps the deliberate case, which is real:
+                # work that has not started, or is tracked somewhere Constat
+                # cannot see. `USAGE.md` has always advertised it.
+                if args.even_if_absent:
+                    entry = tickets.add(args.reference)
+                    print(f"opened ticket: {entry.reference}")
+                    result = gather(
+                        workspace,
+                        entry.reference,
+                        accept_scan_findings=args.accept_scan_findings,
+                    )
+                else:
+                    # Opens inside `gather`, after the search and before
+                    # anything is written — or raises ReferenceMatchedNothing
+                    # and leaves no ticket behind.
+                    result = gather(
+                        workspace,
+                        args.reference,
+                        accept_scan_findings=args.accept_scan_findings,
+                        open_if_absent=True,
+                    )
+                    print(f"opened ticket: {args.reference}")
                 print(
                     f"  {result.repositories_searched} repository(ies) searched, "
                     f"{result.repositories_contributing} contributed evidence"
@@ -2561,7 +2601,7 @@ def _run_ticket(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
                 _print_interpretation(result.interpretation)
                 print()
                 print(f"Document written. See it with `constat document "
-                      f"{entry.reference} --show`.")
+                      f"{args.reference} --show`.")
                 print("It is a draft and carries no authority until approved.")
                 return EXIT_OK
 

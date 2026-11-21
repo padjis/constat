@@ -8,6 +8,54 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-108 · 2026-11-21 · `ticket add` refuses a reference no repository knows
+
+**Closes CON-105.**
+
+**Decision.** `constat ticket add <REF>` searches before it opens. A reference
+no registered repository recognises is refused at exit 4, leaving no ticket
+behind, exactly as `gather_evidence` already refuses it. `--even-if-absent`
+opens one anyway, for work that has not started or is tracked where Constat
+cannot see.
+
+**Context.** D-063 reasoned that *at a terminal a mistyped reference should be
+a question rather than a new ticket*, and that an agent may open one because it
+cannot run a CLI command first. It put the guard on the agent path and left the
+terminal — the place the argument was actually about — with no guard at all.
+`ticket add 99998` opened a ticket at exit 0 for a reference nothing knew.
+
+Found by running it while checking exit codes, against the live workspace
+rather than a throwaway one. Tickets 99998 and 99999 are still there: the store
+is append-only and there is no `ticket remove`. The defect demonstrated itself.
+
+**Two refusals, because two different things are wrong.** A reference nothing
+matched says so and names the repositories searched. A workspace with **no
+repositories registered** says *that* instead — "searched 0 repository(ies)"
+blames the reference for an empty registry, which is absence of evidence read
+as evidence of absence, the mistake the unreadable-repository branch already
+avoids. Both name the way through.
+
+**Consequences.**
+
+- **The CLI and the agent path now give one answer to one question.** A test
+  asserts them together rather than separately, because the defect was the
+  disagreement, not either behaviour alone.
+- **The duplicate guard runs first**, so an existing ticket gets the same
+  message whichever path the reference would have taken.
+- `--even-if-absent` does not bypass the duplicate guard, and still gathers:
+  opening without filling would leave an empty document saying nothing.
+- Four tests in `test_cli.py` ran against a workspace with no repositories and
+  now pass the flag. One had its premise changed outright — an unmatched
+  reference used to open a ticket reporting `not_found`, and the distinction
+  it was asserting is sharper now that it is refused.
+- **Still unanswered:** whether a ticket opened by mistake should be removable
+  or markable void. `rule retire` is the precedent for "it no longer applies"
+  without deletion. Not ticketed, because it is a product decision.
+
+**Status.** accepted
+
+---
+
 ## D-107 · 2026-11-21 · A rule is addressed by citation or name, never by a number
 
 **Closes CON-103.**

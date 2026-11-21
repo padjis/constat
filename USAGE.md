@@ -124,9 +124,17 @@ reference '6222' matched no commits: searched 3 repository(ies). No ticket was
 opened: a reference that matches nothing is more often a typo than a ticket…
 ```
 
-`constat ticket add 622` still works and is still the way to open a ticket deliberately — for work
-the repositories do not mention yet, say. The CLI's own `constat document <REF>` keeps refusing an
-unknown ticket: at a terminal, a mistyped reference should be a question rather than a new ticket.
+`constat ticket add 622` still works and is still the way to open a ticket deliberately — but it
+now searches first (D-108). A reference no registered repository recognises is refused and no
+ticket is opened, because at a terminal a mistyped reference should be a question rather than a new
+ticket, and an empty ticket cannot be opened again. For work the repositories genuinely do not
+mention yet — not started, or tracked where Constat cannot see — say so:
+
+```bash
+constat ticket add 622 --even-if-absent
+```
+
+The CLI's own `constat document <REF>` keeps refusing an unknown ticket, for the same reason.
 
 `--no-provider` still exists, but you no longer need it here. It is a per-run override for the
 genuine one-off — gathering evidence on a `provider` workspace without spending anything — and it
@@ -377,7 +385,8 @@ the documentation; this table is the short version.
 | `whose documentation convention Constat does not know` | Publishing to an unrecognised host | Pass `--target` with the documentation repository URL |
 | `a workspace already exists` | `init` on an existing workspace | Nothing was touched. Remove the file deliberately if you mean to start over |
 | `no ticket '622'. Open one with \`ticket add\`` | At the CLI, or from `get_payload` before anything gathered | `constat ticket add 622`, or call `gather_evidence` first — it opens one |
-| `matched no commits: searched N repository(ies)` | The reference appears in no commit message or branch name anywhere | Check the reference. If the work is real but unmentioned, open it deliberately with `ticket add` |
+| `matched no commits: searched N repository(ies)` | The reference appears in no commit message or branch name anywhere. Refused on both `ticket add` and `gather_evidence` (D-108) | Check the reference for a typo. If the work is real but unmentioned, `constat ticket add <REF> --even-if-absent` |
+| `no repositories are registered` | `ticket add` or `gather_evidence` on a workspace with an empty registry — nothing was searched, so the reference was not missed | `constat repo add <path>` first, or `--even-if-absent` if the ticket should exist regardless |
 | `… of which 1 could not be read` | A registered repository has moved or been deleted, so absence could not be established | Fix the path with `repo add`, or accept that the answer is unknown rather than "no" |
 
 Two that are *not* refusals, and matter:

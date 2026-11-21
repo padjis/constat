@@ -352,14 +352,21 @@ class TestTheLibraryContract:
 class TestTheRegistryIsStillRequired:
     def test_a_workspace_with_no_repositories_refuses(self, tmp_path: Path):
         """Nothing to recognise the reference, so nothing to open a ticket
-        on. Reported as a miss rather than crashing on an empty search."""
+        on. Reported as a miss rather than crashing on an empty search.
+
+        **Reworded by CON-105.** It used to say the reference "matched no
+        commits: searched 0 repository(ies)", which blames the reference for
+        the registry being empty — absence of evidence read as evidence of
+        absence, the same mistake the unreadable-repository branch already
+        avoids. The refusal and the untouched registry are unchanged.
+        """
         ws = str(tmp_path / "ws")
         main(["--workspace", ws, "init"])
 
         message = refusal(ws, "gather_evidence", reference="622")
 
-        assert "matched no commits" in message
-        assert "searched 0 repository(ies)" in message
+        assert "no repositories are registered" in message
+        assert "repo add" in message
         assert tickets(ws) == []
 
     def test_the_registry_is_untouched_by_a_refusal(self, clean: str):

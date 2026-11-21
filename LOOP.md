@@ -82,7 +82,7 @@ reimplements an operation.
 | | What you type | What it needs |
 | --- | --- | --- |
 | **MCP** | `/mcp__constat__document 402` | an MCP client. The host supplies the model, so Constat holds no API key and the ticket is opened for you |
-| **Provider** | `constat ticket add 402` | `CONSTAT_AI_PROVIDER` and an API key, billed separately |
+| **Provider** | `constat ticket add 402` | `CONSTAT_AI_PROVIDER` and an API key, billed separately. The reference must be one a repository recognises, or `--even-if-absent` |
 | **By hand** | `constat ticket add 402`, then `constat rule submit 402 --from reading.json` | nothing — any model, anywhere, or no model at all |
 
 With no provider configured the evidence path still runs in full. The two commands whose purpose
