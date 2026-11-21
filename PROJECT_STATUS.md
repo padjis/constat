@@ -1012,10 +1012,24 @@ enough of a catalogue to publish and put in front of somebody — which is the c
 test of it, and the only one that does not require a discovery conversation first (CON-26, still at
 nought).
 
-The step is `constat publish <REF>` against a real documentation target, then `--read-decisions` to
-see whether anything came back. Both halves are built (D-105, D-106) and **neither has run outside
-a test**: `publish` is the one spine step `demo.sh` does not cover, and the target has only ever
-been a bare repository on disk. `LIMITS.md` § 8 records that an authenticated push is unverified.
+**Attempting it found that there is nothing worth publishing, which is CON-106.** `publish` is
+ticket-scoped, and the ticket document is an *impact* view by design — it answers which rules have
+anchors in what this ticket changed. A landed ticket (615, 628) or a baseline
+(`baseline-app-install`) honestly reports "none of the 8 rule(s) … has an anchor in what this
+ticket changed", so publishing today would put a page in front of a business reader stating that no
+rules apply while the catalogue holds eight. The document is not wrong; **the catalogue has no
+publication at all**, and `constat state` reaches only a terminal.
+
+CON-106 is the fix, in the shape the author chose: `constat publish` with no reference publishes
+the state page, and `constat publish <REF>` publishes that ticket's document **and** refreshes the
+state page — so publishing always brings the state page up to date. Two page kinds for product rule
+8's two audiences, rather than one page trying to be both. Approval stays on ticket pages (D-106),
+because that is where the proposals are.
+
+Then the original question stands: publish against a real target and see whether anything comes
+back. Both halves are built (D-105, D-106) and **neither has run outside a test** — `publish` is
+the one spine step `demo.sh` does not cover, and the target has only ever been a bare repository on
+disk. `LIMITS.md` § 8 records that an authenticated push is unverified.
 
 **No longer here:** CON-26, which led this section all week. Under D-088 it is deferred rather than
 overdue, and `DISCOVERY.md` stands as a written artefact rather than a task list. The trademark work
