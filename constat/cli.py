@@ -58,6 +58,7 @@ from .operations import (
     land_ticket,
     product_state,
     publish_document,
+    record_read_decisions,
     render_state,
     submit_reply,
 )
@@ -88,6 +89,7 @@ EXIT_WORKSPACE = 4  # Constat's own stored state could not be opened or created.
 EXIT_PROVIDER = 5  # the interpretation layer was misconfigured; nothing else was.
 EXIT_PUBLISH = 6  # the document is fine; publishing it did not happen (D-058).
 EXIT_MERGE = 7  # the acceptance is recorded and durable; the merge did not happen (D-062).
+EXIT_DECISIONS = 8  # decisions were read; at least one could not be recorded (D-106).
 
 
 def _describe_repository(repo) -> None:
@@ -362,6 +364,16 @@ def build_parser() -> argparse.ArgumentParser:
             "read back the decisions a reviewer wrote in the target instead of "
             "publishing. Reports them; records nothing. Works on any git "
             "repository — no forge API and no token."
+        ),
+    )
+    publish.add_argument(
+        "--record-decisions",
+        action="store_true",
+        help=(
+            "record what a reviewer wrote in the target against the "
+            "catalogue, instead of publishing. Who decided comes from the "
+            "commit, so there is no --by here. Reading the same commit twice "
+            "records nothing the second time."
         ),
     )
     publish.add_argument(
@@ -1321,6 +1333,16 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                         f"      accepted by {who} from rule proposal "
                         f"{v['from_rule_proposal_id']}"
                     )
+                    # On its own line, and only for the channel that has
+                    # something behind the name. A decision committed in the
+                    # documentation target rendered like a CLI string would
+                    # hide the difference this record exists to keep (D-106).
+                    if v.get("channel") == "git_pages":
+                        print(
+                            "      decided in the documentation target, "
+                            f"{v['verification']}, commit "
+                            f"{str(v['source_commit'] or '')[:12]}"
+                        )
                     # Only when there is one. Printing "release: none" on
                     # every version of every rule in a workspace that declares
                     # no releases would read as a gap rather than as the
@@ -2234,8 +2256,88 @@ def _report_decisions(workspace, args, target) -> int:
         print("silence would leave them believing it was recorded.")
         print()
 
-    print("Nothing here is recorded. Accept or reject at the command line:")
-    print("  constat rule accept <ID> --by <WHO>")
+    print("Nothing here is recorded. Record it with `constat publish")
+    print(f"{read.reference} --record-decisions`, or decide at the command")
+    print("line with `constat rule accept <ID> --by <WHO>`.")
+    return EXIT_OK
+
+
+def _record_decisions(workspace, args, target) -> int:
+    """Record what a reviewer wrote in the target (CON-58, D-106).
+
+    **Says what it recorded and what it did not, separately.** The refusals are
+    the part that matters: a reviewer who wrote a decision Constat could not
+    record is entitled to learn that from the command rather than from the
+    rule never changing. They are also why this exits non-zero — a script that
+    treats "read the decisions" as done when four of five landed would bury
+    the one that did not.
+    """
+    result = record_read_decisions(
+        workspace, args.reference, target, repository=args.repository
+    )
+    read = result.read
+
+    print(f"decisions for {read.reference}")
+    print(f"  from: {read.location}")
+    print()
+
+    if not read.present:
+        print("There is no decision file in the target.")
+        print()
+        print("That is not 'nobody has decided' — it means this ticket's")
+        print("document has never been published there, so nobody has had")
+        print("anywhere to write. Run `constat publish` first.")
+        return EXIT_OK
+
+    if not read.decisions and not read.unreadable:
+        print("The decision file is there and empty.")
+        print()
+        print("Nobody has written a decision yet, so there is nothing to")
+        print("record. The file was seeded once when the document was")
+        print("published and Constat never writes it again.")
+        return EXIT_OK
+
+    if result.recorded:
+        print(f"{len(result.recorded)} decision(s) recorded:")
+        for outcome in result.recorded:
+            print(f"  {outcome.describe()}")
+            print(f"      {outcome.line.commit[:12]}  line {outcome.line.line_no}")
+        print()
+        # Said once, here, because this is the moment the amendment in D-106
+        # becomes visible: a decision nobody typed at this command line is now
+        # in the catalogue, and the reader should know on what authority.
+        print("Recorded on the authority of the commit that wrote each line,")
+        print("never of a name typed in the file. An approval made here is")
+        print("better evidenced than a CLI `--by` string, which nothing checks.")
+        print()
+
+    if result.already:
+        print(f"{len(result.already)} decision(s) already recorded:")
+        for outcome in result.already:
+            print(f"  {outcome.describe()}")
+        print()
+        print("Reading a target twice is safe. These are the same decisions")
+        print("from the same commits, not new ones.")
+        print()
+
+    if result.refused:
+        print(f"{len(result.refused)} decision(s) could NOT be recorded:")
+        for outcome in result.refused:
+            print(f"  {outcome.describe()}")
+        print()
+
+    if read.unreadable:
+        print(f"{len(read.unreadable)} line(s) could not be read at all:")
+        for number, text in read.unreadable:
+            print(f"  line {number}: {text}")
+        print()
+
+    if result.unrecorded:
+        print("Somebody decided something that is not recorded. Fix the line")
+        print("in the target and run this again, or decide it at the command")
+        print("line — but do not assume it landed.")
+        return EXIT_DECISIONS
+
     return EXIT_OK
 
 
@@ -2252,6 +2354,20 @@ def _run_publish(args: argparse.Namespace) -> int:
             target = None
             if args.target is not None:
                 target = GitPages(args.target)
+
+            if args.read_decisions and args.record_decisions:
+                # Two flags, two meanings, and no sensible union: one promises
+                # it records nothing. Refusing beats guessing which the user
+                # meant, since one of the guesses writes to the catalogue.
+                print(
+                    f"{PROG}: error: --read-decisions reports and records "
+                    "nothing; --record-decisions records. Pick one.",
+                    file=sys.stderr,
+                )
+                return EXIT_USAGE
+
+            if args.record_decisions:
+                return _record_decisions(workspace, args, target)
 
             if args.read_decisions:
                 return _report_decisions(workspace, args, target)
@@ -2299,8 +2415,11 @@ def _run_publish(args: argparse.Namespace) -> int:
             "with a currency is what a business rule legitimately says."
         )
     print(
-        "\nThe page is a proposal, not an approval. Its review queue records "
-        "nothing: accept or reject with `constat rule accept <ID> --by <who>`."
+        "\nThe page is a proposal, not an approval, and nothing on it records "
+        "a decision. A reviewer writes one line per proposal in the "
+        "`decisions/` file beside it and commits; you record what they wrote "
+        "with `constat publish <REF> --record-decisions`. Or decide here with "
+        "`constat rule accept <ID> --by <who>`."
     )
     return EXIT_OK
 

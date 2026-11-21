@@ -226,6 +226,40 @@ never publishes, and publishing approves nothing.
 > On GitHub and GitLab a wiki does not exist until you open it once in the browser. An existing but
 > empty repository is fine — Constat makes the first commit.
 
+### Deciding on the page instead of at the command line
+
+Publishing also seeds `decisions/622.md` beside the page, once, and never writes it again — the page
+is regenerated on every run, so a decision written *there* would be destroyed. A reviewer who never
+opens a terminal edits that file instead, one line per rule proposal, using the `#N` shown beside
+each rule on the page:
+
+```
+1: approved
+2: rejected — the limit is per account, not per customer
+```
+
+They commit and push it, in the browser or otherwise. Then:
+
+```bash
+constat publish 622 --read-decisions     # report what is there; records nothing
+constat publish 622 --record-decisions   # record it against the catalogue
+```
+
+**Do not write your name in the file.** Who decided is taken from the commit, which the repository
+attests and a typed name does not — so there is no `--by` on this path. A signed commit is recorded
+as `signed_commit` where git could check it and `signed_unverified` where it could not, because the
+allowed-signers file lives with the signer and never on the machine reading the decisions back.
+
+Reading the same commit twice records nothing the second time. A verdict rewritten in a *new* commit
+is **reported, not applied**: a recorded decision is append-only, and `constat rule retire` is how a
+rule stops describing the product. Anything Constat cannot record — a rule citation like `R-7`
+instead of a proposal id, an unknown id, another ticket's proposal, two verdicts for one proposal —
+is reported line by line and exits **8**, because a decision somebody made and Constat does not hold
+must not look like success.
+
+Works on any git repository: no forge API, no token, no per-platform backend. That is also what
+keeps product rule 7's "no stored credentials" true — Constat is never the thing holding one.
+
 ---
 
 ## 7. Recomputing
@@ -316,6 +350,7 @@ and "this file exists" are different claims.
 | 5 | Provider — misconfigured, unreachable, unparseable reply, or a credential in the evidence |
 | 6 | Publish — target unknown, unreachable, or a credential in the document |
 | 7 | Merge — the acceptance is recorded; landing the ticket's branch did not happen (D-062) |
+| 8 | Decisions — the target was read; at least one decision could not be recorded (D-106) |
 
 ---
 

@@ -172,6 +172,10 @@ class Review:
         rationale: str | None = None,
         attribution: str = "stated",
         release: str | None = None,
+        channel: str = "cli",
+        verification: str = "asserted",
+        source_commit: str | None = None,
+        source_line: int | None = None,
     ) -> Acceptance:
         """Accept a reading: record the decision and baseline a rule version.
 
@@ -187,6 +191,15 @@ class Review:
         there is no path that gives an already-accepted version a release
         afterwards, and that is deliberate: back-filling one would assert a
         ship nobody recorded.
+
+        `channel` and `verification` say where the decision was made and what
+        attested to it (D-106). The defaults describe the CLI, so this keeps
+        meaning exactly what it did before for every existing caller. What the
+        arguments do **not** loosen is who may accept: there is no acceptance
+        tool on any MCP surface and D-055's test still asserts the live tool
+        list. A `git_pages` decision exists because a person committed a line
+        in a repository, which is a human act that happened elsewhere — not an
+        agent reaching this function (D-089).
         """
         stored = self._require(proposal_id)
         if stored.decision == "accepted":
@@ -202,7 +215,15 @@ class Review:
         rule_id, created = self._target_rule(stored)
         version_id, version_no = self._baseline(rule_id, stored, resolved)
         self._proposals.decide(
-            proposal_id, "accepted", decided_by, rationale, attribution
+            proposal_id,
+            "accepted",
+            decided_by,
+            rationale,
+            attribution,
+            channel=channel,
+            verification=verification,
+            source_commit=source_commit,
+            source_line=source_line,
         )
         return Acceptance(
             rule_id=rule_id,
@@ -304,16 +325,35 @@ class Review:
         decided_by: str,
         rationale: str | None = None,
         attribution: str = "stated",
+        channel: str = "cli",
+        verification: str = "asserted",
+        source_commit: str | None = None,
+        source_line: int | None = None,
     ) -> None:
         """Reject a reading as inconclusive (D-036).
 
         Deliberately changes nothing in the catalogue. Rejection is not a
         statement that the rule is wrong, so there is nothing to unwind — and
         a later reading of better evidence is expected rather than precluded.
+
+        `channel` and the three arguments after it carry the same meaning as
+        on `accept`: where the decision was made and what attested to it
+        (D-106). A rejection read from a documentation target is recorded the
+        same way an approval is, because a reviewer who wrote *rejected* has
+        decided — reading only the approvals would be a channel that hears
+        agreement and not disagreement.
         """
         self._require(proposal_id)
         self._proposals.decide(
-            proposal_id, "rejected", decided_by, rationale, attribution
+            proposal_id,
+            "rejected",
+            decided_by,
+            rationale,
+            attribution,
+            channel=channel,
+            verification=verification,
+            source_commit=source_commit,
+            source_line=source_line,
         )
 
     # -- internals ---------------------------------------------------------
@@ -629,6 +669,7 @@ class Review:
         rows = self._workspace.execute(
             "SELECT v.id, v.version_no, v.name, v.statement, v.area, v.created_at, "
             "       v.from_rule_proposal_id, d.decided_by, d.attribution, "
+            "       d.channel, d.verification, d.source_commit, "
             "       d.decided_at, r.name AS release_name "
             "FROM rule_version v "
             "LEFT JOIN rule_proposal_decision d "

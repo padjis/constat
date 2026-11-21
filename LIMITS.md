@@ -15,7 +15,7 @@ item is a decision, with the entry that made it.
 
 | | |
 | --- | --- |
-| **Nothing is accepted without a person** | No tool, flag, setting or MCP call can accept a rule proposal. Acceptance is reachable only from the command line, and a test asserts the live MCP tool list to keep it that way. D-048, D-055 |
+| **Nothing is accepted without a person** | No tool, flag, setting or MCP call can accept a rule proposal, and a test asserts the live MCP tool list to keep it that way. Two channels reach acceptance, both of them human acts: the command line, and a decision a reviewer commits in the documentation target. D-048, D-055, D-106 |
 | **A rejection means inconclusive, not wrong** | So a later reading of better evidence is expected rather than precluded. D-036 |
 | **Nothing is retired automatically** | A rule whose anchors have vanished is a *candidate*, never a retirement. A person decides, with a reason. D-070, D-084 |
 | **Nothing judges staleness** | Cache age and mainline drift are reported with numbers and no verdict. "Older than a week is stale" is a judgement about your release cadence, not a fact about your repository. D-093, CON-76 |
@@ -85,19 +85,24 @@ deliberately so: it needs a disclosure decision first.
 
 ## 6. What a business reader cannot do
 
-**Read and respond, but the response is not yet a decision.** `constat publish` puts a document
-where a business audience can read it, and since D-105 it also seeds a decision file they can write
-in — any git repository, no forge API, no token. `constat publish <REF> --read-decisions` reports
-what they wrote, with the author taken from the commit rather than from a typed name.
+**They can now decide, and that gap is closed.** `constat publish` puts a document where a business
+audience can read it and seeds a decision file beside it they can write in — any git repository, no
+forge API, no token. Since D-106 `constat publish <REF> --record-decisions` records what they wrote
+against the catalogue, with the decider taken from the commit rather than from a typed name, so an
+approval made there is better evidenced than a CLI `--by` string. `--read-decisions` still reports
+without recording, for seeing what Constat read first.
 
-**Nothing recorded there takes effect.** Reading an approval is not recording one: the output says so
-and names the command that would act on it. D-048 and D-055 are unchanged, and the step that amends
-them is still to come (D-089, CON-58).
+**What still cannot be decided that way.** A tick on the rendered page records nothing and will not:
+a checkbox carries no author. A rule citation (`R-7`) is not a proposal id and is refused. A verdict
+rewritten after it was recorded is reported rather than applied, because a recorded decision is
+append-only — retiring the rule is the way back. And no agent can accept: there is no `accept` tool
+on any MCP surface and a test asserts the live tool list (D-048, D-055 as amended by D-106).
 
-So the gap is narrower and still real. Free-form comments remain unbuilt and need a durable anchor
-model first (D-043, CON-39, CON-47, CON-48) — and whether a business reader would ever go to a wiki
-page to approve is **unverified**: `DISCOVERY.md` § 4 calls that the most load-bearing and least
-tested assumption in the product, and no discovery conversation has been held (D-088).
+So the remaining gap is narrower. Free-form comments remain unbuilt and need a durable anchor model
+first (D-043, CON-39, CON-47, CON-48) — and whether a business reader would ever go to a wiki page
+to approve is **unverified**: `DISCOVERY.md` § 4 calls that the most load-bearing and least tested
+assumption in the product, and no discovery conversation has been held (D-088). Building the
+mechanism does not test the assumption.
 
 ## 7. Deferred by decision
 

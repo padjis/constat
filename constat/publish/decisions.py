@@ -26,10 +26,11 @@ is a living view regenerated on every run, so a decision written there would be
 destroyed — which is CON-39's problem, and the reason decisions live in their
 own file instead. Constat owns the page; the reviewer owns this.
 
-**Nothing here is applied.** Reading a decision is not recording one. D-089
-intends off-CLI approval to count, and says the amendment to D-055 lands with
-the mechanism that enforces it — so this reads and reports, and applying what
-it reads is the next piece of work.
+**Nothing in *this module* is applied.** Reading a decision is not recording
+one, and the separation is deliberate: the format and the git plumbing live
+here, and `operations.record_read_decisions` is the only thing that writes to
+the catalogue (D-106). A reviewer can therefore be shown what Constat read
+before anything acts on it, which is what `--read-decisions` is for.
 """
 
 from __future__ import annotations
@@ -82,8 +83,10 @@ commit if you want it verifiable rather than merely attributed.
 A rejection means *inconclusive* — the evidence did not settle it — not that
 the rule is wrong (D-036).
 
-Nothing here takes effect on its own. These decisions are read back and
-reported; recording them against the catalogue is a separate, deliberate step.
+Nothing here takes effect on its own. Someone reads these back with
+`constat publish {reference} --read-decisions`, which reports and records
+nothing, and records them against the catalogue with `--record-decisions`.
+Reading twice is safe: the same line in the same commit is recorded once.
 
 <!-- Constat wrote this file once and will never change it again. The document
      page beside it is regenerated on every run; this is yours. -->

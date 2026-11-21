@@ -8,6 +8,89 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-106 · 2026-11-21 · An approval committed in the documentation target is a recorded decision
+
+**Closes CON-58** and **amends D-055 and D-048**, which put acceptance at the command line only.
+This is the amendment D-089 promised, arriving with the mechanism that enforces it rather than
+before it.
+
+**Decision.** `constat publish <REF> --record-decisions` records what a reviewer wrote in the
+target against the catalogue: `approved` calls the same `Review.accept` the CLI calls, `rejected`
+the same `Review.reject`. Schema 23 adds four columns to `rule_proposal_decision` — `channel`,
+`verification`, `source_commit`, `source_line` — and every decision ever recorded before this is
+migrated to `cli` / `asserted`, which restates what those rows already meant rather than upgrading
+one of them.
+
+**What D-055 was protecting, and what it was not.** The objection was never the channel; it was
+that **a model must not be able to accept** (D-089). Nothing here gives one a way: there is still no
+`accept` or `reject` tool on any MCP surface, the test asserting that on the *live* tool list is
+untouched, and a decision on this path exists only because a person committed a line to a
+repository. An agent cannot make such a commit by calling a tool, and if it could, the act would be
+a commit under its own identity rather than a tool call wearing a human's.
+
+**The channel is now load-bearing rather than a label, and the gradient runs the other way from
+what one might assume.**
+
+| `channel` | `attribution` | `verification` | What backs the decider's name |
+| --- | --- | --- | --- |
+| `cli` | `stated` | `asserted` | a `--by` string nothing checks (D-061) |
+| `cli` | `inferred` | `asserted` | git config on the machine that ran the command |
+| `git_pages` | `commit` | `git_commit` | a commit author, attested by the repository's history |
+| `git_pages` | `commit` | `signed_unverified` | the above, and a signature nobody here could check |
+| `git_pages` | `commit` | `signed_commit` | git checked the signature and was satisfied |
+
+So an approval made by someone who never opens a terminal is **better evidenced** than one made at
+the command line, which is the arrangement product rule 8 needs: the business audience that owns the
+decision can take it where they work. `attribution` gains `commit` and keeps meaning what it meant —
+how `decided_by` was obtained — rather than becoming a second trust level beside `verification`.
+
+**Idempotence is a constraint, not a convention.** `(rule_proposal_id, source_commit)` is unique, so
+reading a target twice records once because the database refuses the second write, not because this
+code remembered to look first. SQLite treats nulls as distinct, which leaves the CLI path exactly as
+it was — a second CLI decision on one proposal is still allowed, because changing one's mind is
+history rather than a mistake.
+
+**A verdict rewritten in a new commit is reported, never applied.** It is a new decision by the
+dedupe key, and the recording path refuses it because the proposal is already decided: a recorded
+decision is append-only, and `rule retire` is how a rule stops describing the product. Quietly
+writing the second verdict would rewrite the record a reviewer was shown.
+
+**Five refusals, each reported per line.** A rule citation (`R-7` names a rule, not the proposal
+that becomes a version of it), an unknown proposal id, a proposal belonging to another ticket, one
+proposal decided twice in the same file, and a line git cannot attribute. A file with one bad line
+and four good ones records the four — stopping at the first refusal would let a typo swallow
+decisions that were perfectly readable. **Exit 8** when anything a human decided is not recorded,
+including a line that could not be read at all: a decision Constat does not hold must never look
+like success (D-041).
+
+**Context.** D-089 recorded the author's intent on 2026-11-19 and deliberately changed nothing in
+the code, so that CON-58 would be designed for off-CLI approval rather than around it. D-105 built
+the reading half and recorded nothing. This is the half that amends the invariant, and it is
+separated from the reading on purpose: `--read-decisions` still reports and records nothing, so a
+reviewer can see what Constat read before anything acts on it.
+
+**Consequences.**
+
+- **Product rule 8's business audience can now decide.** Previously every decision required the
+  command line, which meant the audience the documentation is *for* could not take one. The page
+  itself now says where to write and that a tick records nothing, because a tick is attributable to
+  nobody.
+- **`--by` does not exist on this path and must not be added.** The name comes from the commit. A
+  typed name here would attribute a reviewer's decision to whoever ran the command.
+- **A tick on the page is still inert**, and that is not a gap left for later: a checkbox in a
+  rendered page carries no author, so reading ticks back would record decisions nobody can be shown
+  to have made.
+- **Exit 8 joins the exit vocabulary** (`USAGE.md` § 8) and is a partial-failure code in the shape
+  of D-062's exit 7: the work that could be done is done and durable, and what did not happen is
+  named.
+- **`signed_commit` is unreachable in practice from a clone**, as D-105 found, and is stored anyway
+  because the day a verifying configuration exists on the reading machine, rounding it down would
+  discard a real check. It is in the `CHECK` constraint rather than waiting for a schema change.
+
+**Status.** accepted
+
+---
+
 ## D-105 · 2026-11-21 · Decisions are read back with plain git, and a forge API is the *less* generic choice
 
 **Refs CON-58**, the reading half. Recording what is read is the other half and is not built.
@@ -2549,6 +2632,11 @@ the code — product rule 1's failure mode, in the product's own output.
 ---
 
 ## D-055 · 2026-11-12 · The MCP server exposes four tools, and acceptance is not one of them
+
+> **Channel amended by D-106.** Acceptance is no longer at the command line only: a decision
+> committed in the documentation target is recorded. The absence this entry is really about is
+> unchanged — there is still no `accept` or `reject` tool, and the test on the live tool list still
+> asserts it.
 
 **Implements D-045.** `constat mcp` runs an MCP server on **stdio**.
 

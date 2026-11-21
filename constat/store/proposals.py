@@ -48,6 +48,20 @@ class StoredRuleProposal:
     decided_at: str | None = None
     rationale: str | None = None
 
+    decided_channel: str | None = None
+    """Where the decision was made — `cli` or `git_pages` (D-106)."""
+
+    decided_verification: str | None = None
+    """What attested to the decider's identity.
+
+    `asserted` for a CLI decision, where nothing checked the name. One of
+    `git_commit`, `signed_unverified` or `signed_commit` for a decision read
+    out of a documentation target, where a commit does.
+    """
+
+    decided_source_commit: str | None = None
+    """The commit the decision was read from. Null for every CLI decision."""
+
     reference: str | None = None
     """The ticket this reading was made for.
 
@@ -117,6 +131,15 @@ class StoredRuleProposal:
         """
         if self.decided_by is None:
             return None
+        if self.decided_channel == "git_pages":
+            # Named, because this is the one channel where the name was not
+            # typed by whoever ran the command. Attributing a reviewer's
+            # commit to the CLI's unchecked `--by` would overstate the weaker
+            # channel and understate this one (D-106).
+            return (
+                f"{self.decided_by} (from a commit in the documentation "
+                f"target, {self.decided_verification})"
+            )
         if self.decided_attribution == "inferred":
             return f"{self.decided_by} (inferred from git config)"
         return self.decided_by
@@ -241,12 +264,27 @@ class RuleProposals:
         decided_by: str,
         rationale: str | None = None,
         attribution: str = "stated",
+        channel: str = "cli",
+        verification: str = "asserted",
+        source_commit: str | None = None,
+        source_line: int | None = None,
     ) -> None:
         """Record a human's answer to one reading.
 
         Appends rather than updating. A second decision on the same reading is
         allowed and both remain visible: changing one's mind is part of the
         history, not a correction to be hidden.
+
+        `channel` is where the decision was made and `verification` is what
+        attested to it (D-106). The defaults are the CLI's honest pair —
+        `--by` is a free string nothing checks (D-061) — so a caller that
+        passes neither records the weaker claim rather than a borrowed one.
+
+        `source_commit` and `source_line` locate a decision read out of a
+        documentation target. The database holds `(rule_proposal_id,
+        source_commit)` unique, so re-reading the same commit raises
+        `sqlite3.IntegrityError` here rather than appending a duplicate — the
+        caller decides whether that is an error or the expected nothing.
         """
         if decision not in ("accepted", "rejected"):
             raise ValueError(
@@ -259,7 +297,9 @@ class RuleProposals:
             ws.execute(
                 "INSERT INTO rule_proposal_decision "
                 "(rule_proposal_id, decision, decided_by, attribution, "
-                " decided_at, rationale) VALUES (?, ?, ?, ?, ?, ?)",
+                " decided_at, rationale, channel, verification, "
+                " source_commit, source_line) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     proposal_id,
                     decision,
@@ -267,8 +307,28 @@ class RuleProposals:
                     attribution,
                     utc_now(),
                     rationale,
+                    channel,
+                    verification,
+                    source_commit,
+                    source_line,
                 ),
             )
+
+    def decision_from(self, proposal_id: int, source_commit: str) -> dict | None:
+        """The decision already read from this commit for this proposal, if any.
+
+        Lets the recording path tell "already recorded" from "refused" without
+        provoking the unique constraint. The constraint is still what enforces
+        it — this only buys a readable report instead of an `IntegrityError`.
+        """
+        row = self._workspace.execute(
+            "SELECT decision, decided_by, decided_at, source_line "
+            "FROM rule_proposal_decision "
+            "WHERE rule_proposal_id = ? AND source_commit = ? "
+            "ORDER BY id DESC LIMIT 1",
+            (proposal_id, source_commit),
+        ).fetchone()
+        return None if row is None else dict(row)
 
     def find(self, proposal_id: int) -> StoredRuleProposal | None:
         row = self._workspace.execute(
@@ -464,7 +524,8 @@ class RuleProposals:
         # The latest decision wins for display; earlier ones remain in the
         # table, because changing one's mind is history rather than a mistake.
         decision = self._workspace.execute(
-            "SELECT decision, decided_by, attribution, decided_at, rationale "
+            "SELECT decision, decided_by, attribution, decided_at, rationale, "
+            "       channel, verification, source_commit "
             "FROM rule_proposal_decision WHERE rule_proposal_id = ? "
             "ORDER BY id DESC LIMIT 1",
             (row["id"],),
@@ -499,4 +560,11 @@ class RuleProposals:
             ),
             decided_at=None if decision is None else decision["decided_at"],
             rationale=None if decision is None else decision["rationale"],
+            decided_channel=None if decision is None else decision["channel"],
+            decided_verification=(
+                None if decision is None else decision["verification"]
+            ),
+            decided_source_commit=(
+                None if decision is None else decision["source_commit"]
+            ),
         )

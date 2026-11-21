@@ -2,15 +2,29 @@
 
 **Last updated:** 2026-11-21
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-21):** **CON-58 half done (D-105)** — decisions a reviewer writes in the
-published target are read back, with nothing but `git`: clone, read one file, `git blame` for the
-author. Works on any git repository, which is the whole point — the author's correction, *"I do not
-want a solution for me but something generic"*, reversed how I had framed the options: a forge API
-needs a backend and a credential per platform, where plain git needs neither. Identity comes from the
+**Current session (2026-11-21):** **CON-58 closed (D-105 reading, D-106 recording)** — a decision a
+reviewer commits in the documentation target is now recorded against the catalogue. The reading half
+came first and deliberately recorded nothing: clone, read one file, `git blame` for the author, with
+nothing but `git`, so it runs on any git repository — the author's correction, *"I do not want a
+solution for me but something generic"*, reversed how I had framed the options, because a forge API
+needs a backend and a credential per platform where plain git needs neither. Identity comes from the
 commit, never from a typed name, with **three** verification states because a signature verifies on
 the signer's machine and reads as absent through a clone Constat made. Decisions live in their own
-file that Constat seeds once and never rewrites, so republishing the page cannot destroy them.
-**Nothing is recorded**: that step amends D-055 and is the remaining half. Before it, **CON-18 closed
+file that Constat seeds once and never rewrites, so republishing the page cannot destroy them. Then
+`publish --record-decisions` (schema 23: `channel`, `verification`, `source_commit`, `source_line`,
+with every prior decision migrated to `cli` / `asserted`) calls the same `Review.accept` and
+`Review.reject` the CLI calls. **D-055 and D-048 are amended, as D-089 promised** — and the
+invariant they were protecting is untouched: there is still no `accept` tool on any MCP surface and
+the live-tool-list test still asserts it, because what D-055 guarded against was a *model*
+accepting, not the channel. The gradient runs the other way from what one might assume: an approval
+by someone who never opens a terminal is **better evidenced** than a CLI `--by` string nothing
+checks (D-061), which is why `--by` does not exist on that path and must not be added. Idempotence
+is a unique constraint on `(proposal, commit)` rather than a convention, nulls keep the CLI path
+exactly as it was, and a verdict rewritten in a new commit is reported rather than applied — a
+recorded decision is append-only, and `rule retire` is how a rule stops describing the product. Five
+refusals are reported per line, so one typo cannot swallow four readable decisions, and **exit 8**
+says a human decided something Constat does not hold. A tick on the page stays inert on purpose: a
+checkbox carries no author. Before it, **CON-18 closed
 (D-104)** — a ticket carries the requirements a
 person says it answers, and **`requirement_ref` finally has a producer** after being declared and
 written by nothing since the beginning. Schema 22, append-only. Three boundaries hold the label
@@ -932,8 +946,12 @@ one whose code is readable without context nobody has.
 overdue, and `DISCOVERY.md` stands as a written artefact rather than a task list. The trademark work
 that preceded it is withdrawn (D-086).
 
-**Two tickets now have a stated target rather than an open question:** CON-58 (off-CLI approval,
-D-089) and CON-99 (parallel release lines, D-090). Neither should precede the real use above.
+**CON-99 (parallel release lines, D-090) has a stated target rather than an open question**, and it
+should not precede the real use above. CON-58, which stood beside it, is closed (D-105, D-106) — the
+off-CLI approval D-089 named is built, and what remains unknown about it is not code: whether a
+business reader would ever go to a published page to approve. `DISCOVERY.md` § 4 calls that the most
+load-bearing and least tested assumption in the product, and documenting a real area is the nearest
+thing to a test of it.
 
 ---
 

@@ -18,6 +18,7 @@ point of provenance (product rule 3).
 from __future__ import annotations
 
 import json
+import sqlite3
 
 from dataclasses import dataclass, field, replace
 
@@ -42,6 +43,7 @@ from .ai import resolve as resolve_provider
 from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
 from .publish import PublishedRef, Target
+from .publish.decisions import DecisionLine, DecisionsRead
 from .publish.targets.git_pages import detect as git_pages_detect
 from .errors import PayloadRefused, ReferenceMatchedNothing, RepositoryError
 from .evidence import DEFAULT_LIMITS, EvidenceBundle, ExcerptLimits, collect_evidence
@@ -60,7 +62,7 @@ from .git.adapter import (
 from .git.diff import compare_revisions, summarise_state
 from .models import RegisteredRepository, Rule
 from .store import READER_MCP, Settings
-from .store import Catalogue, Registry, RuleProposals, TicketStore, Workspace
+from .store import Catalogue, Registry, Review, RuleProposals, TicketStore, Workspace
 from .store import CatalogueHistory, Release, Releases, VersionAtPoint
 from .store import Requirements
 from .store.workspace import utc_now
@@ -566,15 +568,24 @@ def _render_catalogue(view: CatalogueView) -> list[str]:
                     "violating"
                 )
             # A GitHub task list, because this document also has to work as a
-            # pull-request body. Ticking one is inert today; reading ticks back
-            # is CON-58, and it is the *unverified* channel when it lands.
+            # pull-request body. Ticking a box is still inert: a tick is not
+            # attributable to anyone, where a committed line in the decisions
+            # file is (D-106). The `#N` is what a reviewer writes there.
             lines.append(f"- [ ] `#{item.id}` **{item.proposal.name}**{revises}")
             lines.append(f"  {item.proposal.statement}")
             lines.append(f"  Read by {item.attribution}.")
         lines += [
             "",
-            "Ticking a box above records nothing yet. Accept or reject with "
-            "`constat rule accept <ID> --by <who>`.",
+            "Ticking a box above records nothing yet — a tick says nothing "
+            "about who made it. To decide, write one line per proposal in the "
+            "`decisions/` file beside this page, using the `#N` above:",
+            "",
+            "    1: approved",
+            "    2: rejected — the limit is per account, not per customer",
+            "",
+            "Who decided is taken from your commit, so do not write your "
+            "name. Or decide at the command line with `constat rule accept "
+            "<ID> --by <who>`.",
             "",
         ]
 
@@ -1881,6 +1892,248 @@ def detect_target(repository: str | None = None) -> Target:
     while the repository someone is standing in is unambiguous.
     """
     return git_pages_detect(discover_repository(repository or "."))
+
+
+# -- recording decisions read from a documentation target ---------------------
+
+
+@dataclass(frozen=True)
+class DecisionOutcome:
+    """What became of one line a reviewer wrote.
+
+    Every line gets one of these, including the ones nothing was done with. A
+    refusal that is not reported is the failure mode this whole channel exists
+    to avoid: a reviewer who approved a rule and was told nothing believes the
+    approval is recorded (D-041).
+    """
+
+    line: DecisionLine
+    outcome: str
+    """`accepted`, `rejected`, `already` or `refused`."""
+
+    detail: str | None = None
+    """Why it was refused, or what already stood. None when it was recorded."""
+
+    rule_id: int | None = None
+    version_no: int | None = None
+
+    @property
+    def recorded(self) -> bool:
+        return self.outcome in ("accepted", "rejected")
+
+    def describe(self) -> str:
+        said = f"{self.line.reference}: {self.line.verdict}"
+        who = self.line.decided_by or "an unattributed line"
+        if self.recorded:
+            where = (
+                f" — rule {self.rule_id} version {self.version_no}"
+                if self.rule_id is not None
+                else ""
+            )
+            return (
+                f"{said} → recorded as {self.outcome}{where}  "
+                f"[{who}, {self.line.verification}]"
+            )
+        return f"{said} → {self.outcome}: {self.detail}"
+
+
+@dataclass(frozen=True)
+class DecisionsRecorded:
+    """What one pass over a target's decision file recorded, and what it did not."""
+
+    read: DecisionsRead
+    outcomes: tuple[DecisionOutcome, ...] = ()
+
+    @property
+    def recorded(self) -> tuple[DecisionOutcome, ...]:
+        return tuple(o for o in self.outcomes if o.recorded)
+
+    @property
+    def already(self) -> tuple[DecisionOutcome, ...]:
+        return tuple(o for o in self.outcomes if o.outcome == "already")
+
+    @property
+    def refused(self) -> tuple[DecisionOutcome, ...]:
+        return tuple(o for o in self.outcomes if o.outcome == "refused")
+
+    @property
+    def unrecorded(self) -> bool:
+        """Did a human decide something this pass could not record?
+
+        Drives the exit code. An unreadable line counts: somebody wrote it
+        meaning to decide, and Constat holds no decision for it.
+        """
+        return bool(self.refused or self.read.unreadable)
+
+
+def record_read_decisions(
+    workspace: Workspace,
+    reference: str,
+    target: Target | None = None,
+    *,
+    repository: str | None = None,
+) -> DecisionsRecorded:
+    """Record the decisions a reviewer wrote in the target (CON-58, D-106).
+
+    **This is the amendment to D-055 arriving with its mechanism**, as D-089
+    required. An approval made outside the CLI now counts as a human decision,
+    and the distinction D-055 was protecting is untouched: what is forbidden is
+    a *model* accepting, not a channel. Every decision here exists because a
+    person committed a line to a repository — an act no agent performs by
+    calling a tool, and there is still no acceptance tool on any MCP surface.
+
+    **Identity is never taken from the text.** `decided_by` is the commit
+    author `git blame` reports, recorded with `attribution='commit'`, and a
+    line nothing can attribute is refused rather than credited to whoever ran
+    the command. That is why this path takes no `--by`.
+
+    **Idempotent on `(proposal, commit)`.** Reading the same target twice
+    records nothing the second time; the database holds that constraint, and
+    the lookup here only buys a readable report instead of an `IntegrityError`.
+    A reviewer who rewrites a verdict in a *new* commit has made a new
+    decision, which is reported rather than applied — a recorded decision is
+    append-only, and overturning one is `rule retire`'s job, not a quiet
+    second write.
+
+    **One pass refuses per line, never in bulk.** A file with one bad line and
+    four good ones records the four. Stopping at the first refusal would make a
+    typo swallow decisions that were perfectly readable.
+    """
+    if target is None:
+        target = detect_target(repository)
+
+    read = target.read_decisions(reference)
+
+    # Counted before anything is recorded: two lines for one proposal is an
+    # ambiguity, and recording whichever came first would pick a verdict on a
+    # reviewer's behalf. Both are refused and reported (product rule 1).
+    mentions: dict[str, int] = {}
+    for line in read.decisions:
+        mentions[line.reference] = mentions.get(line.reference, 0) + 1
+
+    proposals = RuleProposals(workspace)
+    review = Review(workspace)
+    outcomes: list[DecisionOutcome] = []
+
+    for line in read.decisions:
+        outcomes.append(
+            _record_one_decision(proposals, review, reference, line, mentions)
+        )
+
+    return DecisionsRecorded(read=read, outcomes=tuple(outcomes))
+
+
+def _refused(line: DecisionLine, detail: str) -> DecisionOutcome:
+    return DecisionOutcome(line=line, outcome="refused", detail=detail)
+
+
+def _record_one_decision(
+    proposals: RuleProposals,
+    review: Review,
+    reference: str,
+    line: DecisionLine,
+    mentions: dict[str, int],
+) -> DecisionOutcome:
+    """Record one line, or say why not. Every branch here is a refusal a
+    reviewer can act on, which is why each carries what to do about it."""
+    if line.commit is None or not line.decided_by:
+        return _refused(
+            line,
+            "git could not say who wrote this line, so there is no attested "
+            "decider. Commit the line and read again",
+        )
+
+    if mentions.get(line.reference, 0) > 1:
+        return _refused(
+            line,
+            f"{line.reference} is decided more than once in this file. Leave "
+            "one line per rule proposal — picking one would choose a verdict "
+            "for you",
+        )
+
+    if not line.reference.isdigit():
+        # `R-7` cites a rule in the catalogue; a decision is taken on the
+        # *proposal* that would become a version of it. Accepting `R-7` would
+        # have to guess which pending reading was meant.
+        return _refused(
+            line,
+            f"`{line.reference}` is a rule citation, not a rule proposal id. "
+            "Decisions are written against the `#N` shown beside each rule in "
+            "the review queue on the page",
+        )
+
+    proposal_id = int(line.reference)
+    stored = proposals.find(proposal_id)
+    if stored is None:
+        return _refused(
+            line,
+            f"there is no rule proposal {proposal_id} in this workspace. "
+            "Nothing is recorded under a guess at which one was meant",
+        )
+
+    if stored.reference != reference:
+        # The decision file is per ticket. A line naming another ticket's
+        # proposal is either a mistake or a reviewer reading the wrong page,
+        # and recording it would decide something nobody was looking at.
+        return _refused(
+            line,
+            f"rule proposal {proposal_id} belongs to ticket "
+            f"{stored.reference}, not {reference}. Decide it on that ticket's "
+            "page",
+        )
+
+    standing = proposals.decision_from(proposal_id, line.commit)
+    if standing is not None:
+        return DecisionOutcome(
+            line=line,
+            outcome="already",
+            detail=(
+                f"recorded as {standing['decision']} on "
+                f"{standing['decided_at']} from this same commit"
+            ),
+        )
+
+    if stored.is_decided:
+        return _refused(
+            line,
+            f"rule proposal {proposal_id} is already {stored.decision} "
+            f"({stored.decided_by_description}). A recorded decision is "
+            "append-only — retire the rule rather than deciding it twice",
+        )
+
+    verdict = "accepted" if line.verdict == "approved" else "rejected"
+    shared = {
+        "decided_by": line.decided_by,
+        "rationale": line.reason,
+        "attribution": "commit",
+        "channel": "git_pages",
+        "verification": line.verification,
+        "source_commit": line.commit,
+        "source_line": line.line_no,
+    }
+
+    try:
+        if verdict == "rejected":
+            review.reject(proposal_id, **shared)
+            return DecisionOutcome(line=line, outcome="rejected")
+        acceptance = review.accept(proposal_id, **shared)
+    except sqlite3.IntegrityError:
+        # The unique index is the real enforcement, and it fires even if the
+        # lookup above raced or was wrong. Reported as what it is rather than
+        # as a crash.
+        return DecisionOutcome(
+            line=line,
+            outcome="already",
+            detail="already recorded from this commit",
+        )
+
+    return DecisionOutcome(
+        line=line,
+        outcome="accepted",
+        rule_id=acceptance.rule_id,
+        version_no=acceptance.version_no,
+    )
+
 
 # -- landing a ticket's work ---------------------------------------------------
 

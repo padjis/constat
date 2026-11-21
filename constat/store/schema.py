@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -301,16 +301,35 @@ CREATE TABLE rule_proposal_anchor (
 -- uses for documents (CON-31). `rejected` means inconclusive, not wrong
 -- (D-036), so a later reading of better evidence is expected.
 -- `attribution` says how `decided_by` was obtained: `stated` if a person
--- typed it with --by, `inferred` if it came from git's configured identity.
--- Neither is verified — nothing here proves who ran the command — so this is
--- not a trust level. It is the difference between a name someone asserted and
--- a name a machine supplied, and a reviewer weighing a decision is entitled to
--- know which (product rule 3, D-061).
+-- typed it with --by, `inferred` if it came from git's configured identity,
+-- `commit` if it is the author of the commit a decision was read from (D-106).
+-- The first two are not verified — nothing proves who ran the command — so
+-- between them this is not a trust level. It is the difference between a name
+-- someone asserted and a name a machine supplied, and a reviewer weighing a
+-- decision is entitled to know which (product rule 3, D-061). `commit` is the
+-- one value that is attested, and `verification` below says how far.
 --
--- CON-58 adds `channel` and `verification` beside this. They answer different
+-- `channel` and `verification` arrived with CON-58, and they answer different
 -- questions: `channel` is *where* the decision was made and `verification` is
 -- whether anything attested to it. `attribution` is finer than both and sits
 -- inside the CLI channel.
+--
+-- The gradient is the point (D-106). A CLI decision is `cli` / `asserted` —
+-- `--by` is a free string nothing checks (D-061) — where a decision read from
+-- a documentation target is `git_pages` and carries what git could attest:
+-- `signed_commit`, `signed_unverified` or `git_commit`. An off-CLI approval is
+-- therefore recordable *and* better evidenced than the channel that used to be
+-- the only one, which is why D-055's "acceptance is not a tool" survives
+-- unweakened: the objection was a model deciding, never the channel (D-089).
+--
+-- `source_commit` and `source_line` say which line of which commit a decision
+-- was read from, and they are null for every CLI decision because there is no
+-- such line. `(rule_proposal_id, source_commit)` is unique, which is what
+-- makes re-reading a target idempotent — SQLite treats nulls as distinct, so
+-- the CLI path is untouched by it and a second CLI decision is still allowed.
+-- A reviewer who rewrites a verdict in a *new* commit is a new decision rather
+-- than a silent overwrite, and the recording path reports it instead of
+-- applying it when the proposal is already decided.
 CREATE TABLE rule_proposal_decision (
     id               INTEGER PRIMARY KEY,
     rule_proposal_id INTEGER NOT NULL REFERENCES rule_proposal(id),
@@ -318,7 +337,14 @@ CREATE TABLE rule_proposal_decision (
     decided_by       TEXT    NOT NULL,
     attribution      TEXT    NOT NULL DEFAULT 'stated',
     decided_at       TEXT    NOT NULL,
-    rationale        TEXT
+    rationale        TEXT,
+    channel          TEXT    NOT NULL DEFAULT 'cli'
+                             CHECK (channel IN ('cli', 'git_pages')),
+    verification     TEXT    NOT NULL DEFAULT 'asserted'
+                             CHECK (verification IN ('asserted', 'git_commit',
+                                    'signed_unverified', 'signed_commit')),
+    source_commit    TEXT,
+    source_line      INTEGER
 );
 
 -- A requirement or issue a person says this ticket answers (CON-18).
@@ -602,6 +628,12 @@ CREATE INDEX idx_rule_proposal_behaviour ON rule_proposal_behaviour(rule_proposa
 CREATE INDEX idx_rule_proposal_example ON rule_proposal_example(rule_proposal_id);
 CREATE INDEX idx_rule_proposal_anchor ON rule_proposal_anchor(rule_proposal_id);
 CREATE INDEX idx_rule_proposal_decision ON rule_proposal_decision(rule_proposal_id);
+-- Idempotence for decisions read out of a documentation target (D-106), as a
+-- constraint rather than as a check the recording path remembers to make.
+-- Reading the same target twice records nothing the second time because the
+-- database refuses it, not because a function looked first.
+CREATE UNIQUE INDEX idx_rule_proposal_decision_source
+    ON rule_proposal_decision(rule_proposal_id, source_commit);
 CREATE INDEX idx_rule_version_rule ON rule_version(rule_id);
 CREATE INDEX idx_rule_version_behaviour ON rule_version_behaviour(rule_version_id);
 CREATE INDEX idx_rule_version_example ON rule_version_example(rule_version_id);
@@ -1057,6 +1089,38 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     # Nothing is checkpointed by the migration. A checkpoint records that a
     # person looked at the product and agreed it was this, so inventing one
     # would put a human decision in the record that nobody made.
+    # 22 -> 23: a decision records its channel and what attested to it, and a
+    # decision read from a documentation target records where it was read from
+    # (CON-58, D-106).
+    #
+    # **Every existing decision becomes `cli` / `asserted`, and that is a
+    # back-fill of fact rather than of guesswork.** Until this version there
+    # was exactly one way to decide — `constat rule accept` — and `--by` was
+    # never checked by anything. The defaults therefore restate what those rows
+    # already meant; they do not upgrade or soften a single one. `attribution`
+    # is untouched, because `stated` versus `inferred` is a finer distinction
+    # inside the CLI channel and still true of each row that carries it.
+    #
+    # `source_commit` and `source_line` stay null for all of them, necessarily:
+    # no CLI decision was ever read from a line in a repository, and inventing
+    # a provenance for one would be worse than the absence.
+    #
+    # The uniqueness is an explicit index because `ALTER TABLE` cannot add one
+    # inline, which keeps a workspace migrated to 23 structurally identical to
+    # one created at 23.
+    22: (
+        "ALTER TABLE rule_proposal_decision ADD COLUMN channel"
+        " TEXT NOT NULL DEFAULT 'cli'"
+        " CHECK (channel IN ('cli', 'git_pages'))",
+        "ALTER TABLE rule_proposal_decision ADD COLUMN verification"
+        " TEXT NOT NULL DEFAULT 'asserted'"
+        " CHECK (verification IN ('asserted', 'git_commit',"
+        " 'signed_unverified', 'signed_commit'))",
+        "ALTER TABLE rule_proposal_decision ADD COLUMN source_commit TEXT",
+        "ALTER TABLE rule_proposal_decision ADD COLUMN source_line INTEGER",
+        "CREATE UNIQUE INDEX idx_rule_proposal_decision_source"
+        " ON rule_proposal_decision(rule_proposal_id, source_commit)",
+    ),
     # 21 -> 22: a ticket can carry the requirements it answers (CON-18).
     #
     # Nothing is back-filled, and there is nothing that could be: a requirement

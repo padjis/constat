@@ -141,6 +141,12 @@ APPEND_ONLY_TRIGGERS = {
 after. Only the ones a rewind actually trips."""
 
 INTRODUCED_AT: dict[int, tuple[tuple[str, str], ...]] = {
+    23: (
+        ("rule_proposal_decision", "channel"),
+        ("rule_proposal_decision", "verification"),
+        ("rule_proposal_decision", "source_commit"),
+        ("rule_proposal_decision", "source_line"),
+    ),
     21: (("rule_version", "release_id"),),
     8: (("rule_proposal_decision", "attribution"),),
     10: (("rule_proposal", "relation"),),
