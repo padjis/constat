@@ -54,6 +54,23 @@ class Catalogue:
             ).fetchone()
         return self._hydrate(row) if row else None
 
+    def identify(self, name: str) -> int | None:
+        """The row id behind a name or a citation, for the commands that need one.
+
+        `Rule` carries no `id` on purpose — the row id means nothing to a
+        business reader and is not citable (CON-81). But `Review.retire` and
+        `Review.versions` address a rule by row id, so a CLI that accepts `R-7`
+        has to get from one to the other. Resolution order matches `find`.
+        """
+        row = self._workspace.execute(
+            "SELECT id FROM rule WHERE name = ?", (name,)
+        ).fetchone()
+        if row is None:
+            row = self._workspace.execute(
+                "SELECT id FROM rule WHERE ref = ?", (name,)
+            ).fetchone()
+        return row["id"] if row else None
+
     def by_id(self, rule_id: int) -> Rule | None:
         """A rule by its row id.
 

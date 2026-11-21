@@ -442,18 +442,26 @@ class TestTheCommandLine:
         main(["--workspace", ws, "rule", "accept", "1", "--by", "emmanuel"])
         capsys.readouterr()
 
-        assert main(["--workspace", ws, "rule", "history", "1"]) == 0
+        assert main(["--workspace", ws, "rule", "history", "R-1"]) == 0
         out = capsys.readouterr().out
         assert "v1" in out
         assert "accepted by emmanuel" in out
         assert "rule proposal 1" in out
 
-    def test_history_of_an_unaccepted_rule_says_so(self, tmp_path, capsys):
+    def test_history_of_a_rule_that_does_not_exist_refuses(self, tmp_path, capsys):
+        """Changed by CON-103, and the change is the point.
+
+        This used to print "rule 7 has no accepted versions" and exit 0 — a
+        statement about a rule the catalogue has never held. Saying nothing is
+        known about a thing that does not exist is the shape of claim product
+        rule 1 forbids. It now refuses with the same code `rule show` gives for
+        an unknown citation.
+        """
         ws = self._setup(tmp_path)
         capsys.readouterr()
 
-        assert main(["--workspace", ws, "rule", "history", "7"]) == 0
-        assert "no accepted versions" in capsys.readouterr().out
+        assert main(["--workspace", ws, "rule", "history", "R-7"]) == 4
+        assert "no rule 'R-7'" in capsys.readouterr().err
 
     def test_accepting_an_unknown_reading_exits_four(self, tmp_path, capsys):
         ws = self._setup(tmp_path)

@@ -330,7 +330,7 @@ class TestTheCommandLine:
                 str(Path(workspace.path).parent),
                 "rule",
                 "retire",
-                str(rule_id),
+                Catalogue(workspace).by_id(rule_id).ref,
                 "--reason",
                 LAPSED,
                 "--by",

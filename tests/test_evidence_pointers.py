@@ -35,7 +35,14 @@ from constat.operations import (
     record_run_evidence,
     submit_reply,
 )
-from constat.store import Registry, Review, RuleProposals, TicketStore, Workspace
+from constat.store import (
+    Catalogue,
+    Registry,
+    Review,
+    RuleProposals,
+    TicketStore,
+    Workspace,
+)
 from constat.tickets import TicketStatus
 from helpers import commit_file, git
 
@@ -234,7 +241,7 @@ class TestReporting:
 
         capsys.readouterr()
         main(["--workspace", str(clone.parent / "ws"), "rule", "history",
-              str(accepted.rule_id)])
+              Catalogue(ws).by_id(accepted.rule_id).ref])
         out = capsys.readouterr().out
 
         assert "read from 1 commit(s)" in out
@@ -259,7 +266,7 @@ class TestReporting:
 
         capsys.readouterr()
         main(["--workspace", str(clone.parent / "ws"), "rule", "history",
-              str(accepted.rule_id)])
+              Catalogue(ws).by_id(accepted.rule_id).ref])
 
         assert "evidence: no commits recorded" in capsys.readouterr().out
 

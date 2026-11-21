@@ -8,6 +8,56 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-107 · 2026-11-21 · A rule is addressed by citation or name, never by a number
+
+**Closes CON-103.**
+
+**Decision.** `rule retire` and `rule history` take `RULE` — the citation
+(`R-7`) or the rule's name — where they took a row id. **A bare integer is
+refused**, with a message naming both accepted forms. `rule accept` and
+`rule reject` are unchanged: they address a *proposal*, which genuinely is
+numbered, and the queue prints that number.
+
+**Context.** Four commands took a small integer and two of them meant a
+different object from the other two. `rule accept 1` means proposal 1;
+`rule retire 1` meant rule row 1. Nothing distinguished them, `rule history R-1`
+was a usage error while `rule show R-1` worked, and the number a reviewer
+actually has in front of them is the citation, because that is what every
+document, page and `state` output prints.
+
+**Why this is a correctness problem and not ergonomics.** `ref` is a stored
+column precisely because `R-{id}` is a trap (CON-81): a citation that depends
+on rowids surviving a table rebuild is not a citation, and `rule` has been
+rebuilt once already. The two coincide today only because migration 17
+back-filled `ref = 'R-' || id`. The day they diverge, `rule retire 1` retires
+the wrong rule — silently, finally, and with no reinstatement row, because
+D-084 made retirement final on purpose. Guessing is worse than refusing
+exactly where the damage is irreversible.
+
+**An unknown rule exits 4, a bare number exits 2.** Two different failures and
+they should not share a code: one says the argument was the wrong kind of
+thing, the other that the catalogue does not hold it. 4 is what `rule show
+R-99` and `document 99999` already return.
+
+**Consequences.**
+
+- `Catalogue.identify` is new — a read, resolving in the same order as `find`.
+  It is on the exact-list surface test, argued for there rather than slipped
+  in, because that test exists to stop a writer arriving as a convenience.
+- **`rule history` of a rule that does not exist now refuses.** It used to
+  print "rule 7 has no accepted versions" at exit 0 — a statement about a rule
+  the catalogue has never held, which is the shape of claim product rule 1
+  forbids.
+- `demo.sh` and the documented examples use `R-1`. A test, not the docs, is
+  what keeps them honest.
+- **This is a breaking change to a published command**, taken without a
+  deprecation period because the project has no users and a wrong retirement
+  cannot be undone.
+
+**Status.** accepted
+
+---
+
 ## D-106 · 2026-11-21 · An approval committed in the documentation target is a recorded decision
 
 **Closes CON-58** and **amends D-055 and D-048**, which put acceptance at the command line only.

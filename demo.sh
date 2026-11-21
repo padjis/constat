@@ -169,7 +169,7 @@ JSON
 
 step "What changed between the two versions"
 note "compared by the identity of each detail, never by position (D-078)"
-"$CONSTAT" rule history 1
+"$CONSTAT" rule history R-1
 
 step "And what the catalogue has done since the checkpoint"
 "$CONSTAT" checkpoint changes

@@ -22,7 +22,14 @@ import pytest
 
 from constat.models import Anchor, Behaviour, RuleProposal
 from constat.operations import open_run
-from constat.store import Registry, Review, RuleProposals, TicketStore, Workspace
+from constat.store import (
+    Catalogue,
+    Registry,
+    Review,
+    RuleProposals,
+    TicketStore,
+    Workspace,
+)
 
 from test_runs import distinct_subject
 
@@ -194,7 +201,9 @@ class TestRuleHistoryOutput:
             rule_id = review.accept(proposal, decided_by="emmanuel").rule_id
 
         capsys.readouterr()
-        main(["--workspace", str(home), "rule", "history", str(rule_id)])
+        with Workspace.open(home) as ws:
+            cite = Catalogue(ws).by_id(rule_id).ref
+        main(["--workspace", str(home), "rule", "history", cite])
         out = capsys.readouterr().out
 
         assert "behaviours (2):" in out
@@ -221,7 +230,9 @@ class TestRuleHistoryOutput:
             rule_id = Review(ws).accept(proposal, decided_by="emmanuel").rule_id
 
         capsys.readouterr()
-        main(["--workspace", str(home), "rule", "history", str(rule_id)])
+        with Workspace.open(home) as ws:
+            cite = Catalogue(ws).by_id(rule_id).ref
+        main(["--workspace", str(home), "rule", "history", cite])
         out = capsys.readouterr().out
 
         assert "gathered none, or it predates evidence pointers" in out

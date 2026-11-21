@@ -121,7 +121,7 @@ class TestTheCommandLine:
         """The audit view is where this matters most."""
         main(["--workspace", home, "rule", "accept", "1"])
         capsys.readouterr()
-        main(["--workspace", home, "rule", "history", "1"])
+        main(["--workspace", home, "rule", "history", "R-1"])
 
         assert "inferred from git config" in capsys.readouterr().out
 

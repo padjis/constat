@@ -27,6 +27,7 @@ from .errors import (
 )
 from .evidence import collect_evidence, describe_commit
 from .mapping import change_proposal, commit_record, state_proposal
+from .models import Rule
 from .store import OFF, ON, READER_MCP, READERS, SWITCH, Settings
 from .store import (
     Areas,
@@ -229,7 +230,11 @@ def build_parser() -> argparse.ArgumentParser:
             "It is final: if the behaviour comes back, accept a new rule."
         ),
     )
-    rule_retire.add_argument("rule_id", metavar="RULE_ID", type=int)
+    rule_retire.add_argument(
+        "rule",
+        metavar="RULE",
+        help="the rule's citation (R-7) or its name. A bare number is refused.",
+    )
     rule_retire.add_argument(
         "--reason",
         required=True,
@@ -248,7 +253,11 @@ def build_parser() -> argparse.ArgumentParser:
     rule_history = rule_actions.add_parser(
         "history", help="show every accepted version of a rule"
     )
-    rule_history.add_argument("rule_id", metavar="RULE_ID", type=int)
+    rule_history.add_argument(
+        "rule",
+        metavar="RULE",
+        help="the rule's citation (R-7) or its name. A bare number is refused.",
+    )
 
     rule_proposals = rule_actions.add_parser(
         "proposals",
@@ -1295,8 +1304,9 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
             if args.rule_action == "retire":
                 decided_by, attribution = _decider(args)
+                _, target_id = _resolve_rule(Catalogue(workspace), args.rule)
                 retired = Review(workspace).retire(
-                    args.rule_id,
+                    target_id,
                     reason=args.reason,
                     decided_by=decided_by,
                     attribution=attribution,
@@ -1314,12 +1324,14 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
             if args.rule_action == "history":
                 review = Review(workspace)
-                versions = review.versions(args.rule_id)
+                target, target_id = _resolve_rule(Catalogue(workspace), args.rule)
+                cite = target.ref or target.name
+                versions = review.versions(target_id)
                 if not versions:
-                    print(f"rule {args.rule_id} has no accepted versions.")
+                    print(f"{cite} has no accepted versions.")
                     return EXIT_OK
-                diffs = {d.version_no: d for d in review.diffs(args.rule_id)}
-                print(f"{len(versions)} version(s) of rule {args.rule_id}:")
+                diffs = {d.version_no: d for d in review.diffs(target_id)}
+                print(f"{len(versions)} version(s) of {cite}:")
                 for v in versions:
                     who = v["decided_by"] or "(unknown)"
                     # The audit view is where this matters most: a name taken
@@ -1628,6 +1640,40 @@ def _refuse_without_a_provider(
         "  - or read it yourself: `document <REF> --no-provider --payload` "
         "then `rule submit`."
     )
+
+
+def _resolve_rule(catalogue: Catalogue, token: str) -> tuple[Rule, int]:
+    """A rule from its citation or its name, never from a bare number (CON-103).
+
+    **A bare integer is refused rather than guessed at.** Two different objects
+    are addressed by small integers in this CLI: `rule accept 1` means proposal
+    1, and the row id of a rule is also an integer. They are unrelated, and the
+    queue prints proposal ids while every document, page and `state` output
+    prints the citation — so a reviewer reading `R-1` and typing `1` is the
+    expected mistake, not an exotic one.
+
+    Taking the number as a row id would be worse than useless here: `ref` is a
+    stored column precisely because `R-{id}` is a trap (CON-81), so a citation
+    and a row id may diverge after any table rebuild, and `rule` has been
+    rebuilt once already. The two coincide today only because the migration
+    back-filled them that way. A command that silently retires the wrong rule
+    once they diverge is the failure this refusal exists to prevent.
+    """
+    if token.isdigit():
+        raise InvalidInput(
+            f"{token!r} is a number, and a rule is named by its citation or "
+            f"its name — try `R-{token}` or the rule's name. Proposal ids are "
+            "the numbers in `rule proposals`; they address a different thing, "
+            "and a rule's row id is not citable (CON-81)."
+        )
+    rule = catalogue.find(token)
+    rule_id = catalogue.identify(token)
+    if rule is None or rule_id is None:
+        raise WorkspaceError(
+            f"no rule {token!r}. `constat rule list` shows every citation and "
+            "name in the catalogue."
+        )
+    return rule, rule_id
 
 
 def _decider(args: argparse.Namespace) -> tuple[str, str]:

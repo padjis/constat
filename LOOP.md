@@ -139,7 +139,7 @@ None of these are stages in the loop. They are questions you ask of the catalogu
 | `constat state` | what the product does now, and what is agreed but not yet shipped |
 | `constat rule proposals` | everything awaiting a decision, across every ticket |
 | `constat rule show R-1` | one rule as the catalogue holds it |
-| `constat rule history 1` | every accepted version of one rule |
+| `constat rule history R-1` | every accepted version of one rule, by citation or name |
 | `constat message verify` | the user-facing messages, checked against the code |
 | `constat baseline <area> --as <REF>` | documents an area no ticket changed. You read the repository; Constat grounds the anchors against mainline |
 | `constat ticket requirement` | records what a person says the work answers — supplied, never fetched |

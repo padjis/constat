@@ -78,8 +78,16 @@ class TestTheCatalogueCannotBeEmptied:
         `add_rule` coming back as a convenience.
 
         An exact list, not a pattern. A read may be added to it — `areas`
-        arrived with CON-88 — but every addition has to be argued for here,
-        which is the point: a writer cannot slip in as "just another method".
+        arrived with CON-88, `identify` with CON-103 — but every addition has
+        to be argued for here, which is the point: a writer cannot slip in as
+        "just another method".
+
+        The argument for `identify`: `Review.retire` and `Review.versions`
+        address a rule by row id, while a person addresses it by citation, so
+        something had to translate. It is a read — one SELECT of `rule.id`,
+        resolving in the same order as `find` — and putting it here rather
+        than in the CLI keeps the two resolvers from drifting into disagreeing
+        about what `R-7` means.
         """
         surface = [
             name
@@ -90,6 +98,7 @@ class TestTheCatalogueCannotBeEmptied:
             "areas",
             "by_id",
             "find",
+            "identify",
             "list",
             "retirements",
             "rules_matching",

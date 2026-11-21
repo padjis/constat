@@ -185,7 +185,7 @@ constat rule proposals 622          # the queue: undecided only
 constat rule proposals 622 --all    # including decided ones
 constat rule accept 1 --by emmanuel --rationale "matches the diff"
 constat rule reject 2 --by emmanuel
-constat rule history 1              # every version, back to the reading and its evidence
+constat rule history R-1            # every version, back to the reading and its evidence
 constat rule list                   # the catalogue
 constat document 622 --show         # the document
 ```

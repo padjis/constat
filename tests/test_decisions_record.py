@@ -711,7 +711,7 @@ class TestTheCommandLine:
         self._publish(home, wiki, "--record-decisions")
         capsys.readouterr()
 
-        main(["--workspace", home, "rule", "history", "1"])
+        main(["--workspace", home, "rule", "history", "R-1"])
 
         out = capsys.readouterr().out
         assert "accepted by A Business Reviewer" in out
