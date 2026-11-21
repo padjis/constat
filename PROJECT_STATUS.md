@@ -2,7 +2,14 @@
 
 **Last updated:** 2026-11-21
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-21):** **CON-85 closed (D-102)** — a release is declared, and a rule
+**Current session (2026-11-21):** **CON-87 closed (D-103)** — `constat release show` reports what
+was *agreed* for a release (a fact) and how the catalogue *stood* (a reconstruction), with the basis
+printed alongside. Two of the ticket's own words are declined: "in effect" is not knowable because no
+ship is recorded, and "at a release" has no ordering because release names are never parsed — so a
+release is turned into the latest acceptance among its own versions. No schema change, and it turned
+out **not** to need CON-86. A mutation found a hole in a test rather than the code: the empty-release
+case ran against an empty catalogue, where a fallback to "now" is invisible. Before it, **CON-85
+closed (D-102)** — a release is declared, and a rule
 version can be agreed for one. Schema 21: a `release` table with append-only triggers and a nullable
 `rule_version.release_id`, nothing back-filled. The decision owed since 2026-11-18 is written in the
 same entry as the mechanism, which is why it was held. A release decides **nothing** about current

@@ -46,6 +46,8 @@ from .ai import resolve as resolve_provider
 from .operations import (
     baseline_area,
     describe_branching,
+    describe_release_basis,
+    read_release,
     verify_messages,
     export_payload,
     gather,
@@ -661,6 +663,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="who declared it. Taken from your git identity when omitted (D-061).",
     )
     release_actions.add_parser("list", help="list the declared releases")
+    release_show = release_actions.add_parser(
+        "show",
+        help="what was agreed for a release, and how the catalogue then stood",
+        description=(
+            "Two different claims, kept apart. What was *agreed* for this "
+            "release is a fact: the versions somebody accepted for it. How the "
+            "catalogue *stood* is a reconstruction, read back from the frozen "
+            "versions at the moment the last of those was accepted — nothing "
+            "was snapshotted at the time. Neither says the release shipped: "
+            "that is not recorded, and `constat state` is the view that "
+            "verifies current behaviour against mainline."
+        ),
+    )
+    release_show.add_argument("name", metavar="NAME")
+    release_show.add_argument(
+        "--agreed-only",
+        action="store_true",
+        help="just the versions agreed for it, without the reconstruction",
+    )
 
     message = subparsers.add_parser(
         "message",
@@ -1789,6 +1810,53 @@ def _run_release(args: argparse.Namespace) -> int:
                 print("no 'latest'. Agree a rule version for it with")
                 print("`constat rule accept <ID> --release "
                       f"{declared.name!r}`.")
+                return EXIT_OK
+
+            if args.release_action == "show":
+                reading = read_release(workspace, args.name)
+                print(f"release: {reading.release.name}")
+                print(f"  declared by: {reading.release.declared_by}")
+                print(f"  declared at: {reading.release.created_at}")
+                print()
+
+                print(f"Agreed for it ({len(reading.agreed)}):")
+                if not reading.agreed:
+                    print("  nothing yet")
+                for version in reading.agreed:
+                    cite = version.ref or f"rule {version.rule_id}"
+                    print(f"  {cite}  v{version.version_no}  {version.name}")
+                    print(f"      {version.statement}")
+                print()
+
+                if args.agreed_only:
+                    print("Agreed is a fact; it does not say the release")
+                    print("shipped. That is not recorded.")
+                    return EXIT_OK
+
+                if reading.is_reconstructable:
+                    print(f"The catalogue as it then stood ({len(reading.stood)}):")
+                    for version in reading.stood:
+                        cite = version.ref or f"rule {version.rule_id}"
+                        # Which release each version came from, because a rule
+                        # untouched since an earlier one still stood then and
+                        # reading it as part of *this* release would be wrong.
+                        origin = (
+                            f"agreed for {version.agreed_for}"
+                            if version.agreed_for
+                            else "no release recorded"
+                        )
+                        print(
+                            f"  {cite}  v{version.version_no}  {version.name}"
+                            f"  [{origin}]"
+                        )
+                    print()
+
+                for line in describe_release_basis(reading):
+                    if not line:
+                        print()
+                        continue
+                    for wrapped in textwrap.wrap(line, width=72):
+                        print(wrapped)
                 return EXIT_OK
 
             declared_releases = releases.list()

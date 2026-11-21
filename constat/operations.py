@@ -61,6 +61,7 @@ from .git.diff import compare_revisions, summarise_state
 from .models import RegisteredRepository, Rule
 from .store import READER_MCP, Settings
 from .store import Catalogue, Registry, RuleProposals, TicketStore, Workspace
+from .store import CatalogueHistory, Release, Releases, VersionAtPoint
 from .store.workspace import utc_now
 from .git.merge import MergeResult, merge_ticket_branch
 from .tickets import (
@@ -1941,6 +1942,88 @@ class RepositoryState:
         a 0.2% picture, and a view that hid that would flatter itself (D-038).
         """
         return 0.0 if not self.file_count else self.claimed_files / self.file_count
+
+
+@dataclass(frozen=True)
+class ReleaseReading:
+    """What can be said about a release, separated by how it is known (CON-87).
+
+    Three fields and three different kinds of claim, kept apart on purpose:
+
+    - `agreed` is a **fact** — the versions somebody accepted for this release.
+    - `stood` is a **reconstruction** at `moment`, which is itself derived from
+      `agreed`. Nothing was snapshotted at the time; that is what the ticket
+      asked for and also what a reader must be told.
+    - nothing here says the release **shipped**. That is not recorded (CON-86),
+      and `constat state` is the view that verifies current behaviour against
+      mainline (D-087).
+    """
+
+    release: Release
+    agreed: tuple[VersionAtPoint, ...]
+    moment: str | None
+    stood: tuple[VersionAtPoint, ...]
+
+    @property
+    def is_reconstructable(self) -> bool:
+        """False when no version has been agreed for this release.
+
+        A release is declared before the work is decided, so this is ordinary
+        rather than broken — and falling back to "now" would answer a different
+        question with the confidence of this one.
+        """
+        return self.moment is not None
+
+
+def read_release(workspace, name: str) -> ReleaseReading:
+    """A release, what was agreed for it, and the catalogue as it then stood.
+
+    The release is resolved first, so an unknown name refuses with the declared
+    ones named rather than returning an empty reading that reads like "that
+    release had no rules".
+    """
+    release = Releases(workspace).require(name)
+    history = CatalogueHistory(workspace)
+    moment = history.moment_of(release.name)
+    return ReleaseReading(
+        release=release,
+        agreed=history.agreed_for(release.name),
+        moment=moment,
+        stood=() if moment is None else history.as_at(moment),
+    )
+
+
+def describe_release_basis(reading: ReleaseReading) -> tuple[str, ...]:
+    """How the reconstruction was arrived at, in the reader's words.
+
+    Printed with the answer rather than in a footnote. A reader who believes
+    they are seeing a stored snapshot of a release boundary would be wrong
+    twice over: nothing was stored, and there is no boundary — release names
+    are not parsed, so no release precedes another (D-102).
+    """
+    if not reading.is_reconstructable:
+        return (
+            f"No rule version has been agreed for {reading.release.name!r}, so "
+            "there is no point in time to reconstruct the catalogue at.",
+            "",
+            "A release is declared before the work is decided, so this is an "
+            "ordinary state rather than a problem. It is not a statement that "
+            "the release contained nothing.",
+        )
+
+    return (
+        f"Reconstructed as the catalogue stood at {reading.moment}, which is "
+        f"when the last of the {len(reading.agreed)} version(s) agreed for "
+        f"{reading.release.name!r} was accepted.",
+        "",
+        "Nothing was snapshotted at the time — this is read back from the "
+        "frozen versions, which is what makes it available at all. Release "
+        "names are not parsed, so no release precedes another; the moment "
+        "comes from when work was agreed, never from an ordering of names.",
+        "",
+        "It does not say the release shipped: that is not recorded. What the "
+        "product does now is `constat state`, which verifies against mainline.",
+    )
 
 
 @dataclass(frozen=True)

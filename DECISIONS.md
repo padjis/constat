@@ -8,6 +8,77 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-103 · 2026-11-21 · The catalogue is read as it *stood*, at a moment derived from what was agreed
+
+**Closes CON-87**, and declines two of the words it was written with.
+
+**Decision.** `constat release show <NAME>` reports two things, kept apart because they are known
+differently: what was **agreed** for a release — a fact — and how the catalogue **stood** — a
+reconstruction, read back from the frozen versions with its basis stated alongside it.
+
+**"In effect" is not deliverable, so it is not claimed.** The ticket asked for "the rules in effect
+at a named past release". Nothing records that a release shipped: closing one is CON-86, and the
+ship it would record is *asserted* rather than verified, because Constat cannot detect a partial
+ship across a plural registered set. A view headed "in effect" would therefore be presenting an
+agreement as a fact about the running product, which is the breach of product rule 1 this whole
+design exists to avoid. `constat state` remains the only view that answers what the product does,
+and it verifies against mainline (D-087). A test asserts the output never says the release shipped.
+
+**"At a release" has no ordering to lean on, so a moment is derived instead.** D-102 stores a
+release name verbatim and parses nothing, so there is no sense in which one release precedes
+another — and `release.id` is declaration order, which is not release order either: a hotfix
+declared last may cover work agreed first. What *is* a fact is when the versions agreed for a
+release were accepted. So a release becomes **the latest acceptance among its own versions**, and
+the catalogue is reconstructed at that point in time.
+
+This is an inference, and it is reported as one. Every reconstruction prints that nothing was
+snapshotted at the time, that the moment comes from when work was agreed rather than from an
+ordering of names, and that it does not say the release shipped. A reader who believed they were
+seeing a stored release boundary would be wrong twice over.
+
+**A release with nothing agreed yields no moment and no reconstruction.** Falling back to "now"
+would answer a different question with the confidence of this one — a release declared last week
+would render every rule agreed since as though it had contained them. The output says this is the
+ordinary first state of a release rather than a statement that the release contained nothing.
+
+**Three things the reconstruction gets right**, each with a test, because a plausible query gets
+each one wrong:
+
+1. **The newest version at or before the moment**, not the newest version. Reading the live `rule`
+   table would show today's substance under a past heading — the mistake CON-61 exists to prevent,
+   and it would look right.
+2. **A rule accepted after the moment is absent**, rather than present at version 1. A rule that did
+   not exist cannot have stood.
+3. **A rule retired after the moment is present, and one retired before it is absent.** Retirement
+   is a dated decision (D-084), so it belongs in a point-in-time read like any other. A rule retired
+   today was part of the product last month.
+
+Each reconstructed version also names **the release it was itself agreed for**, so a rule untouched
+since an earlier release is not read as part of this one. Without that, "agreed" and "stood" would
+be indistinguishable in the output.
+
+**A mutation found a hole in the test, not the code.** The first version of the empty-release test
+ran against an empty catalogue, where a fallback to "now" returns nothing anyway and so is
+invisible. It now declares a release with nothing agreed *while other rules exist*, which is the
+case that actually matters.
+
+**Consequences.**
+
+- No schema change. CON-85's `release_id` and the frozen version tables from CON-61 are the data;
+  this is a read.
+- `CatalogueHistory` is a separate class rather than methods on `Catalogue`, which answers "what
+  does the catalogue hold now". A method there answering "what did it hold then" would make every
+  caller's question ambiguous at the call site.
+- **CON-86 is still the gap, and this narrows what it has to do.** Closing a release now only needs
+  to record an asserted ship; reading the past no longer waits on it.
+
+Seven mutations were run; six were killed immediately and the seventh after the test gap above was
+closed. Full suite 1475 tests, no failures.
+
+**Status.** accepted
+
+---
+
 ## D-102 · 2026-11-21 · A release is declared, names a group of versions, and decides nothing
 
 **Closes CON-85, and discharges a debt.** The four parts below were decided on 2026-11-18 and
