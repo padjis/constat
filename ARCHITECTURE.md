@@ -1,6 +1,6 @@
 # Constat — Architecture
 
-Version 0.3 · 2026-11-21 · **implemented through CON-58**; §§ 2–4 describe the code as it is
+Version 0.4 · 2026-11-21 · **implemented through CON-108**; §§ 2–4 describe the code as it is
 
 This document describes the *smallest* architecture that supports the MVP in
 [PRODUCT_SPEC.md](PRODUCT_SPEC.md) § 6, and the shape to grow into afterwards. Keep the first

@@ -153,6 +153,7 @@ None of these are stages in the loop. They are questions you ask of the catalogu
 | `constat checkpoint take` / `checkpoint changes` | freezes the catalogue, and says what has moved since |
 | `constat release declare` / `release show` | names a set of agreed versions, and reports what was agreed for it |
 | `constat area list` | the declared areas, so two readings do not invent two names for one thing |
+| `constat config target <url>` | where `review` and `publish` write, set once instead of per command |
 
 ## Designed, not built
 

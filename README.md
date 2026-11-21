@@ -115,8 +115,12 @@ constat ticket add 622            # gathers evidence across every registered rep
 #   …ask your agent to propose the rules this ticket changed…
 constat rule proposals 622        # what it proposed, awaiting your decision
 constat rule accept 1             # the only thing that creates a rule
-constat publish 622               # to the repository's wiki, through the credential gate
+constat review 622                # the ticket page, where it is decided
+constat publish                   # the catalogue, the record of what was agreed
 ```
+
+Both writing commands go through the credential gate. Where they write is a workspace setting —
+`constat config target <url>` — or, unset, the wiki of the current repository's remote.
 
 `--reader` says who reads the evidence, once per workspace: `mcp` for an agent through the MCP
 server, or `provider` for Constat calling a model itself with `CONSTAT_AI_PROVIDER`. Change it
