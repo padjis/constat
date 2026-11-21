@@ -1,8 +1,9 @@
 """Workspace settings: answers that belong to a setup, not to a run (D-060).
 
-One table, two questions. `reader` records who reads the evidence — an agent
+One table, three questions. `reader` records who reads the evidence — an agent
 over MCP, or Constat itself through a provider. `merge_on_accept` records
 whether accepting a rule proposal also lands the ticket's branch (D-062).
+`target` records where documentation is published (CON-108).
 
 **Why this is stored rather than passed.** D-059 refuses a rule-generating
 command when nothing can read the evidence, and at the command line these two
@@ -51,6 +52,23 @@ Constat does that another person sees immediately and that cannot be undone by
 re-running a command. A workspace that never answered the question has not
 agreed to that, and reading silence as consent is exactly the failure product
 rule 4 exists to prevent."""
+
+
+TARGET = "target"
+
+DEFAULT_TARGET = None
+"""Unset, and a fallback rather than a refusal.
+
+Unlike `reader` and `merge_on_accept`, leaving this unanswered is safe: with
+no setting the target is still derived from the repository's remote, and an
+unrecognised host still refuses rather than guessing (D-058). So the default
+costs nothing and the first run needs no setup.
+
+It is a setting at all because a workspace has one documentation home and the
+answer does not change between runs — the same argument D-060 made for
+`reader`. It matters most for a catalogue spanning several repositories, where
+no single remote is the obvious anchor and `--target` would otherwise be typed
+on every command that writes."""
 
 
 class Settings:
@@ -114,3 +132,32 @@ class Settings:
                 "only records the decision."
             )
         self.set(MERGE_ON_ACCEPT, value)
+
+    @property
+    def target(self) -> str | None:
+        """Where documentation is published, or `None` to derive it.
+
+        `None` is not "no target": it means nothing has been configured, so
+        the remote's convention decides — which is a different answer from a
+        configured target that cannot be reached.
+        """
+        return self.get(TARGET, DEFAULT_TARGET)
+
+    def set_target(self, value: str) -> None:
+        if not value.strip():
+            raise InvalidInput(
+                "a target needs a URL — the documentation repository to "
+                "publish to. `constat config target --unset` goes back to "
+                "deriving it from the repository's remote."
+            )
+        self.set(TARGET, value.strip())
+
+    def unset_target(self) -> None:
+        """Forget the configured target, so the remote decides again.
+
+        A distinct operation rather than setting an empty string: "" would
+        read as a configured target that happens to be blank, and every later
+        refusal would have to disambiguate it.
+        """
+        with self._workspace.transaction() as ws:
+            ws.execute("DELETE FROM setting WHERE key = ?", (TARGET,))

@@ -8,6 +8,46 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-112 · 2026-11-21 · Where documentation is published is a workspace setting
+
+**Closes CON-108.**
+
+**Decision.** `constat config target <url>` records where `review` and
+`publish` write. Three sources resolve it, most specific first: `--target` on
+the command, the workspace setting, then the current repository's remote by
+the `.wiki.git` convention. `--unset` returns to deriving it.
+
+**Context.** The target had one source and one override, which suits a
+workspace over a single repository. Constat's own live workspace spans three,
+so no remote is the obvious home and `--target` had to be typed on `review`,
+on `publish` and on every `--record-decisions` run. The same argument D-060
+made for `reader`: a workspace has one answer and it does not change between
+runs, so ask once.
+
+**The remote stays the fallback, deliberately.** The alternative — requiring
+the setting once it exists — would break the first run of every new
+workspace to buy explicitness nobody asked for. A configured target widens
+*where* you can publish; it does not make Constat willing to guess. An
+unrecognised host still refuses, and a test asserts that holds with a setting
+present.
+
+**Unset is its own operation**, not an empty string. `""` would read as a
+configured target that happens to be blank, and every later refusal would
+have to disambiguate it from "nothing configured".
+
+**Consequences.**
+
+- Unlike `reader` and `merge_on_accept`, this setting's default is safe to
+  leave unanswered, so it has no strict-by-default argument. Nothing about
+  what Constat *does* changes until a command writes.
+- **Setting it publishes nothing**, and a test says so. Configuration that
+  wrote to a remote would be exactly the surprise D-058 exists to prevent.
+- `detect_target` takes the workspace now. Every caller already held one.
+
+**Status.** accepted
+
+---
+
 ## D-111 · 2026-11-21 · `review` circulates a ticket, `publish` records the catalogue
 
 **Closes CON-107. Amends D-058's "only command" phrasing**, not its substance.

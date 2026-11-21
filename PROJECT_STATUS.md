@@ -1044,6 +1044,13 @@ refreshes the catalogue too: recording accepts rules, and two pages on one remot
 contradict each other. D-058's "the only command that writes outside the workspace" is amended to
 two commands and one gate; the property was never the count.
 
+**CON-108 (D-112) removes the last friction before that.** `constat config target <url>` records
+where `review` and `publish` write, so the URL is not typed on every command — which is the
+normal case here, because the catalogue spans three repositories and no single remote is its
+home. Three sources resolve it, most specific first: the flag, the setting, the remote. The
+remote stays the fallback so a new workspace needs no setup, and an unrecognised host still
+refuses with a setting present.
+
 Then the original question stands: publish against a real target and see whether anything comes
 back. Both halves are built (D-105, D-106) and **neither has run outside a test** — `publish` is
 the one spine step `demo.sh` does not cover, and the target has only ever been a bare repository on

@@ -44,6 +44,7 @@ from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
 from .publish import STATE_REFERENCE, PublishedRef, Target
 from .publish.decisions import DecisionLine, DecisionsRead
+from .publish.targets.git_pages import GitPages
 from .publish.targets.git_pages import detect as git_pages_detect
 from .errors import (
     InvalidInput,
@@ -1859,7 +1860,7 @@ def publish_document(
     scan_findings = guard_publication(body, accepted=accept_scan_findings)
 
     if target is None:
-        target = detect_target(repository)
+        target = detect_target(repository, workspace)
 
     ref = target.publish(reference, body)
 
@@ -1953,7 +1954,7 @@ def publish_state(
     scan_findings = guard_publication(body, accepted=accept_scan_findings)
 
     if target is None:
-        target = detect_target(repository)
+        target = detect_target(repository, workspace)
 
     ref = target.publish(STATE_REFERENCE, body)
     return PublishResult(
@@ -1976,14 +1977,31 @@ it survives, so write a decision where decisions are read instead.
 """
 
 
-def detect_target(repository: str | None = None) -> Target:
-    """Derive the default target from a repository's remote, or refuse.
+def detect_target(
+    repository: str | None = None, workspace: Workspace | None = None
+) -> Target:
+    """The target to publish to: the configured one, else the remote's (CON-108).
+
+    Three sources, in this order — `--target` on the command (handled by the
+    caller, which passes a `Target` and never reaches here), then the
+    workspace setting, then the repository's remote. Each is more specific
+    than the next, and the command says which it used rather than leaving it
+    to be inferred.
+
+    **The remote stays the fallback**, so a workspace that has configured
+    nothing still works on its first run. An unrecognised host still refuses
+    rather than guessing (D-058): a configured target widens where you can
+    publish, never how willing Constat is to guess.
 
     `repository` defaults to the working directory, which is what "the page
     tool of the current repository" means in practice: the document may span
     several registered repositories, so no one of them is the obvious anchor,
     while the repository someone is standing in is unambiguous.
     """
+    if workspace is not None:
+        configured = Settings(workspace).target
+        if configured is not None:
+            return GitPages(configured)
     return git_pages_detect(discover_repository(repository or "."))
 
 
@@ -2093,7 +2111,7 @@ def record_read_decisions(
     typo swallow decisions that were perfectly readable.
     """
     if target is None:
-        target = detect_target(repository)
+        target = detect_target(repository, workspace)
 
     read = target.read_decisions(reference)
 

@@ -630,6 +630,31 @@ def build_parser() -> argparse.ArgumentParser:
         "value", nargs="?", choices=sorted(SWITCH), default=None,
         help="omit to show the current value",
     )
+    config_target = config_actions.add_parser(
+        "target",
+        help="show or set where documentation is published",
+        description=(
+            "The documentation repository `review` and `publish` write to "
+            "(CON-108). Unset, the target is derived from the current "
+            "repository's remote by the `.wiki.git` convention — which is "
+            "fine for one repository and awkward for a catalogue spanning "
+            "several, where no single remote is the obvious home. `--target` "
+            "on a command still wins over this for a one-off."
+        ),
+    )
+    config_target.add_argument(
+        "value", nargs="?", default=None,
+        metavar="URL",
+        help="omit to show the current value",
+    )
+    config_target.add_argument(
+        "--unset",
+        action="store_true",
+        help=(
+            "forget the configured target, so it is derived from the "
+            "repository's remote again"
+        ),
+    )
 
     state = subparsers.add_parser(
         "state",
@@ -2137,6 +2162,8 @@ def _run_config(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
             settings = Settings(workspace)
             if args.config_action == "merge-on-accept":
                 return _run_config_merge(settings, args.value)
+            if args.config_action == "target":
+                return _run_config_target(settings, args)
             if args.value is None:
                 print(f"reader: {settings.reader}")
                 if settings.reader == READER_MCP:
@@ -2171,6 +2198,49 @@ def _run_config(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
     except WorkspaceError as exc:
         print(f"{PROG}: error: {exc}", file=sys.stderr)
         return EXIT_WORKSPACE
+
+
+def _run_config_target(settings: Settings, args: argparse.Namespace) -> int:
+    """Show, set or forget where documentation is published (CON-108)."""
+    if args.unset and args.value is not None:
+        print(
+            f"{PROG}: error: --unset forgets the target; a URL sets one. "
+            "Pick one.",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
+    if args.unset:
+        settings.unset_target()
+        print("target: not set")
+        print(
+            "  Derived from the current repository's remote, by the "
+            "`.wiki.git` convention. An unrecognised host refuses rather "
+            "than guessing."
+        )
+        return EXIT_OK
+
+    if args.value is None:
+        configured = settings.target
+        if configured is None:
+            print("target: not set")
+            print(
+                "  Derived from the current repository's remote, by the "
+                "`.wiki.git` convention. An unrecognised host refuses rather "
+                "than guessing."
+            )
+        else:
+            print(f"target: {configured}")
+            print("  `--target` on a command still overrides this.")
+        return EXIT_OK
+
+    settings.set_target(args.value)
+    print(f"target: {settings.target}")
+    print(
+        "  `review` and `publish` write here unless `--target` says "
+        "otherwise. Nothing was published by setting it."
+    )
+    return EXIT_OK
 
 
 def _run_config_merge(settings: Settings, value: str | None) -> int:
@@ -2243,7 +2313,7 @@ def _report_decisions(workspace, args, target) -> int:
     and names the command that would act on it. A reader must not be able to
     mistake "Constat has seen your approval" for "your approval is recorded".
     """
-    resolved = target or detect_target(args.repository)
+    resolved = target or detect_target(args.repository, workspace)
     read = resolved.read_decisions(args.reference)
 
     print(f"decisions for {read.reference}")

@@ -250,8 +250,21 @@ decision flags live on `review` and nowhere else: a verdict is written against a
 the catalogue page carries none. `the-product-as-it-stands` is a **reserved**
 reference — a ticket cannot be published over it.
 
-By default the target is the wiki of the current repository's remote. An unrecognised host
-**refuses** rather than guessing: a push to a guessed URL is not undone by noticing afterwards.
+**Set the target once** rather than passing it every time (CON-108):
+
+```bash
+constat config target git@github.com:you/docs.wiki.git
+constat config target            # show it
+constat config target --unset    # go back to deriving it
+```
+
+Three sources, most specific first: `--target` on the command, then the workspace setting, then
+the wiki of the current repository's remote. That last one matters for a catalogue spanning
+several repositories — no single remote is the obvious home, which is why the setting exists.
+
+An unrecognised host **refuses** rather than guessing: a push to a guessed URL is not undone by
+noticing afterwards, and configuring a target widens where you can publish without making Constat
+willing to guess.
 
 `review` and `publish` are the only commands that write outside the workspace, and both go through the same scanner. Gathering never publishes, accepting
 never publishes, and publishing approves nothing.
