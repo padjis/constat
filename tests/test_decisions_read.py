@@ -26,6 +26,8 @@ The properties:
 
 from __future__ import annotations
 
+import re
+
 import subprocess
 from pathlib import Path
 
@@ -215,6 +217,26 @@ class TestReadingFromAGitTarget:
 
     def test_the_template_does_not_ask_for_a_name(self, published):
         assert "Do not write your name" in TEMPLATE
+
+    def test_the_template_names_commands_that_exist(self, published):
+        """This file is seeded once and **never rewritten** (D-105), so a
+        command renamed under it leaves a permanently wrong instruction in
+        someone else's repository — republishing cannot fix it.
+
+        It happened: CON-107 renamed `publish <REF>` to `review <REF>` and
+        this template kept telling reviewers to run the removed form. Found
+        by reading a real published file, not by a test, which is why there
+        is now a test.
+        """
+        from constat.cli import build_parser
+
+        parser = build_parser()
+        commands = set(parser._subparsers._group_actions[0].choices)
+
+        named = set(re.findall(r"`constat ([a-z-]+)", TEMPLATE))
+
+        assert named, "the template should tell a reviewer what to run"
+        assert named <= commands, f"template names commands that do not exist: {named - commands}"
 
     def test_an_unsigned_commit_is_attested_not_verified(
         self, tmp_path, wiki, published

@@ -84,8 +84,9 @@ A rejection means *inconclusive* — the evidence did not settle it — not that
 the rule is wrong (D-036).
 
 Nothing here takes effect on its own. Someone reads these back with
-`constat publish {reference} --read-decisions`, which reports and records
-nothing, and records them against the catalogue with `--record-decisions`.
+`constat review {reference} --read-decisions`, which reports what you wrote
+and records nothing, and then records it against the catalogue with
+`constat review {reference} --record-decisions`.
 Reading twice is safe: the same line in the same commit is recorded once.
 
 <!-- Constat wrote this file once and will never change it again. The document
