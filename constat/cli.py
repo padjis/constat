@@ -14,7 +14,6 @@ import textwrap
 from pathlib import Path
 
 from . import __version__
-from .config import build_request, build_snapshot_request
 from .git.adapter import configured_identity
 from .errors import (
     AlreadyRegistered,
@@ -27,7 +26,6 @@ from .errors import (
     WorkspaceError,
 )
 from .evidence import collect_evidence, describe_commit
-from .mapping import change_proposal, commit_record, state_proposal
 from .models import Rule
 from .store import OFF, ON, READER_MCP, READERS, SWITCH, Settings
 from .store import (
@@ -800,66 +798,6 @@ def build_parser() -> argparse.ArgumentParser:
             "who is declaring it. Inferred from git config when omitted, and "
             "recorded as inferred rather than stated (D-061)."
         ),
-    )
-
-    analyse = subparsers.add_parser(
-        "analyse",
-        help="examine a revision range in one repository",
-        description=(
-            "Examine what changed between two revisions of one repository. "
-            "All three options are required: there are no defaults for inputs "
-            "this important."
-        ),
-    )
-    analyse.add_argument(
-        "--repo",
-        required=True,
-        metavar="PATH",
-        help="path to the local Git repository (required; no default)",
-    )
-    analyse.add_argument(
-        "--base",
-        required=True,
-        metavar="REV",
-        help="revision representing the already-known state (tag, branch or SHA)",
-    )
-    analyse.add_argument(
-        "--target",
-        required=True,
-        metavar="REV",
-        help="revision representing the new state to document",
-    )
-    analyse.add_argument(
-        "--json",
-        action="store_true",
-        help="emit the structured proposal instead of the human summary",
-    )
-
-    snapshot = subparsers.add_parser(
-        "snapshot",
-        help="document the current state of one revision, such as main",
-        description=(
-            "Describe what a single revision does now, rather than what changed. "
-            "This is what an initial baseline is made from, and what later drift "
-            "is measured against. Both options are required."
-        ),
-    )
-    snapshot.add_argument(
-        "--repo",
-        required=True,
-        metavar="PATH",
-        help="path to the local Git repository (required; no default)",
-    )
-    snapshot.add_argument(
-        "--rev",
-        required=True,
-        metavar="REV",
-        help="revision to describe, typically main or master (required; no default)",
-    )
-    snapshot.add_argument(
-        "--json",
-        action="store_true",
-        help="emit the structured proposal instead of the human summary",
     )
 
     return parser
@@ -2795,120 +2733,6 @@ def _run_repo(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     return EXIT_USAGE  # pragma: no cover
 
 
-def _run_analyse(args: argparse.Namespace) -> int:
-    try:
-        request = build_request(args.repo, args.base, args.target)
-    except InvalidInput as exc:
-        print(f"{PROG}: error: {exc}", file=sys.stderr)
-        return EXIT_USAGE
-
-    try:
-        repo = discover_repository(request.repo)
-        base = resolve_revision(repo, request.base)
-        target = resolve_revision(repo, request.target)
-        summary = compare_revisions(repo, base, target)
-        bundle = collect_evidence(repo, summary)
-        proposal = change_proposal(repo, summary, bundle)
-    except RepositoryError as exc:
-        print(f"{PROG}: error: {exc}", file=sys.stderr)
-        return EXIT_REPOSITORY
-
-    if args.json:
-        print(proposal.model_dump_json(indent=2))
-        return EXIT_OK
-
-    _describe_repository(repo)
-    print(f"base:       {base.symbolic} -> {base.sha}")
-    print(f"target:     {target.symbolic} -> {target.sha}")
-
-    # Always stated, because the comparison did not necessarily start at base
-    # (D-021) and the summary cannot be verified without knowing where it did.
-    if summary.base_is_merge_base:
-        print("compared:   from base (base is an ancestor of target)")
-    else:
-        print(f"compared:   from merge base {summary.merge_base}")
-        print("            base and target have diverged; changes made only on")
-        print("            base are excluded, not reported as deletions")
-
-    print()
-    if summary.is_empty:
-        print("No file changes in this range.")
-    else:
-        print(f"{len(summary.changes)} changed file(s):")
-        for change in summary.changes:
-            if change.previous_path is not None:
-                score = f" ({change.similarity}% similar)" if change.similarity else ""
-                print(
-                    f"  {change.change_type.name:<12} {change.previous_path}"
-                    f" -> {change.path}{score}"
-                )
-            else:
-                print(f"  {change.change_type.name:<12} {change.path}")
-
-    print()
-    print(f"{bundle.commit_count} commit(s) in this range:")
-    for commit in bundle.commits:
-        merge = " [merge]" if commit.is_merge else ""
-        date = commit.authored_at.date().isoformat()
-        print(f"  {commit.short_sha}  {date}  {commit.author_name}{merge}")
-        print(f"              {commit.subject}")
-
-    print()
-    print("Evidence:")
-    print(f"  {bundle.completeness_note()}")
-    truncated = [e for e in bundle.excerpts if e.truncated and not e.is_binary]
-    if truncated:
-        print(f"  {len(truncated)} file(s) truncated:")
-        for excerpt in sorted(truncated, key=lambda e: -e.omitted_lines)[:5]:
-            kept = len(excerpt.text.splitlines())
-            print(f"    {kept} of {excerpt.total_lines} lines — {excerpt.path}")
-
-    print()
-    # Says only what was established. Anything interpretive would be
-    # unsupported certainty (PRODUCT_SPEC.md rule 1): nothing has been
-    # classified and no report has been rendered.
-    print(f"proposal:   {proposal.proposal_id}")
-    print(f"selection:  {proposal.selection_key[:16]}…")
-    print()
-    print("Evidence collected but not classified (CON-08) and not rendered as a")
-    print("report (CON-09). Each excerpt records the command that regenerates it.")
-    print("Use --json for the structured proposal.")
-    return EXIT_OK
-
-
-def _run_snapshot(args: argparse.Namespace) -> int:
-    try:
-        request = build_snapshot_request(args.repo, args.rev)
-    except InvalidInput as exc:
-        print(f"{PROG}: error: {exc}", file=sys.stderr)
-        return EXIT_USAGE
-
-    try:
-        repo = discover_repository(request.repo)
-        revision = resolve_revision(repo, request.rev)
-        state = summarise_state(repo, revision)
-        commit = describe_commit(repo, revision)
-        proposal = state_proposal(repo, state, commit_record(commit))
-    except RepositoryError as exc:
-        print(f"{PROG}: error: {exc}", file=sys.stderr)
-        return EXIT_REPOSITORY
-
-    if args.json:
-        print(proposal.model_dump_json(indent=2))
-        return EXIT_OK
-
-    _describe_repository(repo)
-    print(f"revision:   {revision.symbolic} -> {revision.sha}")
-    print(f"authored:   {commit.authored_at.date().isoformat()} by {commit.author_name}")
-    print(f"subject:    {commit.subject}")
-    print()
-    print(f"{state.file_count} file(s) present at this revision.")
-    print()
-    print("File inventory and commit metadata only. Nothing here describes")
-    print("behaviour yet: that needs interpretation (CON-09 onwards).")
-    return EXIT_OK
-
-
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI. Returns a process exit code."""
     parser = build_parser()
@@ -2968,12 +2792,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "state":
         return _run_state(args)
-
-    if args.command == "analyse":
-        return _run_analyse(args)
-
-    if args.command == "snapshot":
-        return _run_snapshot(args)
 
     # Unreachable while argparse validates the choice, but an explicit failure
     # beats falling off the end and returning None.

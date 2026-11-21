@@ -146,11 +146,6 @@ python -m pytest
 > commands work unchanged once activated — just don't expect `pip install` to work outside the
 > virtual environment.
 
-`analyse` and `snapshot` also still exist. They predate the ticket workflow and are not part of it:
-`analyse` reports file-level changes between two revisions from the merge base (D-021), `snapshot`
-lists the files present at one revision using no change vocabulary (D-022). Both bound their diff
-excerpts and state every omission with the `git` command that regenerates it in full (D-023, D-024).
-
 ## Naming
 
 In French law a *constat* is a formal written statement of observed fact — a `constat d'huissier` is

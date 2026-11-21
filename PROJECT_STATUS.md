@@ -2,7 +2,33 @@
 
 **Last updated:** 2026-11-21
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-21):** **CON-102 closed** — `LOOP.md` is new: the operational view, which
+**Current session (2026-11-21):** **CON-103, CON-105 and CON-104 closed (D-107, D-108, D-109)** —
+three defects found by *mapping the command surface* for `LOOP.md` rather than by reading the code,
+which is the pattern this file has recorded four times now. **CON-103 (D-107):** `rule accept 1`
+meant proposal 1 while `rule retire 1` meant rule row 1, with nothing to signal it, and `rule
+history R-1` was a usage error where `rule show R-1` worked. A reviewer checking their own
+acceptance was shown a different object. The ticket named `history`; `retire` had the same signature
+and is the destructive one, final with no reinstatement row (D-084). The two coincide today only
+because migration 17 back-filled `ref = 'R-' || id`, and the schema says in terms that `R-{id}` is a
+trap. A bare number is now refused (exit 2); an unknown rule exits 4, matching `rule show`.
+**CON-105 (D-108):** D-063 argued that a mistyped reference at a terminal should be a question
+rather than a new ticket, put the guard on the agent path, and left the terminal — the place the
+argument was about — with none. Found by running it against the **live** workspace instead of a
+throwaway: tickets **99998 and 99999 are still there** and cannot be removed. `ticket add` now
+searches first, `--even-if-absent` keeps the deliberate case, and a workspace with no repositories
+gets its own message rather than blaming the reference for an empty registry. **CON-104 (D-109):**
+`analyse` and `snapshot` retired, by the author's decision to remove rather than deprecate. The
+chain was bigger than the two commands — `config.py` and `mapping.py` were imported by nothing else
+and nine models were reachable only through them, so about 400 lines went that no path from the
+ticket workflow could reach. Sixteen top-level commands become fourteen.
+`tests/test_model_contract.py` is **new**, and that is the lesson: the deleted `test_models.py` was
+the only place asserting that published models are immutable and refuse unknown fields, so deleting
+it wholesale would have dropped coverage of `Frozen` that was only incidentally housed there.
+**Decided and not built:** a ticket opened by mistake stays. CON-105 removed the cause, an empty
+ticket carries no claim, and `ticket remove` would contradict the append-only store — so 99998 and
+99999 remain as artefacts of the bug that found the bug. Full suite **1515 passed** (1595 before the
+deletions, which removed 80 tests and added 3); `demo.sh` exits 0. Before them, **CON-102 closed** —
+`LOOP.md` is new: the operational view, which
 no document held. It came from a question I could not answer with a link — *is there a diagram with
 the feedback loop and the rework on rejected items?* — and the honest answer was no, because
 `ARCHITECTURE.md` § 2.1 drew the happy path only. Two drafts were needed, and the second one is the
@@ -966,13 +992,12 @@ one whose code is readable without context nobody has.
 overdue, and `DISCOVERY.md` stands as a written artefact rather than a task list. The trademark work
 that preceded it is withdrawn (D-086).
 
-**Three tickets arose from mapping the command surface for `LOOP.md`** and none should precede the
-real use above: CON-103 (a bare integer means a proposal to one command and a rule to another),
-CON-104 (`analyse` and `snapshot` retired — a decision first), CON-105 (`ticket add` opens a ticket
-for a reference no repository knows, where the agent path refuses one). CON-105 also left **two
-junk tickets, 99998 and 99999, in the live workspace**, opened while testing the behaviour and not
-removable: the store is append-only and there is no `ticket remove`. Whether there should be one —
-or a way to mark a ticket void — is undecided.
+**The three tickets that arose from mapping the command surface are all closed** (CON-103 D-107,
+CON-105 D-108, CON-104 D-109), so nothing now stands between here and the real use above. The
+question CON-105 raised is **decided and closed without code**: a ticket opened by mistake stays.
+CON-105 removed the cause, an empty ticket carries no claim, and a `ticket remove` would contradict
+the append-only store — so 99998 and 99999 remain in the live workspace as artefacts of the bug
+that found the bug.
 
 **CON-99 (parallel release lines, D-090) has a stated target rather than an open question**, and it
 should not precede the real use above. CON-58, which stood beside it, is closed (D-105, D-106) — the

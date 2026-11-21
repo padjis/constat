@@ -8,6 +8,62 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-109 · 2026-11-21 · `analyse` and `snapshot` are retired
+
+**Closes CON-104. Supersedes D-016 and D-021**, and retires the command half of
+D-022. The *distinction* those entries drew — a state question and a change
+question need different vocabulary — is unchanged and still enforced; what goes
+is the pair of commands that asked them.
+
+**Decision.** `constat analyse` and `constat snapshot` are removed, with
+everything that existed only to serve them: `constat/config.py` and
+`constat/mapping.py` entirely, and nine models in `constat/models.py`
+(`Proposal`, `ChangeSelection`, `StateSelection`, `SelectionKind`,
+`RevisionRef`, `RepositoryRef`, `CommitRecord`, `FileChangeRecord`,
+`EvidenceRecord`, `Completeness`). Fourteen top-level commands remain, from
+sixteen.
+
+**Context.** They predate the ticket workflow and were documented as not part
+of it — one `README.md` paragraph, absent from `USAGE.md`, `LOOP.md` and
+`demo.sh`, with no test file of their own beyond the CLI's. `snapshot --help`
+described itself as "what an initial baseline is made from", and that is now
+`constat baseline` (CON-89), which grounds anchors, records provenance and
+declares an area where `snapshot` printed a file list.
+
+**Why removal rather than deprecation.** The argument for keeping them was
+real and was weighed: working code, removal is irreversible for anyone
+depending on it, and "unused by the documented loop" is not "unused". It loses
+to the state of the project — no users, and a tool whose premise is that
+documentation should match the code cannot ship two commands its own
+documentation disowns.
+
+**What the deletion revealed.** The chain was bigger than the two commands.
+`mapping.py` was imported by nothing else, `config.py` by nothing else, and
+the nine models were reachable only through them — roughly 400 lines that no
+path from the ticket workflow could reach. Retiring the commands without this
+would have left the project carrying a second, dead model of what a proposal
+is, beside the live one.
+
+**Consequences.**
+
+- `tests/test_models.py` and `tests/test_config.py` are deleted with their
+  subjects, and three test classes leave `tests/test_cli.py` (19 cases).
+- **`tests/test_model_contract.py` is new**, and the reason matters: the
+  deleted file was the only place asserting that published models are
+  immutable and refuse unknown fields. Those two properties belong to `Frozen`,
+  not to the models that went, so they are now asserted against `Rule` — a
+  model that is actually persisted. Deleting a file wholesale can drop
+  coverage that was only incidentally housed there.
+- **`summarise_state` stays.** It answers the state question for
+  `operations.mainline_files`, which is how an anchor is grounded against
+  mainline (D-072). The command went, the capability did not.
+- A workspace or script invoking either command now gets argparse's
+  `invalid choice`, which names the fourteen that remain.
+
+**Status.** accepted
+
+---
+
 ## D-108 · 2026-11-21 · `ticket add` refuses a reference no repository knows
 
 **Closes CON-105.**
