@@ -408,6 +408,17 @@ def build_parser() -> argparse.ArgumentParser:
             "page, which `constat review <REF>` writes."
         ),
     )
+    # Accepted only so the refusal can name `review`. Until CON-107 this
+    # command took a reference, and argparse's "unrecognized arguments" tells
+    # someone who learned the old form nothing about where it went — a
+    # refusal that does not say what to do instead is a dead end.
+    publish.add_argument("reference", metavar="REF", nargs="?", help=argparse.SUPPRESS)
+    publish.add_argument(
+        "--read-decisions", action="store_true", help=argparse.SUPPRESS
+    )
+    publish.add_argument(
+        "--record-decisions", action="store_true", help=argparse.SUPPRESS
+    )
     publish.add_argument(
         "--target",
         default=None,
@@ -2619,6 +2630,26 @@ def _run_publish(args: argparse.Namespace) -> int:
     `constat review <REF>` writes, and the decision flags live there because
     that is the only page carrying proposals.
     """
+    if args.reference is not None:
+        print(
+            f"{PROG}: error: `publish` writes the catalogue and takes no "
+            f"reference. The page for {args.reference!r} is written by "
+            f"`constat review {args.reference}`, which carries the proposals "
+            "awaiting a decision and refreshes the catalogue with it.",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
+    if args.read_decisions or args.record_decisions:
+        print(
+            f"{PROG}: error: decisions are read from a ticket's page, not "
+            "from the catalogue — a verdict is written against a rule "
+            "proposal and the catalogue page carries none. Use `constat "
+            "review <REF> --read-decisions`.",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
     try:
         with Workspace.open(args.workspace) as workspace:
             target = None

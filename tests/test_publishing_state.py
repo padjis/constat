@@ -253,19 +253,40 @@ class TestTheCataloguePageNameIsReserved:
 
         assert raised.value.code == 2
 
-    def test_the_catalogue_command_takes_no_reference(self, subject, wiki) -> None:
-        """`publish` is the catalogue and nothing else now (CON-107)."""
+    def test_the_catalogue_command_takes_no_reference(
+        self, subject, wiki, capsys
+    ) -> None:
+        """`publish` is the catalogue and nothing else now (CON-107).
+
+        It refuses with a message naming `review` rather than with argparse's
+        "unrecognized arguments", which tells someone who learned the old
+        form nothing about where it went. A refusal that does not say what to
+        do instead is a dead end.
+        """
         from constat.cli import main
 
-        with pytest.raises(SystemExit) as raised:
-            main(
-                [
-                    "--workspace", str(Path(subject.path).parent),
-                    "publish", "622", "--target", wiki,
-                ]
-            )
+        code = main(
+            [
+                "--workspace", str(Path(subject.path).parent),
+                "publish", "622", "--target", wiki,
+            ]
+        )
 
-        assert raised.value.code == 2
+        assert code == 2
+        assert "constat review 622" in capsys.readouterr().err
+
+    def test_asking_the_catalogue_for_decisions_names_review(
+        self, subject, capsys
+    ) -> None:
+        from constat.cli import main
+
+        code = main(
+            ["--workspace", str(Path(subject.path).parent), "publish",
+             "--read-decisions"]
+        )
+
+        assert code == 2
+        assert "review <REF> --read-decisions" in capsys.readouterr().err
 
 
 # -- which of the two moments the page is at ---------------------------------
