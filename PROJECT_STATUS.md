@@ -2,7 +2,16 @@
 
 **Last updated:** 2026-11-21
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-21):** **CON-87 closed (D-103)** — `constat release show` reports what
+**Current session (2026-11-21):** **CON-18 closed (D-104)** — a ticket carries the requirements a
+person says it answers, and **`requirement_ref` finally has a producer** after being declared and
+written by nothing since the beginning. Schema 22, append-only. Three boundaries hold the label
+honest: supplied never fetched (Constat does not open the artefact), a person never a model (a
+reference from a provider would be an interpretation wearing the label of external evidence), and
+absent from the provider payload (a separate question with a disclosure dimension). Shown in the rule
+proposal queue, because that is the moment a reviewer asks what the work was for. Two findings came
+from running it: the duplicate refusal arrived as a traceback, and a hard-coded triple in
+`test_provenance.py` had become wrong in meaning while still passing. Before it, **CON-87 closed
+(D-103)** — `constat release show` reports what
 was *agreed* for a release (a fact) and how the catalogue *stood* (a reconstruction), with the basis
 printed alongside. Two of the ticket's own words are declined: "in effect" is not knowable because no
 ship is recorded, and "at a release" has no ordering because release names are never parsed — so a

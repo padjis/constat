@@ -33,6 +33,7 @@ from .store import (
     Catalogue,
     Checkpoints,
     Releases,
+    Requirements,
     Review,
     Registry,
     RuleProposals,
@@ -396,6 +397,37 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     ticket_actions.add_parser("list", help="list tickets")
+    ticket_requirement = ticket_actions.add_parser(
+        "requirement",
+        help="record a requirement or issue this ticket answers",
+        description=(
+            "Supply a pointer to the requirement, issue or specification this "
+            "work answers, so a reviewer reading a rule proposal can navigate "
+            "to what it came from. Constat does not fetch it: nothing is read "
+            "at the other end, nothing is parsed, and no check is made that "
+            "the URI resolves. The record says a person supplied it, which is "
+            "what `requirement_ref` has always meant — never that it was "
+            "verified. A model cannot write one: a reference from a provider "
+            "would be an interpretation wearing the label of external "
+            "evidence."
+        ),
+    )
+    ticket_requirement.add_argument("reference", metavar="REF")
+    ticket_requirement.add_argument(
+        "label",
+        metavar="LABEL",
+        help="how you cite it — `REQ-14`, `JIRA-882`, `spec § 3.2`. Stored verbatim.",
+    )
+    ticket_requirement.add_argument(
+        "--uri",
+        default=None,
+        metavar="URI",
+        help="where a reviewer can find it. Recorded, never followed.",
+    )
+    ticket_requirement.add_argument(
+        "--by", default=None, metavar="WHO",
+        help="who supplied it. Taken from your git identity when omitted (D-061).",
+    )
 
     ticket_show = ticket_actions.add_parser(
         "show", help="show a ticket and where its work was found"
@@ -931,8 +963,25 @@ def _report_workspace_queue(proposals, state: str | None) -> int:
     return EXIT_OK
 
 
+def _print_requirements(workspace, reference: str) -> None:
+    """What this ticket cites, for a reviewer about to decide (CON-18).
+
+    Printed with the rule proposals rather than only on `ticket show`, because
+    this is the moment the question "what was this supposed to do?" is actually
+    being asked — and the answer existing somewhere else is not the same as a
+    reviewer seeing it.
+    """
+    supplied = Requirements(workspace).for_ticket(reference)
+    if not supplied:
+        return
+    print(f"  supplied requirements ({len(supplied)}) — not verified:")
+    for requirement in supplied:
+        print(f"    {requirement.describe()}")
+    print()
+
+
 def _report_proposals(
-    proposals, reference: str, include_decided: bool, evidence=None
+    proposals, reference: str, include_decided: bool, evidence=None, workspace=None
 ) -> int:
     stored = (
         proposals.for_ticket(reference)
@@ -947,6 +996,8 @@ def _report_proposals(
         print("nothing has read its evidence yet.")
         return EXIT_OK
 
+    if workspace is not None:
+        _print_requirements(workspace, reference)
     print(f"{len(stored)} rule proposal(s) for {reference}:")
     for item in stored:
         state = item.decision or "awaiting a decision"
@@ -1357,6 +1408,7 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                         item.run_id: evidence_for_run(workspace, item.run_id)
                         for item in stored_for_report
                     },
+                    workspace=workspace,
                 )
 
             if args.rule_action == "show":
@@ -2282,6 +2334,27 @@ def _run_ticket(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
                     print(f"  {entry.reference}")
                 return EXIT_OK
 
+            if args.ticket_action == "requirement":
+                supplied_by, attribution = _decider(args)
+                supplied = Requirements(workspace).supply(
+                    args.reference,
+                    args.label,
+                    supplied_by,
+                    uri=args.uri,
+                    attribution=attribution,
+                )
+                print(f"recorded: {supplied.label}")
+                if supplied.uri:
+                    print(f"  at:          {supplied.uri}")
+                print(f"  on ticket:   {supplied.reference}")
+                print(f"  supplied by: {supplied.supplied_by}")
+                if attribution == "inferred":
+                    print("               (inferred from git config)")
+                print()
+                print("Provenance `requirement_ref`: supplied, not verified.")
+                print("Constat did not open it and does not know what it says.")
+                return EXIT_OK
+
             if args.ticket_action == "show":
                 entry = tickets.find(args.reference)
                 if entry is None:
@@ -2311,6 +2384,16 @@ def _run_ticket(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
                 for row in operations:
                     alias = row["alias"] or "(no repository)"
                     print(f"    {row['ran_at']}  {alias}  {row['summary']}")
+                # The navigation CON-18 asked for: a reviewer reading a rule
+                # proposal reaches the artefacts through its ticket.
+                supplied = Requirements(workspace).for_ticket(entry.reference)
+                if supplied:
+                    print(f"requirements: {len(supplied)} supplied")
+                    for requirement in supplied:
+                        print(f"    {requirement.describe()}")
+                        print(f"        supplied by {requirement.supplied_by}"
+                              f" ({requirement.attribution}),"
+                              " not verified")
                 print()
                 print(f"Run `constat document {entry.reference} --show` for the "
                       "document itself,")
@@ -2320,6 +2403,12 @@ def _run_ticket(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
         # `ticket add` gathers, so it can hit a provider misconfiguration too.
         print(f"{PROG}: error: {exc}", file=sys.stderr)
         return EXIT_PROVIDER
+    except InvalidInput as exc:
+        # `ticket requirement` refuses a duplicate label and an overlong one.
+        # Without this the refusal arrived as a traceback, which is a crash
+        # report where a sentence was meant — found by running it.
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
     except WorkspaceError as exc:
         print(f"{PROG}: error: {exc}", file=sys.stderr)
         return EXIT_WORKSPACE

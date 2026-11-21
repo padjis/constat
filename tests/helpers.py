@@ -172,6 +172,7 @@ The third new migration in a row broke all of them, which is what this exists
 to stop."""
 
 TABLES_INTRODUCED_AT: dict[int, tuple[str, ...]] = {
+    22: ("requirement",),
     21: ("release",),
     8: ("setting",),
     13: ("run_commit",),

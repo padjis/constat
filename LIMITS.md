@@ -73,12 +73,15 @@ that stays verified against mainline. D-076, D-102
 | | |
 | --- | --- |
 | `test_evidence` | Nothing runs tests and no test result is read. No ticket owns it. D-094 |
-| `requirement_ref` | Nothing ingests a requirement or an issue. Supplied traceability is CON-18. D-094 |
 | `assumption` | Has no producer, and that is a finding rather than a gap: every inference is either a reading (`ai_interpretation`) or an admission (`unknown`). D-094 |
 | `commit_set` selection | Reserved in the schema since CON-07. D-025 |
 
-The three provenance types are kept in the taxonomy rather than removed, and every rendered document
-lists them, so an absence is not mistaken for having been checked.
+The two remaining provenance types are kept in the taxonomy rather than removed, and every rendered
+document lists them, so an absence is not mistaken for having been checked. `requirement_ref` was the
+third until CON-18 gave it a producer (D-104) — and what it produces is a **supplied** reference:
+Constat records the pointer and never opens it, so "a requirement is cited" never means "a
+requirement was checked". Sending supplied requirements to an AI provider is also unbuilt, and
+deliberately so: it needs a disclosure decision first.
 
 ## 6. What a business reader cannot do
 

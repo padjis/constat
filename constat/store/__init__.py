@@ -10,6 +10,7 @@ from .catalogue import Catalogue
 from .checkpoints import Checkpoint, Checkpoints, RuleChange
 from .history import CatalogueHistory, VersionAtPoint
 from .releases import Release, Releases
+from .requirements import Requirement, Requirements
 from .proposals import RuleProposals, StoredRuleProposal
 from .registry import Registry
 from .tickets import TicketStore
@@ -42,6 +43,8 @@ __all__ = [
     "CatalogueHistory",
     "Checkpoints",
     "Release",
+    "Requirement",
+    "Requirements",
     "VersionAtPoint",
     "Releases",
     "RuleChange",

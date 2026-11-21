@@ -183,7 +183,7 @@ Every claim in a report carries exactly one provenance type:
 | --- | --- | --- | --- |
 | `observed_fact` | Directly read from the repository. | Git | ✅ |
 | `test_evidence` | Observed test result or test-file change. | Test run / Git | ❌ nothing runs tests |
-| `requirement_ref` | A requirement or issue supplied by a human or integration. | External, supplied | ❌ nothing is ingested (CON-18) |
+| `requirement_ref` | A requirement or issue supplied by a human or integration. | External, supplied | ✅ supplied by a person, never fetched or verified (D-104) |
 | `ai_interpretation` | Generated explanation or impact assessment. | AI provider | ✅ |
 | `assumption` | Stated inference not backed by evidence. | Constat logic | ❌ no distinct producer |
 | `unknown` | Constat could not determine this. | — | ✅ |

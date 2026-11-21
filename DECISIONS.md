@@ -8,6 +8,82 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-104 · 2026-11-21 · A requirement is supplied, never fetched — and `requirement_ref` has a producer
+
+**Closes CON-18**, and closes one of the three gaps D-094 named: `requirement_ref` has been in the
+provenance taxonomy since the beginning and written by nothing.
+
+**Decision.** A ticket can carry the requirements a person says it answers. Schema 22: a
+`requirement` table, append-only, with a label stored verbatim and an optional URI. Supplied by
+`constat ticket requirement <REF> <LABEL> [--uri]`.
+
+**Three boundaries, and they are the whole design.**
+
+**Supplied, never fetched.** Constat does not open the artefact at the other end — no network call,
+no parsing, no check that the URI resolves or that what it points at has anything to do with the
+ticket. `requirement_ref` has always meant "supplied by a human or integration" (PRODUCT_SPEC
+§ 7.1) and has never meant verified. Every view says which it is: the command prints *"supplied, not
+verified — Constat did not open it and does not know what it says"*, and the document's section
+repeats it. A reference that read as checked would be a stronger claim than anything here can
+support, and it would be exactly the unsupported certainty product rule 1 prohibits.
+
+**A person supplies it, never a model.** There is no path from a reading to this table and there
+must not be. A requirement reference written by a provider would be `ai_interpretation` wearing the
+label of external evidence, which would make the taxonomy itself dishonest — the same boundary D-048
+draws around acceptance, applied to evidence rather than to decisions. A test asserts no MCP tool
+can write one.
+
+**It does not leave the machine.** A supplied requirement is deliberately absent from the provider
+payload. A label or URI is internal by nature — a tracker host, a project code, sometimes a
+customer's name — and the payload is the egress boundary D-040 and D-047 guard. Feeding requirements
+to a model would plainly make a reading better; it is a separate question with a disclosure
+dimension, and it is not smuggled in under a traceability ticket. A mutation that injects the labels
+into the payload is killed by its own test.
+
+**Where a reviewer sees them.** `ticket show`, and — the one that matters — the rule proposal queue,
+because that is the moment "what was this supposed to do?" is actually being asked. The answer
+existing on another command is not the same as a reviewer seeing it while deciding.
+
+**The document had to change in both directions.** Moving `requirement_ref` into
+`PRODUCED_PROVENANCE` means the legend now advertises it, so a document must be able to show one: a
+label explained in the key and never appearing would be the same defect as the gap, reversed. It
+renders in its own section, away from the observed facts, because product rule 3 asks that
+requirements stay distinguishable from implementation evidence — a pointer sitting among observed
+facts would read as something Constat had checked.
+
+**Append-only, including the duplicate refusal.** A reviewer who navigated from a rule proposal to a
+requirement needs it to still say what it said, and traceability that can be quietly removed is
+traceability only until it is inconvenient. A wrong pointer is corrected by supplying the right one
+beside it. The same label twice on one ticket refuses; the same label on two tickets is fine,
+because work split across changes is the normal shape.
+
+**Two findings from running it rather than from a test.**
+
+1. **The duplicate refusal arrived as a traceback.** `_run_ticket` caught no `InvalidInput`, so a
+   refusal that was written as a sentence reached the user as a crash report. Now caught, with a
+   test.
+2. **A hard-coded triple in `test_provenance.py` had become wrong in meaning.** It asserted that
+   `test_evidence`, `requirement_ref` and `assumption` all appear in the legend — which stayed true
+   after `requirement_ref` gained a producer, because it now appears in the *other* half. It is
+   asserted against `UNPRODUCED_PROVENANCE` instead, so the next type to gain or lose a producer
+   cannot leave it passing while meaning something else.
+
+**Consequences.**
+
+- **Two unproduced types remain**, and `LIMITS.md` § 5 is updated rather than quietly shortened:
+  `test_evidence` (nothing runs tests, no ticket owns it) and `assumption` (no distinct producer).
+- **Nothing is ingested, and the spec says so differently now.** § 7.1's row changes from "nothing
+  is ingested" to produced-but-supplied, which is a narrower and truer claim than either extreme.
+- **Sending requirements to a provider is unbuilt and deliberately unticketed.** It needs a
+  disclosure decision first, and inventing a ticket for it here would pre-commit that decision.
+
+Eight mutations were run and each was killed by one intended test, including one that leaks the
+labels into the payload. Full suite 1504 tests, no failures.
+
+**Status.** accepted
+
+---
+
 ## D-103 · 2026-11-21 · The catalogue is read as it *stood*, at a moment derived from what was agreed
 
 **Closes CON-87**, and declines two of the words it was written with.

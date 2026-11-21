@@ -98,18 +98,34 @@ class TestTheLegend:
 
     def test_it_says_which_types_nothing_writes(self) -> None:
         """The useful half of the ticket. An enum member nobody writes is a
-        promise the code does not keep."""
+        promise the code does not keep.
+
+        Two types, not three: CON-18 gave `requirement_ref` its first producer
+        (D-104). Asserted against `UNPRODUCED_PROVENANCE` rather than a written
+        list, so the next type to gain or lose a producer cannot leave this
+        test passing while meaning the wrong thing — which is what the earlier
+        hard-coded triple did.
+        """
         text = "\n".join(provenance_legend())
 
         assert "produced by nothing today" in text
-        for name in ("test_evidence", "requirement_ref", "assumption"):
+        assert set(UNPRODUCED_PROVENANCE) == {"test_evidence", "assumption"}
+        for name in UNPRODUCED_PROVENANCE:
             assert f"`{name}`" in text
 
     def test_it_gives_a_reason_for_each_gap(self) -> None:
         """A gap with no reason reads as an oversight rather than a limit."""
         assert "nothing runs tests" in UNPRODUCED_PROVENANCE["test_evidence"]
-        assert "CON-18" in UNPRODUCED_PROVENANCE["requirement_ref"]
         assert "reading or an admission" in UNPRODUCED_PROVENANCE["assumption"]
+
+    def test_a_supplied_requirement_is_marked_as_supplied(self) -> None:
+        """The whole weight `requirement_ref` carries now that it has a
+        producer. "Supplied" and "verified" are different claims, and the
+        legend is where a reader learns which this is."""
+        meaning = PRODUCED_PROVENANCE["requirement_ref"]
+
+        assert "Supplied, never fetched" in meaning
+        assert "does not read what is at the other end" in meaning
 
 
 class TestTheDocumentCarriesIt:

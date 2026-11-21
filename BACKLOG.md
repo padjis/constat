@@ -72,7 +72,7 @@ Ticket register. The single source of truth for *what work exists*; the single s
 | --- | --- | --- | --- |
 | CON-16 | Read GitHub repository metadata | Constat can identify the GitHub repository and map it to its local clone. | ⬜ |
 | CON-17 | Link pull requests to change proposals | A proposal can be traced to its originating PR. | ⬜ |
-| CON-18 | Add traceability references | A reviewer can navigate from a proposal to its supporting artefacts. | ⬜ |
+| CON-18 | Add traceability references | A reviewer can navigate from a proposal to its supporting artefacts. | ✅ D-104 — schema 22; `constat ticket requirement`, and **`requirement_ref` has its first producer** after being declared and unwritten since the beginning (D-094). Three boundaries: supplied never fetched, a person never a model, and absent from the provider payload. Shown in the rule proposal queue, because that is when a reviewer asks what the work was for |
 | CON-19 | Run a realistic multi-change scenario | A repeatable demo shows the product-level value, not just a Git diff. | ⬜ no longer the *first* cross-repo work — CON-32 makes the set primary |
 | CON-20 | Package the MVP and document limits | A new person can run the demo and understand what Constat does and does not do. | ✅ D-097 — `demo.sh` (no API key, no network, verified from a built wheel in a clean venv) and `LIMITS.md` (nine sections, every row citing its decision). The demo found two defects in its first two runs |
 

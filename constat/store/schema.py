@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 22
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -321,6 +321,42 @@ CREATE TABLE rule_proposal_decision (
     rationale        TEXT
 );
 
+-- A requirement or issue a person says this ticket answers (CON-18).
+--
+-- **Supplied, never ingested, and never fetched.** Constat does not read the
+-- artefact at the other end: no network call, no parsing, no check that the
+-- URI resolves or that its content has anything to do with the ticket. The
+-- row records that somebody supplied a pointer, which is exactly what
+-- `requirement_ref` means in the provenance taxonomy — "supplied by a human or
+-- integration" (PRODUCT_SPEC § 7.1). Every view that renders one says so,
+-- because a reference that looked verified would be a stronger claim than
+-- anything here can support.
+--
+-- **A person supplies it, never a model.** There is no path from a reading to
+-- this table and there must not be: a requirement reference written by a
+-- provider would be `ai_interpretation` wearing the label of external
+-- evidence, which would make the taxonomy itself dishonest. That is the same
+-- boundary D-048 draws for acceptance, applied to evidence rather than to
+-- decisions.
+--
+-- `label` is free text stored verbatim — `REQ-14`, `JIRA-882`, `spec § 3.2`.
+-- Nothing parses it, for D-102's reason: a field Constat interprets becomes a
+-- claim it cannot support.
+--
+-- Append-only. A reviewer who navigated from a rule proposal to a requirement
+-- needs it to still be there, and a traceability record that can be quietly
+-- removed is traceability only until it is inconvenient. A wrong pointer is
+-- corrected by supplying the right one beside it.
+CREATE TABLE requirement (
+    id          INTEGER PRIMARY KEY,
+    ticket_id   INTEGER NOT NULL REFERENCES ticket(id),
+    label       TEXT    NOT NULL,
+    uri         TEXT,
+    supplied_by TEXT    NOT NULL,
+    attribution TEXT    NOT NULL DEFAULT 'stated',
+    created_at  TEXT    NOT NULL
+);
+
 -- A release somebody declared, spanning the registered set (CON-85).
 --
 -- **Declared, never derived.** Constat does not read tags to find releases.
@@ -545,6 +581,8 @@ CREATE UNIQUE INDEX idx_rule_ref ON rule(ref);
 CREATE UNIQUE INDEX idx_message_ref ON message(ref);
 CREATE INDEX idx_rule_retirement_rule ON rule_retirement(rule_id);
 CREATE UNIQUE INDEX idx_release_name ON release(name);
+CREATE INDEX idx_requirement_ticket ON requirement(ticket_id);
+CREATE UNIQUE INDEX idx_requirement_label ON requirement(ticket_id, label);
 CREATE INDEX idx_rule_version_release ON rule_version(release_id);
 CREATE UNIQUE INDEX idx_checkpoint_ref ON checkpoint(ref);
 CREATE INDEX idx_checkpoint_rule_checkpoint ON checkpoint_rule(checkpoint_id);
@@ -609,6 +647,20 @@ CREATE TRIGGER rule_proposal_is_append_only_delete
 BEFORE DELETE ON rule_proposal
 BEGIN
     SELECT RAISE(ABORT, 'rule_proposal is append-only: a reading cannot be deleted');
+END;
+
+CREATE TRIGGER requirement_is_append_only_update
+BEFORE UPDATE ON requirement
+BEGIN
+    SELECT RAISE(ABORT,
+        'requirement is append-only: supply a corrected reference rather than editing this');
+END;
+
+CREATE TRIGGER requirement_is_append_only_delete
+BEFORE DELETE ON requirement
+BEGIN
+    SELECT RAISE(ABORT,
+        'requirement is append-only: a reference a reviewer followed cannot be removed');
 END;
 
 CREATE TRIGGER release_is_append_only_update
@@ -1005,6 +1057,38 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     # Nothing is checkpointed by the migration. A checkpoint records that a
     # person looked at the product and agreed it was this, so inventing one
     # would put a human decision in the record that nobody made.
+    # 21 -> 22: a ticket can carry the requirements it answers (CON-18).
+    #
+    # Nothing is back-filled, and there is nothing that could be: a requirement
+    # reference comes from a person, and inventing one would be the exact
+    # dishonesty the table's own comment rules out.
+    #
+    # The uniqueness on (ticket_id, label) is an explicit index rather than
+    # inline, so a workspace migrated to 22 is structurally identical to one
+    # created at 22 — the property `tests/test_releases.py` now checks.
+    21: (
+        "CREATE TABLE requirement ("
+        " id INTEGER PRIMARY KEY,"
+        " ticket_id INTEGER NOT NULL REFERENCES ticket(id),"
+        " label TEXT NOT NULL,"
+        " uri TEXT,"
+        " supplied_by TEXT NOT NULL,"
+        " attribution TEXT NOT NULL DEFAULT 'stated',"
+        " created_at TEXT NOT NULL)",
+        "CREATE INDEX idx_requirement_ticket ON requirement(ticket_id)",
+        "CREATE UNIQUE INDEX idx_requirement_label"
+        " ON requirement(ticket_id, label)",
+        "CREATE TRIGGER requirement_is_append_only_update"
+        " BEFORE UPDATE ON requirement BEGIN"
+        " SELECT RAISE(ABORT,"
+        " 'requirement is append-only: supply a corrected reference rather than editing this');"
+        " END",
+        "CREATE TRIGGER requirement_is_append_only_delete"
+        " BEFORE DELETE ON requirement BEGIN"
+        " SELECT RAISE(ABORT,"
+        " 'requirement is append-only: a reference a reviewer followed cannot be removed');"
+        " END",
+    ),
     # 20 -> 21: a release is declared, and a rule version is agreed for one
     # (CON-85).
     #

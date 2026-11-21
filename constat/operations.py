@@ -62,6 +62,7 @@ from .models import RegisteredRepository, Rule
 from .store import READER_MCP, Settings
 from .store import Catalogue, Registry, RuleProposals, TicketStore, Workspace
 from .store import CatalogueHistory, Release, Releases, VersionAtPoint
+from .store import Requirements
 from .store.workspace import utc_now
 from .git.merge import MergeResult, merge_ticket_branch
 from .tickets import (
@@ -206,22 +207,28 @@ def _collect_repository(
 
 PRODUCED_PROVENANCE = {
     "observed_fact": "Read directly from a repository: a commit, a path, a diff excerpt.",
+    "requirement_ref": "A requirement or issue a person said this work answers. Supplied, never fetched: Constat does not read what is at the other end.",
     "ai_interpretation": "A reading of that evidence. Carries no authority until a person accepts it.",
     "unknown": "Constat could not determine this. Not a finding, and never read as one.",
     "human_decision": "A person's acceptance, rejection or retirement, with their name as they gave it.",
 }
 """The provenance types Constat actually produces, and what each means here.
 
-Four of the seven in `ProvenanceType`. The other two — `test_evidence` and
-`requirement_ref` — have **no producer** (see `UNPRODUCED_PROVENANCE`), and
-`assumption` has none either: every inference Constat makes is either a reading
-(`ai_interpretation`) or an admission (`unknown`), and nothing in between has
-turned out to need a third word.
+Five of the seven in `ProvenanceType` since CON-18 gave `requirement_ref` its
+first producer. The remaining two have **no producer** (see
+`UNPRODUCED_PROVENANCE`): nothing runs tests, and `assumption` has none either
+— every inference Constat makes is either a reading (`ai_interpretation`) or an
+admission (`unknown`), and nothing in between has turned out to need a third
+word.
+
+`requirement_ref` is produced only by a person running `constat ticket
+requirement`. Nothing on the provider or MCP path can write one, which is the
+boundary that keeps the label meaningful: a reference a model supplied would be
+`ai_interpretation` dressed as external evidence.
 """
 
 UNPRODUCED_PROVENANCE = {
     "test_evidence": "nothing runs tests, and no test result is read (no ticket owns this yet)",
-    "requirement_ref": "no requirement or issue is ingested; supplied traceability is CON-18",
     "assumption": "every inference is either a reading or an admission, so this has no distinct producer",
 }
 """Declared in the taxonomy and written by nothing (CON-10, D-094).
@@ -682,6 +689,7 @@ def render(
     interpretation: Interpretation | None = None,
     scan_section: list[str] | None = None,
     view: CatalogueView | None = None,
+    requirements: tuple = (),
 ) -> str:
     """Render the machine-derived part of a document.
 
@@ -852,12 +860,49 @@ def render(
             "version of it."
         )
 
+    # Before the legend, because the legend now advertises `requirement_ref`
+    # as a type Constat produces (CON-18) — and a label explained in the key
+    # but never appearing in a document would be misleading in the other
+    # direction from the gap it closed.
+    if requirements:
+        lines += _requirements_section(requirements)
+
     # Last, because it is reference rather than content — and unconditional,
     # because a document whose labels are explained only sometimes teaches a
     # reader to ignore them (CON-10).
     lines.append("")
     lines += provenance_legend()
     return "\n".join(lines)
+
+
+def _requirements_section(requirements: tuple) -> list[str]:
+    """The requirements a person said this work answers (CON-18).
+
+    **Its own section, kept away from the evidence.** Product rule 3 asks that
+    implementation evidence, requirements, AI interpretation and human approval
+    stay distinguishable, and a supplied pointer sitting among observed facts
+    would read as something Constat had checked.
+
+    Every line says *supplied* rather than *verified*, because that is the only
+    claim available: Constat never opens the artefact, so it does not know
+    whether the requirement says what the reference implies — or whether it
+    still exists.
+    """
+    lines = ["", "## Supplied requirements", ""]
+    lines.append(
+        "Pointers a person attached to this work. Provenance "
+        "`requirement_ref`: **supplied, not verified** — Constat did not open "
+        "any of these and does not know what they say."
+    )
+    lines.append("")
+    for requirement in requirements:
+        target = f"[{requirement.label}]({requirement.uri})" if requirement.uri else f"`{requirement.label}`"
+        lines.append(
+            f"- {target} — supplied by {requirement.supplied_by} "
+            f"({requirement.attribution}) on "
+            f"{requirement.created_at[:10]}"
+        )
+    return lines
 
 
 def known_rules(workspace: Workspace) -> tuple[KnownRule, ...]:
@@ -1668,7 +1713,14 @@ def gather(
         )
 
     view = catalogue_view(workspace, reference, findings)
-    body = render(reference, findings, interpretation, scan_section, view)
+    body = render(
+        reference,
+        findings,
+        interpretation,
+        scan_section,
+        view,
+        requirements=Requirements(workspace).for_ticket(reference),
+    )
 
     with workspace.transaction() as ws:
         ws.execute(
