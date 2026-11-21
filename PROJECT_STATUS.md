@@ -966,6 +966,14 @@ one whose code is readable without context nobody has.
 overdue, and `DISCOVERY.md` stands as a written artefact rather than a task list. The trademark work
 that preceded it is withdrawn (D-086).
 
+**Three tickets arose from mapping the command surface for `LOOP.md`** and none should precede the
+real use above: CON-103 (a bare integer means a proposal to one command and a rule to another),
+CON-104 (`analyse` and `snapshot` retired — a decision first), CON-105 (`ticket add` opens a ticket
+for a reference no repository knows, where the agent path refuses one). CON-105 also left **two
+junk tickets, 99998 and 99999, in the live workspace**, opened while testing the behaviour and not
+removable: the store is append-only and there is no `ticket remove`. Whether there should be one —
+or a way to mark a ticket void — is undecided.
+
 **CON-99 (parallel release lines, D-090) has a stated target rather than an open question**, and it
 should not precede the real use above. CON-58, which stood beside it, is closed (D-105, D-106) — the
 off-CLI approval D-089 named is built, and what remains unknown about it is not code: whether a
