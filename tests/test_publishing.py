@@ -363,11 +363,23 @@ class TestNothingElsePublishes:
         git(tmp_path, "clone", "--quiet", wiki, str(check))
         assert sorted(p.name for p in check.glob("*.md")) == []
 
-    def test_a_target_cannot_report_decisions_yet(self, wiki):
-        """CON-58. Raising rather than returning none: an empty list of
-        decisions reads as 'nobody has decided' (D-041)."""
+    def test_a_target_that_cannot_read_decisions_refuses(self):
+        """CON-58 landed for git (D-105), so `GitPages` reads decisions now —
+        see `tests/test_decisions_read.py`. The *posture* is what this still
+        guards: a backend that cannot read them raises rather than returning
+        none, because an empty list reads as 'nobody has decided' (D-041).
+
+        Confluence, GitBook and GitLab docs (CON-59) will each publish before
+        they can read, and `NotYetReadable` is how they fail identically
+        instead of each inventing a silence.
+        """
+        from constat.publish import NotYetReadable
+
+        class Unready(NotYetReadable):
+            name = "a-future-backend"
+
         with pytest.raises(DecisionsNotReadable) as exc:
-            GitPages(wiki).read_decisions("622")
+            Unready().read_decisions("622")
 
         assert "CON-58" in str(exc.value)
         assert "nobody has decided" in str(exc.value)

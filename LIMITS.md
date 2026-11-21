@@ -85,12 +85,19 @@ deliberately so: it needs a disclosure decision first.
 
 ## 6. What a business reader cannot do
 
-**Read, but not respond.** `constat publish` puts a document where a business audience can read it;
-nothing brings their answer back. `read_decisions` raises `DecisionsNotReadable` on every target,
-there is no comment path, and approval lives at the command line.
+**Read and respond, but the response is not yet a decision.** `constat publish` puts a document
+where a business audience can read it, and since D-105 it also seeds a decision file they can write
+in — any git repository, no forge API, no token. `constat publish <REF> --read-decisions` reports
+what they wrote, with the author taken from the commit rather than from a typed name.
 
-That is the largest functional gap in the product. Off-CLI approval **is** intended (D-089, CON-58),
-and comments need a durable anchor model first (D-043, CON-39, CON-47, CON-48).
+**Nothing recorded there takes effect.** Reading an approval is not recording one: the output says so
+and names the command that would act on it. D-048 and D-055 are unchanged, and the step that amends
+them is still to come (D-089, CON-58).
+
+So the gap is narrower and still real. Free-form comments remain unbuilt and need a durable anchor
+model first (D-043, CON-39, CON-47, CON-48) — and whether a business reader would ever go to a wiki
+page to approve is **unverified**: `DISCOVERY.md` § 4 calls that the most load-bearing and least
+tested assumption in the product, and no discovery conversation has been held (D-088).
 
 ## 7. Deferred by decision
 

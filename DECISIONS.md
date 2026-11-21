@@ -8,6 +8,91 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-105 · 2026-11-21 · Decisions are read back with plain git, and a forge API is the *less* generic choice
+
+**Refs CON-58**, the reading half. Recording what is read is the other half and is not built.
+
+**Decision.** `GitPages.read_decisions` is implemented with nothing but `git`: clone the target,
+read one file, `git blame` it for the author, and ask the commit object whether it was signed. No
+forge API, no token, no per-platform backend. `constat publish <REF> --read-decisions` reports what
+it found.
+
+**This reverses how the options were first put to the author, and the correction is the entry's
+point.** Three channels were offered, with "a tracker or forge comment" presented as the strongest
+because a platform supplies a real identity. The author's answer — *"I do not want a solution for
+me but something generic"* — exposed the error: a forge channel needs a backend and a credential per
+platform, where plain git needs neither. Product rule 7's "no stored credentials" survives because
+Constat is never the thing holding one, and the implementation works on github.com, a self-hosted
+GitLab, a bare repository over SSH, or a directory on disk, because nothing in the path knows what a
+host is. **Every test runs against a bare repository**, which is the proof.
+
+**Identity comes from the commit, never from the text.** The template says *"do not write your
+name"*: a typed name is no better than the CLI's `--by` string, which nothing checks (D-061), where
+a commit author is attested by the repository's own history. `git blame` attributes each line
+separately, because one file can carry decisions from several people and crediting them all to the
+last committer would name the wrong reviewer.
+
+**Three verification states, and the middle one is a finding.** A signature verifies on the
+signer's machine and reads as *absent* through a clone Constat made, because `git` needs
+`gpg.ssh.allowedSignersFile` or a keyring to check one — configuration that lives with the signer
+and will never be on the machine reading decisions back. Presence is therefore read from the commit
+object, where `gpgsig` sits regardless of trust:
+
+| `verification` | What backs it |
+| --- | --- |
+| `signed_commit` | git checked the signature and was satisfied (`G`, `U`) |
+| `signed_unverified` | signed, and this machine cannot check it |
+| `git_commit` | unsigned; the author is attested by history alone |
+
+Rounding the middle state to `git_commit` would discard a real signature; rounding it to
+`signed_commit` would claim a check nobody performed. The raw `%G?` code is kept beside the derived
+value so nothing is lost in the mapping.
+
+**Constat seeds the decision file once and never writes it again.** Decisions live in
+`decisions/<page>.md`, not on the page, because the page is a living view regenerated on every run
+(D-029) — a decision written there would be destroyed. That is CON-39's problem, avoided rather than
+solved: Constat owns the page, the reviewer owns the file. A test republishes a completely different
+document and asserts the reviewer's decisions survive.
+
+**One exact form, and the rest is reported.** `1: approved`, `R-7: rejected — a reason`. A
+capitalised verdict is not a decision, so "Approved?" in a sentence cannot read as one. Anything
+unreadable comes back with its line number and text: a reviewer who wrote `1: aproved` has made a
+decision Constat does not have, and silence would leave them believing it was recorded (D-041).
+
+**The `## Decisions` marker exists because of a bug found by running it.** A first version reported
+all ten lines of the template's own instructions as unreadable, burying the two lines that mattered
+under the explanation of how to write them. Prose above the marker is now never reported; anything
+unreadable below it is. A reviewer who deletes the marker gets the whole file scanned — noisier, but
+nothing is lost, and noisy beats silent here.
+
+**Nothing is recorded.** D-089 intends an off-CLI approval to count as a human decision and says the
+amendment to D-055 **lands with the mechanism that enforces it**. So this half reads and reports,
+and the output says "Nothing here is recorded" and names `constat rule accept`. D-048 and D-055
+stand unchanged, and no test of them was weakened.
+
+**What is still unknown, and it is the important part.** `DISCOVERY.md` § 4 assumption 6 —
+*"approval belongs at a command line, not where business works"* — is called there the most
+load-bearing and least tested assumption in the product, and D-088 records that zero discovery
+conversations have been held. A browser-editable wiki page is *plausible* for a business reviewer and
+produces a real commit; whether the people who sign off would ever go there is unverified. The hedge
+is that `verification` and the channel are per-decision, so if the venue turns out to be Confluence
+or a tracker, one backend is wasted and the model survives.
+
+**Consequences.**
+
+- `NotYetReadable` stays for the CON-59 backends, which will each publish before they can read. Its
+  docstring and the port's no longer say that nothing implements `read_decisions`.
+- `LIMITS.md` § 6 is narrowed rather than cleared: a business reader can now *respond*, and the
+  response is still not a decision until somebody records it.
+- Applying a read decision is the next piece of work, and it is the one that amends D-055.
+
+Ten mutations were run and each was killed by one intended test. Full suite 1536 tests, no
+failures.
+
+**Status.** accepted
+
+---
+
 ## D-104 · 2026-11-21 · A requirement is supplied, never fetched — and `requirement_ref` has a producer
 
 **Closes CON-18**, and closes one of the three gaps D-094 named: `requirement_ref` has been in the

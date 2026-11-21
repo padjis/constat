@@ -48,6 +48,7 @@ from .operations import (
     baseline_area,
     describe_branching,
     describe_release_basis,
+    detect_target,
     read_release,
     verify_messages,
     export_payload,
@@ -353,6 +354,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help="the repository whose remote names the target (default: the working directory)",
+    )
+    publish.add_argument(
+        "--read-decisions",
+        action="store_true",
+        help=(
+            "read back the decisions a reviewer wrote in the target instead of "
+            "publishing. Reports them; records nothing. Works on any git "
+            "repository — no forge API and no token."
+        ),
     )
     publish.add_argument(
         "--accept-scan-findings",
@@ -2166,6 +2176,69 @@ def _report_landing(landing) -> int:
     return EXIT_MERGE
 
 
+def _report_decisions(workspace, args, target) -> int:
+    """Report what a reviewer wrote in the target (CON-58).
+
+    **Reports, never records.** D-089 intends an off-CLI approval to count as a
+    human decision and says the amendment to D-055 lands with the mechanism
+    that enforces it — so until that mechanism exists this prints what it found
+    and names the command that would act on it. A reader must not be able to
+    mistake "Constat has seen your approval" for "your approval is recorded".
+    """
+    resolved = target or detect_target(args.repository)
+    read = resolved.read_decisions(args.reference)
+
+    print(f"decisions for {read.reference}")
+    print(f"  from: {read.location}")
+    print()
+
+    if not read.present:
+        print("There is no decision file in the target.")
+        print()
+        print("That is not 'nobody has decided' — it means this ticket's")
+        print("document has never been published there, so nobody has had")
+        print("anywhere to write. Run `constat publish` first.")
+        return EXIT_OK
+
+    if not read.decisions and not read.unreadable:
+        print("The decision file is there and empty.")
+        print()
+        print("Nobody has written a decision yet. The file was seeded once")
+        print("when the document was published and Constat never writes it")
+        print("again, so this is the reviewer's silence rather than a gap.")
+        return EXIT_OK
+
+    if read.decisions:
+        print(f"{len(read.decisions)} decision(s) read:")
+        for decision in read.decisions:
+            print(f"  {decision.describe()}")
+            if decision.decided_at:
+                print(f"      {decision.decided_at}  {decision.commit[:12]}")
+        print()
+        # Said plainly, because the gradient is the whole reason this channel
+        # is worth having and the words are easy to skim past.
+        print("How each identity is evidenced:")
+        print("  signed_commit      git checked the signature and was satisfied")
+        print("  signed_unverified  signed, and this machine cannot check it —")
+        print("                     the allowed-signers file lives with the signer")
+        print("  git_commit         unsigned; the author is attested by history")
+        print()
+
+    if read.unreadable:
+        print(f"{len(read.unreadable)} line(s) could not be read:")
+        for number, text in read.unreadable:
+            print(f"  line {number}: {text}")
+        print()
+        print("Reported rather than guessed at. A reviewer who wrote something")
+        print("Constat cannot read has made a decision it does not have, and")
+        print("silence would leave them believing it was recorded.")
+        print()
+
+    print("Nothing here is recorded. Accept or reject at the command line:")
+    print("  constat rule accept <ID> --by <WHO>")
+    return EXIT_OK
+
+
 def _run_publish(args: argparse.Namespace) -> int:
     """Publish a ticket's document, or say why nothing was published.
 
@@ -2179,6 +2252,9 @@ def _run_publish(args: argparse.Namespace) -> int:
             target = None
             if args.target is not None:
                 target = GitPages(args.target)
+
+            if args.read_decisions:
+                return _report_decisions(workspace, args, target)
 
             result = publish_document(
                 workspace,

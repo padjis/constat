@@ -2,7 +2,16 @@
 
 **Last updated:** 2026-11-21
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-21):** **CON-18 closed (D-104)** — a ticket carries the requirements a
+**Current session (2026-11-21):** **CON-58 half done (D-105)** — decisions a reviewer writes in the
+published target are read back, with nothing but `git`: clone, read one file, `git blame` for the
+author. Works on any git repository, which is the whole point — the author's correction, *"I do not
+want a solution for me but something generic"*, reversed how I had framed the options: a forge API
+needs a backend and a credential per platform, where plain git needs neither. Identity comes from the
+commit, never from a typed name, with **three** verification states because a signature verifies on
+the signer's machine and reads as absent through a clone Constat made. Decisions live in their own
+file that Constat seeds once and never rewrites, so republishing the page cannot destroy them.
+**Nothing is recorded**: that step amends D-055 and is the remaining half. Before it, **CON-18 closed
+(D-104)** — a ticket carries the requirements a
 person says it answers, and **`requirement_ref` finally has a producer** after being declared and
 written by nothing since the beginning. Schema 22, append-only. Three boundaries hold the label
 honest: supplied never fetched (Constat does not open the artefact), a person never a model (a

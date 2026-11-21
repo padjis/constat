@@ -26,11 +26,20 @@ from __future__ import annotations
 import re
 import shutil
 import tempfile
+from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
-from ...errors import PublishFailed, TargetUnknown
+from ...errors import DecisionsNotReadable, PublishFailed, TargetUnknown
 from ...git.adapter import Repository, remote_url, run_git
-from ..port import NotYetReadable, PublishedRef
+from ..decisions import (
+    TEMPLATE,
+    DecisionLine,
+    DecisionsRead,
+    file_for,
+    parse,
+)
+from ..port import PublishedRef
 
 NAME = "git-pages"
 
@@ -101,7 +110,109 @@ def detect(repo: Repository, remote: str = "origin") -> GitPages:
     return GitPages(wiki_url(url), derived_from=f"{remote} ({host})")
 
 
-class GitPages(NotYetReadable):
+def _attribute(clone: Path, path: str, lines: tuple[DecisionLine, ...]):
+    """Ask git who wrote each decision line, and whether it was signed.
+
+    `git blame --line-porcelain` because a single file can carry decisions from
+    several people, and attributing all of them to the file's last committer
+    would credit the wrong reviewer — the kind of confident wrong answer this
+    product exists to avoid.
+
+    A blame that fails attributes nothing rather than guessing. The decisions
+    are still returned, with `decided_by` unset, because a line nobody can be
+    attributed to is a real state and losing the line would be worse.
+    """
+    blamed = run_git(
+        ["blame", "--line-porcelain", "--", path], cwd=clone
+    )
+    if blamed.returncode != 0:
+        return lines
+
+    # line number -> (sha, author, author-time)
+    by_line: dict[int, tuple[str, str, str]] = {}
+    sha = author = when = None
+    for row in blamed.stdout.split("\n"):
+        if re.match(r"^[0-9a-f]{40} \d+ (\d+)", row):
+            sha = row.split(" ", 1)[0]
+            # Third field is the line number in the *final* file, which is
+            # what `parse` counted.
+            final_line = int(row.split(" ")[2])
+            by_line[final_line] = ("", "", "")
+            current = final_line
+        elif row.startswith("author "):
+            author = row[len("author ") :]
+        elif row.startswith("author-time "):
+            when = row[len("author-time ") :]
+        elif row.startswith("\t") and sha is not None:
+            by_line[current] = (sha, author or "", when or "")
+
+    verdicts: dict[str, str] = {}
+    attributed = []
+    for line in lines:
+        found = by_line.get(line.line_no)
+        if found is None or not found[0]:
+            attributed.append(line)
+            continue
+        sha, author, when = found
+        if sha not in verdicts:
+            verdicts[sha] = _signature_of(clone, sha)
+        code, verification = verdicts[sha]
+        attributed.append(
+            replace(
+                line,
+                decided_by=author or None,
+                decided_at=_iso(when),
+                commit=sha,
+                verification=verification,
+                signature=code,
+            )
+        )
+    return tuple(attributed)
+
+
+def _signature_of(clone: Path, sha: str) -> tuple[str, str]:
+    """`(raw %G? code, verification)` for one commit.
+
+    **Three states, and the middle one is the finding that produced it.** A
+    signature verified locally reads as `N` through a clone Constat made,
+    because `git` needs `gpg.ssh.allowedSignersFile` or a keyring to check one
+    — configuration that lives on the signer's machine and will never be on
+    the machine reading the decisions back. Mapping that to "unsigned" would
+    discard a real signature; mapping it to "signed and verified" would claim
+    a check nobody performed.
+
+    So presence is read from the commit object, where `gpgsig` sits regardless
+    of trust configuration, and verification is reported separately:
+
+    - `signed_commit` — git checked the signature and was satisfied (`G`, `U`).
+    - `signed_unverified` — a signature is there and this machine cannot check
+      it. Stronger evidence than an unsigned commit, weaker than a verified
+      one, and it must not be rounded to either.
+    - `git_commit` — no signature. The author is attested by history alone,
+      which is still more than the CLI's unchecked `--by` string (D-061).
+    """
+    shown = run_git(["show", "--no-patch", "--format=%G?", sha], cwd=clone)
+    code = shown.stdout.strip()[:1] if shown.returncode == 0 else "E"
+    if code in ("G", "U"):
+        return code, "signed_commit"
+
+    body = run_git(["cat-file", "commit", sha], cwd=clone)
+    header = body.stdout.split("\n\n", 1)[0] if body.returncode == 0 else ""
+    if "gpgsig" in header:
+        return code, "signed_unverified"
+    return code, "git_commit"
+
+
+def _iso(epoch: str) -> str | None:
+    """A git author-time as an ISO timestamp, or nothing if it is unreadable."""
+    if not epoch.isdigit():
+        return None
+    return datetime.fromtimestamp(int(epoch), tz=timezone.utc).isoformat(
+        timespec="seconds"
+    )
+
+
+class GitPages:
     """A git repository used as a documentation target."""
 
     name = NAME
@@ -125,6 +236,55 @@ class GitPages(NotYetReadable):
         safe = re.sub(r"[^A-Za-z0-9._-]", "-", reference).strip("-.") or "document"
         return f"{safe}.md"
 
+    def read_decisions(self, reference: str) -> DecisionsRead:
+        """Read the decisions a reviewer wrote in the target (CON-58).
+
+        Clones afresh every time rather than caching. A decision file read from
+        a stale copy would report an approval as absent, and "nobody has
+        decided" is the one answer that must never be wrong by omission
+        (D-041). The clone is shallow and removed afterwards, like `publish`.
+
+        **Returns a reading, never applies one.** Nothing here touches the
+        catalogue: D-089 intends an off-CLI approval to count and says the
+        amendment to D-055 lands with the mechanism that enforces it, so this
+        half reads and reports.
+        """
+        workdir = Path(tempfile.mkdtemp(prefix="constat-decisions-"))
+        try:
+            clone = workdir / "pages"
+            result = run_git(
+                ["clone", "--quiet", self.url, str(clone)]
+            )
+            if result.returncode != 0:
+                raise DecisionsNotReadable(
+                    f"could not clone the documentation repository {self.url}: "
+                    f"{result.stderr.strip() or 'git clone failed'}. Refusing "
+                    "rather than reporting no decisions: an empty answer would "
+                    "read as 'nobody has decided'."
+                )
+
+            path = file_for(self.page_for(reference))
+            location = f"{self.url} :: {path}"
+            file = clone / path
+            if not file.exists():
+                # Absent, not empty. The page has never been published, so the
+                # reviewer has had nowhere to write — a different situation
+                # from having written nothing, and a reader must be able to
+                # tell them apart.
+                return DecisionsRead(
+                    reference=reference, location=location, present=False
+                )
+
+            found, unreadable = parse(file.read_text())
+            return DecisionsRead(
+                reference=reference,
+                location=location,
+                decisions=_attribute(clone, path, found),
+                unreadable=unreadable,
+            )
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+
     def publish(self, reference: str, body: str) -> PublishedRef:
         """Clone, write the page, commit and push. Returns where it landed."""
         workdir = Path(tempfile.mkdtemp(prefix="constat-publish-"))
@@ -146,6 +306,17 @@ class GitPages(NotYetReadable):
             unchanged = page.exists() and page.read_text() == body
             page.write_text(body)
 
+            # Seeded once, if absent, and never written again (CON-58). The
+            # reviewer needs somewhere to write that Constat does not own —
+            # the page above is a living view rewritten on every run, so a
+            # decision put there would be destroyed on the next publish.
+            decisions = clone / file_for(self.page_for(reference))
+            seeded = not decisions.exists()
+            if seeded:
+                decisions.parent.mkdir(parents=True, exist_ok=True)
+                decisions.write_text(TEMPLATE.format(reference=reference))
+                unchanged = False
+
             if unchanged:
                 # Nothing to commit, and `git commit` would fail. Reporting it
                 # as published is correct: the page holds this document.
@@ -158,6 +329,10 @@ class GitPages(NotYetReadable):
                 )
 
             run_git(["add", "--", self.page_for(reference)], cwd=clone)
+            if seeded:
+                run_git(
+                    ["add", "--", file_for(self.page_for(reference))], cwd=clone
+                )
             committed = run_git(
                 ["commit", "--quiet", "-m", COMMIT_SUBJECT.format(reference=reference)],
                 cwd=clone,

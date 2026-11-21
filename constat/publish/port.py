@@ -5,11 +5,12 @@ terminal. This is the seam that lets it, shaped the same way the provider seam
 is: a `Protocol` plus a registry, so Confluence, GitBook and GitLab docs arrive
 behind it as optional extras (CON-59) rather than as branches in one function.
 
-**Two methods, one implemented.** `publish` writes a document; `read_decisions`
-reads decisions made in the target and is CON-58's work. It is declared here
-because leaving it out would let the first backend invent its own shape, and it
-*raises* rather than returning nothing — an empty list of decisions reads as
-"nobody has decided", which is the substitution D-041 refuses.
+**Two methods, both implemented for git.** `publish` writes a document;
+`read_decisions` reads the decisions a reviewer wrote in the target, which
+`GitPages` does with nothing but `git` (D-105). Declaring it here is what kept
+the first backend from inventing its own shape, and a backend that cannot yet
+read *raises* rather than returning nothing — an empty list of decisions reads
+as "nobody has decided", which is the substitution D-041 refuses.
 
 **Nothing here holds a credential.** A target authenticates the way the
 underlying tool already does; for git that is the user's SSH agent or
@@ -75,8 +76,13 @@ class Target(Protocol):
 class NotYetReadable:
     """Mixin for a target that can publish but cannot yet read decisions back.
 
-    Inherited rather than copied so every backend written before CON-58 fails
-    the same way, with the same message, instead of each inventing a silence.
+    Inherited rather than copied so every such backend fails the same way, with
+    the same message, instead of each inventing a silence.
+
+    **`GitPages` no longer uses this** — CON-58 landed for git (D-105), where
+    reading decisions needs nothing but `git`. The backends CON-59 names, which
+    each need their own API, will publish before they can read and inherit this
+    in the meantime.
     """
 
     name = "unnamed"
