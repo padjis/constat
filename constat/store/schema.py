@@ -11,7 +11,7 @@ silently; a trigger cannot be bypassed by forgetting to call the right helper.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 21
 
 SCHEMA = """
 -- Workspace settings: answers that belong to a setup rather than to a run.
@@ -321,6 +321,34 @@ CREATE TABLE rule_proposal_decision (
     rationale        TEXT
 );
 
+-- A release somebody declared, spanning the registered set (CON-85).
+--
+-- **Declared, never derived.** Constat does not read tags to find releases.
+-- D-009 found 777 machine-generated build tags in one subject repository, so a
+-- tag is not evidence that anything was released — and a release that appeared
+-- because somebody's CI pushed a tag would be a claim nobody made.
+--
+-- **The name is stored verbatim and never parsed.** No semver, no ordering, no
+-- "latest". This is D-032's lesson rather than its prohibition: a title was
+-- removed because unverified free text had no provenance category, and what
+-- survives is that a field Constat *interprets* is a claim it cannot support.
+-- A name a person chose and Constat only repeats is a human decision. Several
+-- releases may be open at once, so there is no ordering to infer in any case.
+--
+-- **Append-only, like every other recorded decision.** Declaring a release is
+-- a human act (the same reasoning as `checkpoint` and `rule_retirement`), and
+-- a release whose name could be edited after versions were agreed for it would
+-- make those agreements say something nobody decided.
+--
+-- Deliberately has no `closed_at`: closing a release is CON-86, and the ship
+-- it records is *asserted* rather than verified, which needs its own decision.
+CREATE TABLE release (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT    NOT NULL,
+    declared_by TEXT    NOT NULL,
+    created_at  TEXT    NOT NULL
+);
+
 -- A frozen record of which rules stood, at which versions, when somebody took
 -- it (CON-15). The "last approved state" a reviewer compares against.
 --
@@ -405,6 +433,21 @@ CREATE TABLE rule_version (
     from_rule_proposal_id INTEGER NOT NULL REFERENCES rule_proposal(id),
     previous_version_id   INTEGER REFERENCES rule_version(id),
     created_at            TEXT    NOT NULL,
+    -- Which release this version was agreed for (CON-85). **Nullable, and
+    -- that is the design**: a workspace that declares no release behaves
+    -- exactly as it did before, and nothing requires a release to accept a
+    -- rule. Recorded at acceptance or never — the version is frozen, so a
+    -- version already accepted cannot be given one afterwards.
+    --
+    -- This does **not** decide what the product currently does. D-087 verifies
+    -- that by checking a rule's evidence commits against mainline, which is a
+    -- stronger claim than a declared release's asserted ship (D-085).
+    --
+    -- **Last on purpose.** `ALTER TABLE` can only append, so a column a
+    -- migration adds has to go at the end here too, or a migrated workspace
+    -- and a fresh one disagree on column order. `tests/test_releases.py`
+    -- compares the two.
+    release_id            INTEGER REFERENCES release(id),
     UNIQUE (rule_id, version_no)
 );
 
@@ -501,6 +544,8 @@ CREATE TABLE anchor (
 CREATE UNIQUE INDEX idx_rule_ref ON rule(ref);
 CREATE UNIQUE INDEX idx_message_ref ON message(ref);
 CREATE INDEX idx_rule_retirement_rule ON rule_retirement(rule_id);
+CREATE UNIQUE INDEX idx_release_name ON release(name);
+CREATE INDEX idx_rule_version_release ON rule_version(release_id);
 CREATE UNIQUE INDEX idx_checkpoint_ref ON checkpoint(ref);
 CREATE INDEX idx_checkpoint_rule_checkpoint ON checkpoint_rule(checkpoint_id);
 CREATE INDEX idx_rule_message_rule ON rule_message(rule_id);
@@ -564,6 +609,20 @@ CREATE TRIGGER rule_proposal_is_append_only_delete
 BEFORE DELETE ON rule_proposal
 BEGIN
     SELECT RAISE(ABORT, 'rule_proposal is append-only: a reading cannot be deleted');
+END;
+
+CREATE TRIGGER release_is_append_only_update
+BEFORE UPDATE ON release
+BEGIN
+    SELECT RAISE(ABORT,
+        'release is append-only: declare another rather than editing this');
+END;
+
+CREATE TRIGGER release_is_append_only_delete
+BEFORE DELETE ON release
+BEGIN
+    SELECT RAISE(ABORT,
+        'release is append-only: a release rule versions were agreed for cannot be removed');
 END;
 
 CREATE TRIGGER checkpoint_is_append_only_update
@@ -946,6 +1005,38 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
     # Nothing is checkpointed by the migration. A checkpoint records that a
     # person looked at the product and agreed it was this, so inventing one
     # would put a human decision in the record that nobody made.
+    # 20 -> 21: a release is declared, and a rule version is agreed for one
+    # (CON-85).
+    #
+    # Nothing is back-filled, and refusing to is the whole of it. Giving
+    # existing versions a release would assert that they shipped in one
+    # nobody declared — the claim this ticket exists to make recordable
+    # rather than to invent. Those versions keep a null forever, which reads
+    # correctly: no release was recorded, because none was.
+    #
+    # Uniqueness as an explicit index rather than inline, so a workspace
+    # migrated to 21 is structurally identical to one created at 21.
+    20: (
+        "CREATE TABLE release ("
+        " id INTEGER PRIMARY KEY,"
+        " name TEXT NOT NULL,"
+        " declared_by TEXT NOT NULL,"
+        " created_at TEXT NOT NULL)",
+        "CREATE UNIQUE INDEX idx_release_name ON release(name)",
+        "ALTER TABLE rule_version ADD COLUMN release_id INTEGER"
+        " REFERENCES release(id)",
+        "CREATE INDEX idx_rule_version_release ON rule_version(release_id)",
+        "CREATE TRIGGER release_is_append_only_update"
+        " BEFORE UPDATE ON release BEGIN"
+        " SELECT RAISE(ABORT,"
+        " 'release is append-only: declare another rather than editing this');"
+        " END",
+        "CREATE TRIGGER release_is_append_only_delete"
+        " BEFORE DELETE ON release BEGIN"
+        " SELECT RAISE(ABORT,"
+        " 'release is append-only: a release rule versions were agreed for cannot be removed');"
+        " END",
+    ),
     19: (
         "CREATE TABLE checkpoint ("
         " id INTEGER PRIMARY KEY,"

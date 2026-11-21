@@ -8,6 +8,7 @@ from .acceptance import Acceptance, Retirement, Review
 from .areas import Areas, DeclaredArea
 from .catalogue import Catalogue
 from .checkpoints import Checkpoint, Checkpoints, RuleChange
+from .releases import Release, Releases
 from .proposals import RuleProposals, StoredRuleProposal
 from .registry import Registry
 from .tickets import TicketStore
@@ -38,6 +39,8 @@ __all__ = [
     "Catalogue",
     "Checkpoint",
     "Checkpoints",
+    "Release",
+    "Releases",
     "RuleChange",
     "DeclaredArea",
     "Retirement",

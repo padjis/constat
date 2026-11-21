@@ -1,8 +1,16 @@
 # Project status
 
-**Last updated:** 2026-11-20
+**Last updated:** 2026-11-21
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-20):** **CON-97 closed (D-101)** — `repo add` names the mainline ref it
+**Current session (2026-11-21):** **CON-85 closed (D-102)** — a release is declared, and a rule
+version can be agreed for one. Schema 21: a `release` table with append-only triggers and a nullable
+`rule_version.release_id`, nothing back-filled. The decision owed since 2026-11-18 is written in the
+same entry as the mechanism, which is why it was held. A release decides **nothing** about current
+behaviour — D-087 still verifies that against mainline, and a test asserts `state` treats a rule with
+a release and one without identically. A mutation found a real hole: resolving the release after
+`_target_rule` left a rule in the catalogue with no accepted version when the name was a typo. Also
+new: the "a migrated workspace matches a fresh one" claim the schema comments have made since CON-81
+is finally tested. Before it, **CON-97 closed (D-101)** — `repo add` names the mainline ref it
 resolved and warns when the repository looks like Git Flow, at exit 0 and silently for anything that
 looks trunk-based. `LIMITS.md` § 3 no longer says the limit is undetected, though the limit itself
 stands. Two findings came out of mutation testing rather than from tests that were missing: a

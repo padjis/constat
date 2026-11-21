@@ -32,6 +32,7 @@ from .store import (
     Areas,
     Catalogue,
     Checkpoints,
+    Releases,
     Review,
     Registry,
     RuleProposals,
@@ -183,6 +184,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--by", default=None, metavar="WHO", help='who is deciding. Omitted, it is taken from your git identity (user.name and user.email) and recorded as inferred rather than stated — neither is verified, and a reviewer is entitled to know which (D-061).'
     )
     rule_accept.add_argument("--rationale", default=None)
+    rule_accept.add_argument(
+        "--release",
+        default=None,
+        metavar="NAME",
+        help=(
+            "which declared release this version is agreed for. Optional — "
+            "omitted, no release is recorded, which is not a claim that the "
+            "version is unreleased. The name must already exist: "
+            "`constat release declare` is the only place one comes from."
+        ),
+    )
 
     rule_reject = rule_actions.add_parser(
         "reject",
@@ -618,6 +630,37 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="include rules that have not changed",
     )
+
+    release = subparsers.add_parser(
+        "release",
+        help="declare a release, or list the ones declared",
+        description=(
+            "A release is a name for a group of rule versions, declared by a "
+            "person. Constat never derives one from tags: a tag is not "
+            "evidence that anything was released (D-009 found 777 "
+            "machine-generated ones in a single repository). The name is "
+            "stored verbatim and never parsed, so there is no ordering and no "
+            "'latest' — several releases may be open at once. Agreeing a rule "
+            "version for a release does not decide what the product currently "
+            "does; that is verified against mainline."
+        ),
+    )
+    release_actions = release.add_subparsers(
+        dest="release_action", metavar="ACTION"
+    )
+    release_declare = release_actions.add_parser(
+        "declare", help="declare a release in this workspace"
+    )
+    release_declare.add_argument(
+        "name",
+        metavar="NAME",
+        help="what you call it — stored exactly as given and never interpreted",
+    )
+    release_declare.add_argument(
+        "--by", default=None, metavar="WHO",
+        help="who declared it. Taken from your git identity when omitted (D-061).",
+    )
+    release_actions.add_parser("list", help="list the declared releases")
 
     message = subparsers.add_parser(
         "message",
@@ -1095,6 +1138,7 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                     decided_by=decided_by,
                     rationale=args.rationale,
                     attribution=attribution,
+                    release=args.release,
                 )
                 verb = "created" if result.created_rule else "revised"
                 # The citation, not just the row id: this is the moment a
@@ -1112,6 +1156,14 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                 )
                 if attribution == "inferred":
                     print(f"  recorded as: {decided_by} (inferred from git config)")
+                if result.release is not None:
+                    # Said plainly, because what it does *not* mean is easy to
+                    # assume: agreeing a version for a release records an
+                    # intention, and what the product currently does is still
+                    # verified against mainline (D-087).
+                    print(f"  agreed for release: {result.release}")
+                    print("  (a record of intent — what is shipped is still")
+                    print("   verified against mainline)")
                 print()
                 print("The version is frozen and points back at the reading")
                 print("you accepted. See it with `constat rule history "
@@ -1187,6 +1239,12 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                         f"      accepted by {who} from rule proposal "
                         f"{v['from_rule_proposal_id']}"
                     )
+                    # Only when there is one. Printing "release: none" on
+                    # every version of every rule in a workspace that declares
+                    # no releases would read as a gap rather than as the
+                    # ordinary case (CON-85).
+                    if v.get("release_name"):
+                        print(f"      agreed for release: {v['release_name']}")
                     # The question product rule 2 asks of a governance record:
                     # what evidence is this based on (D-073). A version from
                     # before schema 13 has no pointer, and says so rather than
@@ -1710,6 +1768,60 @@ def _report_message_checks(checks) -> int:
             "would read as not found."
         )
     return EXIT_OK
+
+
+def _run_release(args: argparse.Namespace) -> int:
+    """Declare a release, or list the ones declared."""
+    try:
+        with Workspace.open(args.workspace) as workspace:
+            releases = Releases(workspace)
+
+            if args.release_action == "declare":
+                declared_by, attribution = _decider(args)
+                declared = releases.declare(args.name, declared_by)
+                print(f"declared: {declared.name}")
+                if attribution == "inferred":
+                    print(
+                        f"  recorded as: {declared_by} (inferred from git config)"
+                    )
+                print()
+                print("Stored exactly as given and never parsed — no ordering,")
+                print("no 'latest'. Agree a rule version for it with")
+                print("`constat rule accept <ID> --release "
+                      f"{declared.name!r}`.")
+                return EXIT_OK
+
+            declared_releases = releases.list()
+            if not declared_releases:
+                print("No releases declared in this workspace.")
+                print()
+                print("That is not a statement that nothing has been released.")
+                print("Constat never derives a release from a tag, so a release")
+                print("exists here only once somebody declares one.")
+                return EXIT_OK
+
+            print(f"{len(declared_releases)} release(s), oldest first:")
+            for declared in declared_releases:
+                agreed = workspace.execute(
+                    "SELECT COUNT(*) AS n FROM rule_version WHERE release_id = ?",
+                    (declared.id,),
+                ).fetchone()["n"]
+                print(f"  {declared.name}")
+                print(f"    declared by:    {declared.declared_by}")
+                print(f"    declared at:    {declared.created_at}")
+                print(f"    rule versions:  {agreed} agreed for it")
+            print()
+            print("Ordered by when each was declared, because sorting the names")
+            print("would mean interpreting them. Agreeing a version for a")
+            print("release records an intention; what the product currently")
+            print("does is verified against mainline (D-087).")
+            return EXIT_OK
+    except WorkspaceError as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_WORKSPACE
+    except InvalidInput as exc:
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
 
 
 def _run_area(args: argparse.Namespace) -> int:
@@ -2410,6 +2522,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.area_action is None:
             args.area_action = "list"
         return _run_area(args)
+
+    if args.command == "release":
+        if args.release_action is None:
+            args.release_action = "list"
+        return _run_release(args)
 
     if args.command == "state":
         return _run_state(args)

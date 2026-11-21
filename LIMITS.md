@@ -51,6 +51,12 @@ process — and it is deliberately quiet for a repository that looks trunk-based
 states and the code does not hold. It is intended work rather than a deferred maybe (D-090, CON-99),
 and until it lands the limit stands.
 
+**Declared releases do not change that**, and it would be easy to think they do. A rule version can
+be agreed for a named release (D-102), and several releases can be open at once — but they are
+several staging sets ahead of *one* trunk, which is coherent trunk-based development and not
+parallel production lines. A release also decides nothing about what the product currently does:
+that stays verified against mainline. D-076, D-102
+
 ## 4. What it cannot check
 
 | Claim | Why not |

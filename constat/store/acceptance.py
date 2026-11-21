@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from ..errors import InvalidInput, NotRegistered
 from ..models import Anchor, Behaviour, Example, Message
 from .proposals import RuleProposals, StoredRuleProposal
+from .releases import Release, Releases
 from .workspace import Workspace, utc_now
 
 
@@ -147,6 +148,10 @@ class Acceptance:
     rule_version_id: int
     version_no: int
     created_rule: bool
+    #: The release this version was agreed for, if one was named (CON-85).
+    #: `None` is the ordinary case and means no release was recorded — never
+    #: that the version is unreleased, which D-087 answers from mainline.
+    release: str | None = None
 
     @property
     def is_revision(self) -> bool:
@@ -166,8 +171,23 @@ class Review:
         decided_by: str,
         rationale: str | None = None,
         attribution: str = "stated",
+        release: str | None = None,
     ) -> Acceptance:
-        """Accept a reading: record the decision and baseline a rule version."""
+        """Accept a reading: record the decision and baseline a rule version.
+
+        `release` names a release the frozen version is agreed for (CON-85).
+        Optional, and omitting it is the ordinary case: a workspace that
+        declares no release behaves exactly as it did before. The name must
+        already be declared — resolving it here rather than creating it is
+        what "declared, never derived" means in practice, and a release coined
+        as a side effect of accepting a rule would be a release nobody
+        declared.
+
+        It is recorded **at acceptance or never**. A version is frozen, so
+        there is no path that gives an already-accepted version a release
+        afterwards, and that is deliberate: back-filling one would assert a
+        ship nobody recorded.
+        """
         stored = self._require(proposal_id)
         if stored.decision == "accepted":
             raise InvalidInput(
@@ -175,8 +195,12 @@ class Review:
                 "it again would baseline a second identical version."
             )
 
+        # Resolved before anything is written, so an unknown release name
+        # refuses without having half-accepted the proposal.
+        resolved = Releases(self._workspace).require(release) if release else None
+
         rule_id, created = self._target_rule(stored)
-        version_id, version_no = self._baseline(rule_id, stored)
+        version_id, version_no = self._baseline(rule_id, stored, resolved)
         self._proposals.decide(
             proposal_id, "accepted", decided_by, rationale, attribution
         )
@@ -185,6 +209,7 @@ class Review:
             rule_version_id=version_id,
             version_no=version_no,
             created_rule=created,
+            release=None if resolved is None else resolved.name,
         )
 
     def retire(
@@ -353,7 +378,10 @@ class Review:
         return int(cursor.lastrowid), True
 
     def _baseline(
-        self, rule_id: int, stored: StoredRuleProposal
+        self,
+        rule_id: int,
+        stored: StoredRuleProposal,
+        release: Release | None = None,
     ) -> tuple[int, int]:
         """Freeze this reading as the rule's next version, and make it current."""
         previous = self._workspace.execute(
@@ -369,8 +397,9 @@ class Review:
             cursor = ws.execute(
                 "INSERT INTO rule_version "
                 "(rule_id, version_no, name, statement, area, "
-                " from_rule_proposal_id, previous_version_id, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                " from_rule_proposal_id, previous_version_id, release_id, "
+                " created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     rule_id,
                     version_no,
@@ -379,6 +408,7 @@ class Review:
                     stored.proposal.area,
                     stored.id,
                     previous_id,
+                    None if release is None else release.id,
                     now,
                 ),
             )
@@ -599,11 +629,15 @@ class Review:
         rows = self._workspace.execute(
             "SELECT v.id, v.version_no, v.name, v.statement, v.area, v.created_at, "
             "       v.from_rule_proposal_id, d.decided_by, d.attribution, "
-            "       d.decided_at "
+            "       d.decided_at, r.name AS release_name "
             "FROM rule_version v "
             "LEFT JOIN rule_proposal_decision d "
             "  ON d.rule_proposal_id = v.from_rule_proposal_id "
             " AND d.decision = 'accepted' "
+            # LEFT JOIN, because no release is the ordinary case (CON-85) and
+            # an inner join would silently drop every version accepted without
+            # one — which is all of them in any workspace that declares none.
+            "LEFT JOIN release r ON r.id = v.release_id "
             "WHERE v.rule_id = ? ORDER BY v.version_no",
             (rule_id,),
         ).fetchall()

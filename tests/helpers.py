@@ -141,6 +141,7 @@ APPEND_ONLY_TRIGGERS = {
 after. Only the ones a rewind actually trips."""
 
 INTRODUCED_AT: dict[int, tuple[tuple[str, str], ...]] = {
+    21: (("rule_version", "release_id"),),
     8: (("rule_proposal_decision", "attribution"),),
     10: (("rule_proposal", "relation"),),
     11: (
@@ -171,6 +172,7 @@ The third new migration in a row broke all of them, which is what this exists
 to stop."""
 
 TABLES_INTRODUCED_AT: dict[int, tuple[str, ...]] = {
+    21: ("release",),
     8: ("setting",),
     13: ("run_commit",),
     14: ("rule_proposal_example", "rule_version_example", "example"),

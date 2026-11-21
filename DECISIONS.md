@@ -8,6 +8,82 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-102 · 2026-11-21 · A release is declared, names a group of versions, and decides nothing
+
+**Closes CON-85, and discharges a debt.** The four parts below were decided on 2026-11-18 and
+deliberately left unwritten until the session that implemented them, so the record and the mechanism
+would arrive together. This entry is both.
+
+**Decision, as taken on 2026-11-18.**
+
+1. **Declared, never derived.** Constat does not read tags to find releases.
+2. **Optional and nullable.** A workspace that declares none behaves exactly as it did before.
+3. **The name is a free string, stored verbatim.**
+4. **Several may be open at once**, spanning the registered set.
+
+**Why not tags.** D-009 found 777 machine-generated build tags in one subject repository. A tag is
+not evidence that anything was released, and a release that appeared because somebody's CI pushed
+one would be a claim nobody made — in a product whose discipline is separating what is supported
+from what is asserted.
+
+**Verbatim is what survives of D-032.** That entry removed a ticket title because unverified free
+text had no provenance category. A release name is different in the way that matters: a name a
+person chose and Constat only repeats is a human decision, where a field Constat *parses* becomes a
+claim it cannot support. So nothing is parsed — no semver, no ordering, no "latest", and
+`release list` is ordered by when each was declared because sorting names would mean interpreting
+them. Case-sensitivity is the accepted cost: folding `V4.2` onto `v4.2` would be a guess about
+somebody else's convention, the kind D-020 refuses for an ambiguous revision.
+
+**What this does not do, which is most of it.** Agreeing a rule version for a release does **not**
+decide what the product currently does. D-087 answers that by verifying a rule's evidence commits
+against mainline, which is a stronger claim than a declared release's asserted ship (D-085). If
+`constat state` had been made to read releases, asserted behaviour would have replaced verified
+behaviour — the opposite of the point. A test accepts two rules, one with a release and one without,
+and asserts `state` treats them identically.
+
+**Schema 21.** A `release` table with append-only triggers, and a nullable `rule_version.release_id`.
+Nothing is back-filled: giving existing versions a release would assert they shipped in one nobody
+declared. A release is recorded **at acceptance or never** — the version is frozen, so there is no
+path that gives an accepted version a release afterwards, and back-filling one later would be the
+same invention by another route.
+
+**An undeclared name refuses the acceptance**, resolved before anything is written. A release coined
+as a side effect of accepting a rule would be precisely the derived release part 1 rules out.
+
+**Three things the implementation settled.**
+
+- **A mutation found a real integrity hole.** Resolving the release *after* `_target_rule` left a
+  rule in the catalogue with no accepted version when the name was a typo — a rule that entered
+  without a decision, which is what D-048 exists to prevent. The test that was supposed to catch it
+  checked the proposal's state, which is unchanged either way; it now asserts the catalogue is
+  empty.
+- **A column a migration adds must go last in the fresh DDL too.** `ALTER TABLE` can only append, so
+  `release_id` sits after `created_at` in `schema.py` even though it reads better beside the other
+  foreign keys. Otherwise a migrated workspace and a fresh one disagree on column order.
+- **The "migrated matches fresh" claim is now tested.** The schema comments have asserted it since
+  CON-81 and nothing checked it. `test_a_migrated_workspace_matches_a_fresh_one` compares every
+  table's `PRAGMA table_info` and every index and trigger. Deliberately not the tables' SQL text:
+  the fresh DDL carries its `--` comments inside `sqlite_master` and a migration's does not, so text
+  could never match however it was normalised — and the text is not the structure anyway.
+
+**Consequences.**
+
+- **Product rule 6 is still unmet.** D-076 says this in terms: declared releases spanning the
+  registered set, several open at once, are several staging sets ahead of *one* trunk. Coherent
+  trunk-based development, and still not parallel production lines. Anyone reading this work as
+  satisfying rule 6 would be wrong; CON-99 remains the ticket.
+- **CON-86 is unbuilt and the table has no `closed_at`.** Closing a release records an *asserted*
+  ship — Constat cannot detect a partial ship across a plural registered set — which needs its own
+  decision rather than a column added in advance.
+- CON-87 (reading the catalogue as it stood at a past release) now has the data it needs.
+
+Nine mutations were run; seven were killed immediately and two survived until the two gaps above
+were closed. Full suite 1453 tests, no failures.
+
+**Status.** accepted
+
+---
+
 ## D-101 · 2026-11-20 · Registration names the mainline and warns on a Git Flow shape
 
 **Closes CON-97**, the one consequence D-076 wrote down for later.
