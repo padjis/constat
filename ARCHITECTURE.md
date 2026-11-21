@@ -1,6 +1,6 @@
 # Constat — Architecture
 
-Version 0.2 · 2026-11-12 · **implemented through CON-50**; §§ 2–4 describe the code as it is
+Version 0.3 · 2026-11-21 · **implemented through CON-58**; §§ 2–4 describe the code as it is
 
 This document describes the *smallest* architecture that supports the MVP in
 [PRODUCT_SPEC.md](PRODUCT_SPEC.md) § 6, and the shape to grow into afterwards. Keep the first
@@ -33,7 +33,7 @@ rules structurally enforced rather than merely intended.
 ```mermaid
 flowchart TD
     CLI["CLI — thin: parse, validate, dispatch, render"]
-    MCP["MCP server — stdio, optional extra, four tools"]
+    MCP["MCP server — stdio, optional extra, five tools"]
     OPS["operations.py — collect, gather, export, submit, render, publish"]
 
     subgraph DET["Deterministic — no provider or network needed"]
@@ -58,11 +58,12 @@ flowchart TD
         PROP["store/proposals.py — rule proposals, append-only"]
     end
 
-    DB["SQLite — schema 9; triggers enforce append-only"]
+    DB["SQLite — schema 23; triggers enforce append-only"]
 
     CLI --> OPS
     MCP --> OPS
     CLI -->|"human only"| REV
+    OPS -->|"a human's commit, read back (D-106)"| REV
     OPS --> GIT
     OPS --> EV
     OPS --> RED
@@ -82,14 +83,22 @@ flowchart TD
 Read the arrows as "may depend on". Two absences are the point: nothing in `DET` points into
 `INT`, and nothing in `INT` points into `GOV`.
 
+The second arrow into `REV` is the one worth reading twice. `operations.record_decisions` calls the
+same `Review.accept` the CLI calls, so a decision a reviewer committed in the documentation target
+becomes a rule version (D-106) — but it exists only because a person wrote a line in a repository,
+and no MCP tool reaches it. `GOV`'s "a human is the only writer" is unchanged; what changed is that
+the human has two doors rather than one.
+
 ### Dependency rule
 
 Each layer may depend only on layers above it in that list. In particular:
 
 - The Git adapter and evidence engine **never** import the interpretation layer. The evidence path
   works with no AI provider configured, and no network (D-003, D-041).
-- The interpretation layer **never** writes a rule. Only `Review`, driven by a human at the CLI,
-  produces a rule version (D-048, D-053).
+- The interpretation layer **never** writes a rule. Only `Review` produces a rule version (D-048,
+  D-053), and only a human drives it — at the CLI, or by committing a verdict in the documentation
+  target that `publish --record-decisions` reads back (D-106). The channel widened; the rule that a
+  model cannot accept did not.
 - **`ai/parsing.py` takes `(text, payload)` and nothing else.** It has no idea whether the text came
   from an HTTP response or an agent in the same terminal, which is what made D-045's change of
   direction cheap.
@@ -99,7 +108,9 @@ Each layer may depend only on layers above it in that list. In particular:
 
 ## 2.1 The workflow, driven from an AI implementation
 
-This is the intended path (D-045). On it the **host supplies the model**, so Constat calls nothing
+This is the component view of the intended path (D-045) — [LOOP.md](LOOP.md) draws the same loop as
+commands and roles, and is the one to read for *operating* Constat rather than for how the parts
+call each other. On it the **host supplies the model**, so Constat calls nothing
 and needs no API key: it runs as a subprocess the client spawns over stdio, and nothing listens on
 a port. Constat *can* call a model itself when `CONSTAT_AI_PROVIDER` is set (D-057), which is the
 other path and not this one.
@@ -116,7 +127,7 @@ sequenceDiagram
 
     Dev->>Host: work out what ticket 622 changed
     Host->>Constat: spawn on stdio, initialise, list tools
-    Constat-->>Host: four tools, none of which can accept
+    Constat-->>Host: five tools, none of which can accept
 
     Host->>Constat: gather evidence for 622
     Constat->>Repos: resolve the ticket commits, read-only
@@ -140,16 +151,57 @@ sequenceDiagram
 
     Host-->>Dev: rule proposals awaiting your decision
 
-    Dev->>Constat: rule accept 1 --by you
-    Constat->>Store: baseline a frozen rule version
-    Note over Dev,Store: the CLI is the only door to this step
+    alt Accepted
+        Dev->>Constat: rule accept 1 --by you
+        Constat->>Store: baseline a frozen rule version
+        Note over Dev,Store: the CLI is one door, a commit in the target the other
 
-    Dev->>Constat: publish 622
-    Constat->>Store: read the stored document, then scan it
-    Constat->>Pages: clone, write the page, commit, push
-    Constat->>Store: record the publication as an operation
-    Note over Constat,Pages: a credential refuses before anything is cloned
+        Dev->>Constat: publish 622
+        Constat->>Store: read the stored document, then scan it
+        Constat->>Pages: clone, write the page, commit, push
+        Constat->>Store: record the publication as an operation
+        Note over Constat,Pages: a credential refuses before anything is cloned
+    else Accepted on the page instead (D-106)
+        Dev->>Pages: commit "approved" beside the published document
+        Dev->>Constat: publish 622 --record-decisions
+        Constat->>Pages: clone, read the decisions file, git blame each line
+        Constat->>Store: the same Review.accept, with channel and verification
+        Note over Constat,Store: identity comes from the commit, never from the text
+    else Rejected — inconclusive, another PR expected (D-036)
+        Dev->>Constat: rule reject 1 --by you
+        Constat->>Store: record the rejection, append-only
+        Note over Dev,Store: the proposal is frozen, and the ticket stays open
+
+        Dev->>Repos: the follow-up pull request
+        Dev->>Constat: gather evidence for 622, again
+        Constat->>Repos: the new commits, read-only
+        Constat-->>Host: a fresh payload, and round again
+        Note over Host,Model: the next reading sees the new evidence but not why<br/>the last one was rejected — CON-47 and CON-48 are unbuilt
+    end
 ```
+
+### What the rejected branch draws, and what it does not
+
+**Rejection means inconclusive, not wrong** (D-036): the implementation is missing something and
+another pull request is expected. It is not a verdict on the reading and not a permanent verdict on
+the work, which is why the ticket stays open and the next `gather_evidence` picks up the follow-up
+commits. That is the feedback loop, and the evidence half of it works today — a second round reads
+the new commits and proposes against them.
+
+**The critique half does not exist yet, and the diagram says so rather than implying otherwise.** A
+rejection records that someone said no; nothing carries *what they said* into the next reading.
+D-036 called for commentary as first-class storage, attached to specific rules rather than to the
+document, and that is CON-47 with CON-48 behind it — both unbuilt, both blocked on CON-39's anchor
+model. Until they land, two things follow:
+
+- **A reviewer who disagrees with one sentence must reject the whole reading.** Constat offers
+  accept or reject and nothing between, so the disagreement is recorded as "inconclusive" and the
+  substance of it is lost. CON-47 calls this the critical path for the review loop, not merely a
+  regeneration concern.
+- **Rework is a fresh reading, not a revision.** The re-run produces *new* rule proposals; the
+  rejected one stays frozen in history beside them. That is deliberate — a recorded decision is
+  append-only, and `rule retire` is how a rule stops describing the product — but it means the loop
+  improves because the code changed, never because the critique was heard.
 
 ### Where the model lives, and where the wall is
 
@@ -161,7 +213,7 @@ flowchart LR
     end
 
     subgraph LOCAL["Your machine — Constat holds no API key"]
-        S["constat mcp — four tools"]
+        S["constat mcp — five tools"]
         W["Workspace"]
         R["Repositories"]
     end
@@ -173,7 +225,11 @@ flowchart LR
     C --> M
     S --> R
     S --> W
-    H -->|"accept or reject, CLI only"| W
+    P["Documentation target"]
+
+    H -->|"accept or reject, at the CLI"| W
+    H -->|"or a verdict committed here (D-106)"| P
+    P -->|"read back by publish --record-decisions"| W
     S -.->|"never"| M
 ```
 
@@ -182,8 +238,11 @@ Two properties that diagram is drawing:
 - **On the MCP path, Constat never calls a model.** The dotted line is the arrow that does not
   exist: the host already has the inference, so Constat holding a key as well would mean two
   billing relationships for one reading. `constat mcp` needs no API key, ever (D-003, D-045).
-- **Acceptance has one door and a model is not behind it.** There is no `accept` tool, and a test
-  asserts the live tool list to keep it that way (D-055).
+- **Acceptance has two doors and a model is behind neither.** The CLI is one; a verdict a reviewer
+  commits in the documentation target is the other, read back by `publish --record-decisions` and
+  attributed by `git blame` rather than by a typed name (D-106). Both are human-only: there is no
+  `accept` tool, and a test asserts the *live* tool list to keep it that way (D-055). The second
+  door is reachable only by committing to a repository, which is not a thing a tool call does.
 - **The loop starts from the agent.** `gather_evidence` opens a ticket it does not find, so no
   command-line step precedes the agent's first call (D-063). The tool list is unchanged by that —
   which is the argument for it: a precondition was removed, not a capability added.

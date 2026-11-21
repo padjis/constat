@@ -2,13 +2,33 @@
 
 **Last updated:** 2026-11-21
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-21):** **CON-58 closed (D-105 reading, D-106 recording)** — a decision a
-reviewer commits in the documentation target is now recorded against the catalogue. The reading half
-came first and deliberately recorded nothing: clone, read one file, `git blame` for the author, with
-nothing but `git`, so it runs on any git repository — the author's correction, *"I do not want a
-solution for me but something generic"*, reversed how I had framed the options, because a forge API
-needs a backend and a credential per platform where plain git needs neither. Identity comes from the
-commit, never from a typed name, with **three** verification states because a signature verifies on
+**Current session (2026-11-21):** **CON-102 closed** — `LOOP.md` is new: the operational view, which
+no document held. It came from a question I could not answer with a link — *is there a diagram with
+the feedback loop and the rework on rejected items?* — and the honest answer was no, because
+`ARCHITECTURE.md` § 2.1 drew the happy path only. Two drafts were needed, and the second one is the
+lesson. The first decomposed the loop into thirteen steps including `gather_evidence`, `get_payload`
+and `submit_rules`; the author's correction was that **nobody types those** — an agent calls them —
+and the diagram should show only what a person runs. `demo.sh` settled what that actually is. The
+loop is now **three steps and a decision**: the work lands, `/mcp__constat__document 402`, a person
+accepts or rejects, `publish`. Setup is a precondition band; `state`, `checkpoint`, `release
+declare`, `baseline` are questions you ask, not stages — `release declare` in particular, because it
+stores a name it never interprets and must exist *before* the `rule accept --release` that uses it,
+so it cannot be a step after publish. Four defects came out of writing it: `message check` and `rule
+history R-1` were both wrong in my own text (`message verify`, and an integer), `ARCHITECTURE.md`
+said "four tools" and `schema 9`, and the flowchart still drew acceptance as CLI-only after D-106. A
+fifth, from the author: *leave it waiting* was drawn as a third verdict beside accept and reject,
+and it is not a verdict at all — it is the absence of one, which the code models as `awaiting`.
+**The rendering problem this file has recorded since CON-57 is diagnosed**: a semicolon inside a
+mermaid label is a statement separator and silently truncates the diagram. A `mermaid.parse` harness
+now verifies every block rather than trusting a preview; it is not checked in, because node and npm
+are not this project's infrastructure — the recipe is in `CONTRIBUTING.md`. Before it, **CON-58
+closed (D-105 reading, D-106 recording)** — a decision a reviewer commits in the documentation
+target is now recorded against the catalogue. The reading half came first and deliberately recorded
+nothing: clone, read one file, `git blame` for the author, with nothing but `git`, so it runs on any
+git repository — the author's correction, *"I do not want a solution for me but something generic"*,
+reversed how I had framed the options, because a forge API needs a backend and a credential per
+platform where plain git needs neither. Identity comes from the commit, never from a typed name,
+with **three** verification states because a signature verifies on
 the signer's machine and reads as absent through a clone Constat made. Decisions live in their own
 file that Constat seeds once and never rewrites, so republishing the page cannot destroy them. Then
 `publish --record-decisions` (schema 23: `channel`, `verification`, `source_commit`, `source_line`,

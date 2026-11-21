@@ -78,6 +78,7 @@ justifies them. See [ARCHITECTURE.md](ARCHITECTURE.md) § "After the MVP".
 | [DECISIONS.md](DECISIONS.md) | Dated decision log. Why things are the way they are. |
 | [PROJECT_STATUS.md](PROJECT_STATUS.md) | Current state, the 20-session build roadmap, and the next single task. |
 | [BACKLOG.md](BACKLOG.md) | Ticket register (`CON-NN`), including the non-code legal and validation work. |
+| [LOOP.md](LOOP.md) | **The command loop, end to end** — which command, run by whom, and what happens when it refuses. Start here. |
 | [USAGE.md](USAGE.md) | How to run it: the loop, the MCP setup, exit codes, and what each refusal means. |
 | [CLAUDE.md](CLAUDE.md) | Working agreement for AI-assisted sessions. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute, and the required DCO sign-off. |

@@ -2,8 +2,9 @@
 
 Version 1 · 2026-11-20 · the honest half of CON-20
 
-`README.md` says what Constat is for and `USAGE.md` says how to run it. This says what it does
-**not** do, what it has **not verified**, and where it states an intention it does not yet meet.
+`README.md` says what Constat is for, `LOOP.md` draws the command loop and `USAGE.md` says how to
+run it. This says what Constat does **not** do, what it has **not verified**, and where it states
+an intention it does not yet meet.
 
 It exists because every one of these is recorded somewhere in `DECISIONS.md` — twenty-eight
 entries as of this version — and a reader should not have to assemble them. Nothing here is a bug report. Each

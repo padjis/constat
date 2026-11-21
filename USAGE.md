@@ -85,6 +85,10 @@ cloned twice is recognised as one.
 
 ## 4. The loop
 
+[LOOP.md](LOOP.md) draws this whole section as one diagram — every command, who runs it, the rework
+loop after a rejection, and what is designed but not built. Read it first if you want the shape
+before the detail.
+
 ### With MCP (recommended on a Pro subscription)
 
 The server does not replace the CLI — it does the **middle third**. You set up, the agent reads,

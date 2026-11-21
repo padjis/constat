@@ -60,6 +60,10 @@ A change that is simply *ahead* of the roadmap will usually be deferred, not rej
 - Never add a credential, token or key to any file in this repository.
 - Do not make the deterministic evidence path depend on an AI provider. The pipeline must work with
   no provider configured.
+- **If you change a mermaid diagram, check that it still parses** — in GitHub's preview, or with
+  `mermaid.parse` over the extracted blocks. A silent truncation looks like a design change to the
+  next reader. **A semicolon inside a label is a statement separator**, so `Note over A,B: one
+  thing; another` ends the diagram at the semicolon; use a comma or a dash.
 
 ## AI-assisted contributions
 
