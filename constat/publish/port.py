@@ -26,6 +26,19 @@ from typing import Protocol, runtime_checkable
 from ..errors import DecisionsNotReadable
 
 
+STATE_REFERENCE = "the-product-as-it-stands"
+"""The page the catalogue itself is published to (CON-106).
+
+Not a ticket, and deliberately shaped like one so no target needs a second
+way to name a page: every `Target` already turns a reference into a filename,
+and the state page is just the reference nobody opens a ticket for.
+
+Reserved, therefore. `publish <REF>` refuses a ticket whose page name would
+collide with this one rather than letting a ticket document overwrite the
+catalogue — a collision nobody would notice until the page was already wrong.
+"""
+
+
 @dataclass(frozen=True)
 class PublishedRef:
     """Where a document went, concretely enough to go and look.

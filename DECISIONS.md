@@ -8,6 +8,71 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-110 · 2026-11-21 · The catalogue is published as a page of its own
+
+**Closes CON-106.**
+
+**Decision.** `constat publish` with no reference publishes the catalogue as
+`constat state` renders it, to a single page named `the-product-as-it-stands`.
+`constat publish <REF>` publishes that ticket's document **and** refreshes the
+catalogue page, so publishing always leaves the catalogue current. The page
+name is reserved: a ticket cannot be published over it.
+
+**Context.** Found by attempting the next task and stopping before it.
+Publishing would have put a page in front of a business reader stating that no
+rules apply, while the catalogue held eight across two declared areas.
+
+A ticket document is an **impact view** — `_render_catalogue` answers which
+rules have anchors in what *this ticket changed* (D-035, D-038). A landed
+ticket (615, 628) or one opened for a baseline (`baseline-app-install`)
+contributes no evidence in that window, so "none of the 8 rule(s) … has an
+anchor in what this ticket changed" is the honest answer. **The document was
+never wrong.** The catalogue simply had no publication, and `constat state`
+reached only a terminal.
+
+**Declined: filling a baseline's document.** It would distort an impact view
+into listing things nothing impacted, to avoid building the artefact that was
+actually missing.
+
+**Two page kinds, which is product rule 8 rather than duplication.** The
+catalogue page is the business explanation and carries no evidence section;
+the ticket page is the technical evidence view and carries no catalogue.
+Conflating them is the thing that rule forbids, so `publish` with a reference
+writes both rather than choosing.
+
+**Nothing on the catalogue page can be decided, and it says so twice** — in
+the page and in the command's output. It shows rules a person has already
+accepted, so there is no proposal on it to approve, and it is rewritten in
+full on every publish, so a verdict written there would not survive. The
+approval loop (D-105, D-106) stays on ticket pages, where the proposals are.
+`--read-decisions` and `--record-decisions` therefore refuse without a
+reference.
+
+**No operation is recorded for the catalogue page**, and this is a stated
+narrowing rather than an oversight. `operation.document_id` is `NOT NULL` and
+this page belongs to no ticket; making a publication documentless is a schema
+change that buys nothing today, because the page is derived from accepted rule
+versions and each already carries the decision that created it. What is lost
+is the answer to "when was the catalogue page last published". `ticket show`
+will not list it.
+
+**Consequences.**
+
+- **A refresh that fails after the ticket page is live is reported, not
+  raised as a failure of the whole command.** The ticket page is published by
+  then, and an error reading as "nothing was published" is the one outcome
+  D-058 says publishing must never produce.
+- The reserved-name refusal arrives as a refusal rather than a traceback —
+  `_run_publish` now catches `InvalidInput`. The same defect shape D-104 found
+  in `ticket add`, caught here before release rather than after.
+- **Still untested against a real host.** Everything here ran against a bare
+  repository over `file://`, as `LIMITS.md` § 8 already records for
+  publishing generally. An authenticated push remains unverified.
+
+**Status.** accepted
+
+---
+
 ## D-109 · 2026-11-21 · `analyse` and `snapshot` are retired
 
 **Closes CON-104. Supersedes D-016 and D-021**, and retires the command half of

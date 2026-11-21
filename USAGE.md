@@ -224,13 +224,29 @@ nothing has read its evidence yet.
 ## 6. Publish it
 
 ```bash
-constat publish 622                      # target derived from the repo's remote
-constat publish 622 --target <git-url>   # or named explicitly
+constat publish                          # the catalogue, as `state` renders it
+constat publish 622                      # ticket 622, and the catalogue refreshed
+constat publish 622 --target <git-url>   # target named explicitly
 ```
 
-Writes `622.md` to a git-backed documentation repository — by default the wiki of the current
-repository's remote. An unrecognised host **refuses** rather than guessing: a push to a guessed URL
-is not undone by noticing afterwards.
+Two kinds of page, for the two audiences product rule 8 asks for (D-110):
+
+| Page | Holds | Decisions |
+| --- | --- | --- |
+| `the-product-as-it-stands.md` | every accepted rule, by area — the business explanation | none: nothing on it can be decided |
+| `<REF>.md` | one ticket's evidence and its review queue — the technical view | this is where a verdict is written |
+
+**Publishing a ticket refreshes the catalogue page too**, so the catalogue is never stale. With no
+reference, only the catalogue page is written — which is how a rule accepted from a baseline, with
+no ticket that changed it, reaches a page at all.
+
+The catalogue page is rewritten in full each time, so nothing written into it survives, and
+`--read-decisions` / `--record-decisions` refuse without a reference: a verdict is written against
+a rule proposal, and the catalogue page carries none. `the-product-as-it-stands` is a **reserved**
+reference — a ticket cannot be published over it.
+
+By default the target is the wiki of the current repository's remote. An unrecognised host
+**refuses** rather than guessing: a push to a guessed URL is not undone by noticing afterwards.
 
 This is the only command that writes outside the workspace. Gathering never publishes, accepting
 never publishes, and publishing approves nothing.

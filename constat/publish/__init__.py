@@ -17,7 +17,8 @@ Three things hold it in place, and all three are tested:
   states explicitly.
 """
 
-from .port import NotYetReadable, PublishedRef, Target
+from .port import STATE_REFERENCE, NotYetReadable, PublishedRef, Target
 from .targets import GitPages, detect
 
-__all__ = ["GitPages", "NotYetReadable", "PublishedRef", "Target", "detect"]
+__all__ = ["GitPages", "NotYetReadable", "PublishedRef", "STATE_REFERENCE",
+    "Target", "detect"]

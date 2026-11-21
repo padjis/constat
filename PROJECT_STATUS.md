@@ -1020,11 +1020,14 @@ ticket changed", so publishing today would put a page in front of a business rea
 rules apply while the catalogue holds eight. The document is not wrong; **the catalogue has no
 publication at all**, and `constat state` reaches only a terminal.
 
-CON-106 is the fix, in the shape the author chose: `constat publish` with no reference publishes
-the state page, and `constat publish <REF>` publishes that ticket's document **and** refreshes the
-state page — so publishing always brings the state page up to date. Two page kinds for product rule
-8's two audiences, rather than one page trying to be both. Approval stays on ticket pages (D-106),
-because that is where the proposals are.
+**CON-106 is built (D-110).** `constat publish` with no reference writes the catalogue to
+`the-product-as-it-stands.md`; `constat publish <REF>` writes that ticket's document **and**
+refreshes the catalogue page. Verified end to end against a bare repository: the eight rules and
+both declared areas are on a page, and publishing ticket 615 left both pages on the target. The
+name is reserved, decisions refuse without a reference, and the catalogue page says twice that
+nothing on it can be decided. No operation is recorded for it — `operation.document_id` is
+`NOT NULL` and the page belongs to no ticket, so `ticket show` will not list it, which is stated
+rather than hidden.
 
 Then the original question stands: publish against a real target and see whether anything comes
 back. Both halves are built (D-105, D-106) and **neither has run outside a test** — `publish` is

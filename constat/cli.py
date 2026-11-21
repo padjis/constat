@@ -58,6 +58,7 @@ from .operations import (
     land_ticket,
     product_state,
     publish_document,
+    publish_state,
     record_read_decisions,
     render_state,
     submit_reply,
@@ -348,7 +349,17 @@ def build_parser() -> argparse.ArgumentParser:
             "nothing in it."
         ),
     )
-    publish.add_argument("reference", metavar="REF")
+    publish.add_argument(
+        "reference",
+        metavar="REF",
+        nargs="?",
+        help=(
+            "the ticket to publish. Omit it to publish only the catalogue "
+            "page. Naming a ticket publishes that ticket's document and "
+            "refreshes the catalogue page too, so publishing always leaves "
+            "the catalogue current (CON-106)."
+        ),
+    )
     publish.add_argument(
         "--target",
         default=None,
@@ -2362,19 +2373,65 @@ def _run_publish(args: argparse.Namespace) -> int:
                 )
                 return EXIT_USAGE
 
+            if (args.read_decisions or args.record_decisions) and (
+                args.reference is None
+            ):
+                # A decision is written against a rule proposal, and proposals
+                # live on a ticket's page. The catalogue page carries none.
+                print(
+                    f"{PROG}: error: name the ticket whose decisions to read. "
+                    "A verdict is written against a rule proposal, and the "
+                    "catalogue page has none on it to decide.",
+                    file=sys.stderr,
+                )
+                return EXIT_USAGE
+
             if args.record_decisions:
                 return _record_decisions(workspace, args, target)
 
             if args.read_decisions:
                 return _report_decisions(workspace, args, target)
 
-            result = publish_document(
-                workspace,
-                args.reference,
-                target,
-                repository=args.repository,
-                accept_scan_findings=args.accept_scan_findings,
-            )
+            if args.reference is None:
+                result = publish_state(
+                    workspace,
+                    target,
+                    repository=args.repository,
+                    accept_scan_findings=args.accept_scan_findings,
+                )
+                state_result = None
+            else:
+                result = publish_document(
+                    workspace,
+                    args.reference,
+                    target,
+                    repository=args.repository,
+                    accept_scan_findings=args.accept_scan_findings,
+                )
+                # The ticket page is live from here on, so a failure refreshing
+                # the catalogue must not read as "nothing was published".
+                try:
+                    state_result = publish_state(
+                        workspace,
+                        target,
+                        repository=args.repository,
+                        accept_scan_findings=args.accept_scan_findings,
+                    )
+                except (PublishError, ProviderError) as exc:
+                    print(f"published:  {result.ref.describe()}")
+                    print(
+                        f"\n{PROG}: error: the ticket page is published; the "
+                        f"catalogue page was not refreshed: {exc}. Run "
+                        "`constat publish` to bring it up to date.",
+                        file=sys.stderr,
+                    )
+                    return EXIT_PUBLISH
+    except InvalidInput as exc:
+        # The reserved catalogue page name, reached before any target exists.
+        # A refusal must read as a refusal: a traceback here would look like a
+        # crash on top of a page that was never written.
+        print(f"{PROG}: error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
     except PublishError as exc:
         print(f"{PROG}: error: {exc}", file=sys.stderr)
         return EXIT_PUBLISH
@@ -2391,7 +2448,10 @@ def _run_publish(args: argparse.Namespace) -> int:
         return EXIT_WORKSPACE
 
     print(f"published:  {result.ref.describe()}")
-    print(f"run:        {result.run_id}")
+    if result.run_id is not None:
+        print(f"run:        {result.run_id}")
+    if state_result is not None:
+        print(f"catalogue:  {state_result.ref.describe()}")
     if result.scan_accepted:
         print(
             f"\n{len(result.scan_findings)} disclosure finding(s) were "
@@ -2410,13 +2470,31 @@ def _run_publish(args: argparse.Namespace) -> int:
             "exists for a real customer, price or volume, because a figure "
             "with a currency is what a business rule legitimately says."
         )
-    print(
-        "\nThe page is a proposal, not an approval, and nothing on it records "
-        "a decision. A reviewer writes one line per proposal in the "
-        "`decisions/` file beside it and commits; you record what they wrote "
-        "with `constat publish <REF> --record-decisions`. Or decide here with "
-        "`constat rule accept <ID> --by <who>`."
-    )
+    if args.reference is None:
+        # The catalogue page alone. Saying what it is *not* matters more here
+        # than on a ticket page: it looks like the authoritative document, and
+        # a reviewer who writes a verdict on it would be writing into a page
+        # that is rewritten in full on the next publish.
+        print(
+            "\nThis is the catalogue: rules a person has already accepted. "
+            "**Nothing on it can be decided** — a rule awaiting a decision is "
+            "on its ticket's page, which is where a verdict is written. The "
+            "page is rewritten in full each time it is published, so nothing "
+            "written into it survives."
+        )
+        print(
+            "\nNo operation was recorded. This page belongs to no ticket, and "
+            "an operation needs one — so `ticket show` will not list this "
+            "publication. The rules on it each carry their own decision."
+        )
+    else:
+        print(
+            "\nThe ticket page is a proposal, not an approval, and nothing on "
+            "it records a decision. A reviewer writes one line per proposal in "
+            "the `decisions/` file beside it and commits; you record what they "
+            "wrote with `constat publish <REF> --record-decisions`. Or decide "
+            "here with `constat rule accept <ID> --by <who>`."
+        )
     return EXIT_OK
 
 

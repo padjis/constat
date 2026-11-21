@@ -42,10 +42,15 @@ from .ai.redaction import scrub_message
 from .ai import resolve as resolve_provider
 from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
-from .publish import PublishedRef, Target
+from .publish import STATE_REFERENCE, PublishedRef, Target
 from .publish.decisions import DecisionLine, DecisionsRead
 from .publish.targets.git_pages import detect as git_pages_detect
-from .errors import PayloadRefused, ReferenceMatchedNothing, RepositoryError
+from .errors import (
+    InvalidInput,
+    PayloadRefused,
+    ReferenceMatchedNothing,
+    RepositoryError,
+)
 from .evidence import DEFAULT_LIMITS, EvidenceBundle, ExcerptLimits, collect_evidence
 import re
 
@@ -1801,7 +1806,9 @@ class PublishResult:
     """What a publication did, including what it was allowed to carry."""
 
     ref: PublishedRef
-    run_id: int
+    run_id: int | None
+    """The run this publication was recorded against, or `None` for the state
+    page, which belongs to no ticket and so records no operation (CON-106)."""
     scan_findings: tuple[DocumentFinding, ...] = ()
     scan_accepted: bool = False
 
@@ -1836,6 +1843,15 @@ def publish_document(
     for a publication that failed would claim a disclosure that never
     happened, which is worse than no record at all.
     """
+    if reference == STATE_REFERENCE:
+        # Reserved, because both kinds of page are named from a reference and
+        # a ticket called this would silently overwrite the catalogue (CON-106).
+        raise InvalidInput(
+            f"{reference!r} is the page the catalogue is published to, so a "
+            "ticket cannot be published over it. Publish the catalogue with "
+            "`constat publish` and no reference."
+        )
+
     body = TicketStore(workspace).document(reference).body
 
     # First, and before any target exists: a refusal has to leave the world
@@ -1893,6 +1909,71 @@ def publish_document(
         scan_findings=scan_findings,
         scan_accepted=accepted,
     )
+
+
+def publish_state(
+    workspace: Workspace,
+    target: Target | None = None,
+    *,
+    repository: str | None = None,
+    accept_scan_findings: bool = False,
+) -> PublishResult:
+    """Publish the catalogue itself, as `constat state` renders it (CON-106).
+
+    **Why this exists.** A ticket document is an *impact* view: it answers
+    which rules have anchors in what that ticket changed (D-035, D-038). For a
+    landed ticket, or one opened for a baseline, the honest answer is "none" —
+    so until now a workspace could hold an accepted catalogue that `publish`
+    could not reach, and the audience the documentation is *for* had nowhere
+    to read it. The document was never wrong; the catalogue simply had no
+    publication.
+
+    **Two page kinds, for product rule 8's two audiences.** This page is the
+    business explanation and carries no evidence section; the ticket page is
+    the technical evidence view and carries no catalogue. Conflating them was
+    the thing that rule forbids.
+
+    **Nothing on this page can be decided**, and it says so. It shows rules a
+    person has already accepted, so there is no proposal here to approve — the
+    approval loop (D-105, D-106) stays on ticket pages, where the proposals
+    are.
+
+    **No operation is recorded**, and that is a deliberate narrowing rather
+    than an oversight. An `operation` row requires a document, and this page
+    belongs to no ticket. The alternative was a schema change to make a
+    publication documentless, which buys nothing today: the page is derived
+    from accepted rule versions, and each of those already carries the
+    decision that created it. What is lost is the ability to answer "when was
+    the state page last published", and that is stated rather than hidden.
+    """
+    body = render_state(product_state(workspace)) + _STATE_PAGE_NOTE
+
+    # Before any target exists, as in `publish_document`: a refusal has to
+    # leave the world untouched (D-047, D-058).
+    scan_findings = guard_publication(body, accepted=accept_scan_findings)
+
+    if target is None:
+        target = detect_target(repository)
+
+    ref = target.publish(STATE_REFERENCE, body)
+    return PublishResult(
+        ref=ref,
+        run_id=None,
+        scan_findings=scan_findings,
+        scan_accepted=bool(scan_findings) and accept_scan_findings,
+    )
+
+
+_STATE_PAGE_NOTE = """
+---
+
+Every rule above has been accepted by a person. **Nothing on this page can be
+decided** — there is no proposal here to approve or reject. A rule awaiting a
+decision appears on its ticket's page, which is where a verdict is written.
+
+This page is rewritten in full each time it is published. Nothing written into
+it survives, so write a decision where decisions are read instead.
+"""
 
 
 def detect_target(repository: str | None = None) -> Target:

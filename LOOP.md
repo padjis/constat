@@ -24,7 +24,7 @@ flowchart TD
 
     DECIDE{"<b>A person decides, rule by rule</b><br/>reviewer — accept or reject"}
 
-    PUBLISH["<b>constat publish 402</b><br/>operator — the approved catalogue to the documentation target"]
+    PUBLISH["<b>constat publish 402</b><br/>operator — the ticket's evidence page, and the<br/>catalogue page refreshed with it (D-110)"]
 
     WAYS["<b>Not in an MCP client?</b><br/>constat ticket add 402, then either a provider<br/>reads it or constat rule submit --from does"]
     DISCARD["<b>What the reading discards</b><br/>an anchor naming a path not in the evidence ·<br/>a near-duplicate, flagged not merged ·<br/>code leaking into business prose"]
@@ -137,6 +137,7 @@ None of these are stages in the loop. They are questions you ask of the catalogu
 | Command | Answers |
 | --- | --- |
 | `constat state` | what the product does now, and what is agreed but not yet shipped |
+| `constat publish` | the same picture, as a page where the people who decide can read it |
 | `constat rule proposals` | everything awaiting a decision, across every ticket |
 | `constat rule show R-1` | one rule as the catalogue holds it |
 | `constat rule history R-1` | every accepted version of one rule, by citation or name |
