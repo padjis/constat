@@ -2,7 +2,32 @@
 
 **Last updated:** 2026-11-21
 **Current phase:** Phase 3 — Meaning and reporting (reshaped by D-035 … D-039)
-**Current session (2026-11-21):** **CON-103, CON-105 and CON-104 closed (D-107, D-108, D-109)** —
+**Current session (2026-11-21), last act:** **the loop ran on real evidence, and five proposals were
+decided.** This is the task this file has named as next all week (D-088), and it is the first time
+the machinery built since 2026-11-17 has been exercised on the live workspace rather than on a
+fixture. **Four accepted from the `baseline-app-install` reading** — `R-4` unrecognised-link
+routing, `R-5` the iOS app is not available and says so, `R-6` free with no subscription, `R-7` the
+website is a preview — which **declares the area *app install***, the second declared area.
+`237feed-ui` goes from 2.7% to 4.0% of files claimed. Every claim was checked against the code
+before deciding: `Dispatch.tsx:8` tests the user agent for `android` and replaces the location,
+`DownloadButtons.tsx:28` routes the iOS badge to `/ios`, and all seven message strings are verbatim
+in `src/translations/en.json`. **`message verify` on real messages: 5 found, 0 not found, 2 not
+checkable** — and both of its documented limits appeared in practice rather than in theory: `M-5`
+("100% Free") is too short a literal to search for, and `M-1` was found twice because the search is
+repository-wide and `CHANGES.md` quotes it. **Two notes in this file were wrong and are corrected**:
+proposals 11 and 12 do not overlap — they share the `Hero.tsx` anchor but state different things,
+price and feature parity — and `R-3` does not claim all of `src/pages/*`, it names three files.
+**`R-8` a-first-launch-works accepted** from ticket 628, with no anchors, no examples and no
+evidence commits, because 628 had landed and a landed ticket contributes none (D-031). It renders
+under *Shipping not checked* rather than in the picture, which is D-087 behaving as designed.
+Accepting it also fired **`merge_on_accept` for the first time in this workspace**:
+`feat/628-first-launch-device-race -> main` reported *already in main, nothing to merge*, and the
+other two repositories reported no branch naming the ticket. Nothing was written to any repository.
+**The review queue is now empty — eight rules accepted, nothing awaiting a decision.** A scope
+correction from the author, recorded because it governs how this work is done: *the tool should only
+document the current state* — verifying a reading against the code is in scope, judging the code or
+predicting how it will break is not. Before it, **CON-103, CON-105 and CON-104 closed (D-107, D-108,
+D-109)** —
 three defects found by *mapping the command surface* for `LOOP.md` rather than by reading the code,
 which is the pattern this file has recorded four times now. **CON-103 (D-107):** `rule accept 1`
 meant proposal 1 while `rule retire 1` meant rule row 1, with nothing to signal it, and `rule
@@ -971,22 +996,26 @@ rules of their own.
 
 ## Next single task
 
-**Document one real area of 237feed with the machinery as it stands, and decide what comes back.**
+**Publish the catalogue, and find out whether anyone reads it.**
 
-That is the mitigation D-088 names for its own failure mode: a demonstration of practice can drift
-into prose about rigour with nothing checking the rigour, and what keeps it honest is Constat
-actually running on a real product. The live workspace holds three repositories and **one** accepted
-rule, so almost everything built since 2026-11-17 — examples, messages and their verification,
-citations, declared areas, baselines, retirement, checkpoints, the shipping check — has never been
-exercised on real evidence.
+The area that led this section all week is **done**: *app install* is declared, `R-4` to `R-7` are
+accepted, `R-8` with it, and the review queue is empty. D-088's mitigation has been carried out —
+the machinery built since 2026-11-17 has now run on the live workspace, and it behaved: examples
+render, `message verify` found 5 of 7 and said honestly why it could not check the other 2, the
+shipping check put the evidence-less rule in its own section, and `merge_on_accept` reported an
+already-landed branch as a no-op.
 
-It also has precedent. This file records four separate occasions where running the loop found more
-than reading the code did; tickets 615 and 628 produced CON-70 through CON-77 that way.
+What that leaves is the assumption underneath all of it, which no amount of building will settle.
+`DISCOVERY.md` § 4 calls it the most load-bearing and least tested thing in the product: **whether
+a business reader would ever go to a published page to approve.** Eight rules and two areas is now
+enough of a catalogue to publish and put in front of somebody — which is the cheapest available
+test of it, and the only one that does not require a discovery conversation first (CON-26, still at
+nought).
 
-What it needs is one choice: **which area of which repository.** The smallest coherent one that can
-be described in a sentence is the right size, and `237feed-ui` or `237feed` are the candidates —
-the baseline path (D-080) expects an agent to read the repository directly, so the area should be
-one whose code is readable without context nobody has.
+The step is `constat publish <REF>` against a real documentation target, then `--read-decisions` to
+see whether anything came back. Both halves are built (D-105, D-106) and **neither has run outside
+a test**: `publish` is the one spine step `demo.sh` does not cover, and the target has only ever
+been a bare repository on disk. `LIMITS.md` § 8 records that an authenticated push is unverified.
 
 **No longer here:** CON-26, which led this section all week. Under D-088 it is deferred rather than
 overdue, and `DISCOVERY.md` stands as a written artefact rather than a task list. The trademark work
