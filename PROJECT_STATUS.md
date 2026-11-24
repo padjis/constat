@@ -1067,6 +1067,20 @@ CON-105 removed the cause, an empty ticket carries no claim, and a `ticket remov
 the append-only store — so 99998 and 99999 remain in the live workspace as artefacts of the bug
 that found the bug.
 
+**Four tickets on how the documentation is laid out** came from comparing Constat's output with a
+worked example of the same idea built for one client: CON-109 (the business page carries no code
+reference), CON-110 (pages name each other, and an index), CON-111 (a page per area — **needs the
+area-identity decision first**), CON-112 (a declared release published as a page). Build order
+110 → 112 → 109 → 111.
+
+**Declined in the same conversation: human-authored notes on a published page.** The use case was
+real and narrow — the reason behind a threshold, and where the code and the data diverge, which
+this session produced a live instance of (R-13 describes a two-stage retention that 22,100
+production articles do not yet follow). It was declined anyway: a note is unverified prose sitting
+on a page whose authority comes from being derived, nothing re-reads it, and a stale note would
+look exactly as authoritative as a grounded rule beside it. Commentary, if it is ever wanted,
+belongs to CON-47/48 anchored to a rule.
+
 **CON-99 (parallel release lines, D-090) has a stated target rather than an open question**, and it
 should not precede the real use above. CON-58, which stood beside it, is closed (D-105, D-106) — the
 off-CLI approval D-089 named is built, and what remains unknown about it is not code: whether a
