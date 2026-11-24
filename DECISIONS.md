@@ -8,6 +8,47 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-125 · 2026-11-22 · A commit that names another ticket is not this ticket's evidence
+
+**Closes CON-121.** Narrows the branch-name half of D-031.
+
+**Decision.** Branch-name attribution still takes everything a named branch
+adds to mainline, **except** a commit whose message names a different ticket.
+The exclusions are carried on the match and printed in the document.
+
+**Context: wrong evidence, not a wrong summary.** `gather_evidence("630")`
+returned five commits, four of them 632's. `feat/630-interest-filter-phase0`
+was branched from a `develop` that already held 632's unmerged work, and
+"everything this branch adds to mainline" is therefore everything develop had
+too. Rules written from that payload would have been anchored to
+`DeleteScheduler.java` and presented as what 630 changed — the failure
+product rule 2 exists to prevent, and the third face of the Git Flow limit
+today after D-121.
+
+**Where the branch and the commit disagree, the commit wins.** A commit
+saying *"Merge feat/632-… for 632"* is 632's, whatever branch carries it.
+
+**The pattern is narrow and errs towards keeping.** `#632`, `feat/632-`,
+`ABC-123` — and nothing else. A message says "30 days" and "22,100 articles"
+far more often than it names a ticket, so a bare `for 632` is **not**
+excluded. That limit is deliberate and tested: under-excluding leaves
+evidence a reader can see and argue with, while over-excluding drops real
+evidence silently.
+
+**Reported, never applied in silence.** A commit of this ticket's own work
+that mentions another in passing — "fixes the regression from #612" — is
+excluded too. The document names every exclusion with its SHA and the ticket
+it was attributed to, so a reader can disagree with the heuristic.
+
+**What this does not fix.** Message attribution is unchanged: a commit naming
+two tickets is evidence for both, which is why 631's commits appear under 632
+— they say `#632` in terms. That is a positive claim by the commit rather
+than an inheritance, and it stays.
+
+**Status.** accepted
+
+---
+
 ## D-124 · 2026-11-22 · A prompt says what is being decided, and a revision shows both statements
 
 **Closes CON-120. Extends D-119.**

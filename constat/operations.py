@@ -771,6 +771,23 @@ def render(
         # truncation (D-023, D-027): a document that reads as current while
         # resting on a week-old cache is confidently wrong about the present.
         lines.append(describe_freshness(entry))
+        claimed = finding.match.claimed_by_another
+        if claimed:
+            # The branch carried them; their messages say they belong to
+            # another ticket. Named, because the rule that excluded them is a
+            # heuristic and a reader must be able to disagree with it
+            # (CON-121).
+            lines.append("")
+            lines.append(
+                f"{len(claimed)} commit(s) excluded: carried by this ticket's "
+                "branch but naming another ticket — "
+                + ", ".join(
+                    f"`{sha[:12]}` ({other})" for sha, _subject, other in claimed
+                )
+                + ". A branch cut from an integration branch inherits its "
+                "unmerged work; this is that work, not this ticket's."
+            )
+
         own = finding.match.excluded_own_commits
         if own:
             # Stated, not performed silently. Every other omission in this
