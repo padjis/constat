@@ -1975,7 +1975,14 @@ def publish_document(
     if target is None:
         target = detect_target(repository, workspace)
 
-    ref = target.publish(reference, body)
+    # The ids the reviewer has to write, so they do not have to be copied off
+    # the page (CON-115). Strings, because a decision may also be written
+    # against a rule citation and the file takes either.
+    awaiting = tuple(
+        str(item.id)
+        for item in RuleProposals(workspace).undecided(reference)
+    )
+    ref = target.publish(reference, body, awaiting)
 
     accepted = bool(scan_findings) and accept_scan_findings
     try:

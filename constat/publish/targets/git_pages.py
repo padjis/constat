@@ -37,6 +37,7 @@ from ..decisions import (
     DecisionLine,
     DecisionsRead,
     file_for,
+    mentioned,
     parse,
 )
 from ..port import (
@@ -349,7 +350,9 @@ class GitPages:
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
 
-    def publish(self, reference: str, body: str) -> PublishedRef:
+    def publish(
+        self, reference: str, body: str, awaiting: tuple[str, ...] = ()
+    ) -> PublishedRef:
         """Clone, write the page, commit and push. Returns where it landed."""
         workdir = Path(tempfile.mkdtemp(prefix="constat-publish-"))
         try:
@@ -385,6 +388,7 @@ class GitPages:
             # read. A decision somebody believes was recorded is the failure
             # D-041 exists to prevent.
             seeded = False
+            prompted = False
             if not is_generated(reference):
                 decisions = clone / file_for(f"{self.safe_name(reference)}.md")
                 seeded = not decisions.exists()
@@ -392,6 +396,22 @@ class GitPages:
                     decisions.parent.mkdir(parents=True, exist_ok=True)
                     decisions.write_text(TEMPLATE.format(reference=reference))
                     unchanged = False
+
+                # One prompt per undecided proposal, appended and never
+                # otherwise touched (CON-115). Seeding once cannot keep up
+                # with a queue that grows between rounds, and without this a
+                # reviewer reads ids off the review page and retypes them
+                # here.
+                text = decisions.read_text()
+                already = mentioned(text)
+                new = [ref for ref in awaiting if ref not in already]
+                if new:
+                    if not text.endswith("\n"):
+                        text += "\n"
+                    text += "".join(f"{ref}: \n" for ref in new)
+                    decisions.write_text(text)
+                    unchanged = False
+                    prompted = True
 
             if unchanged:
                 # Nothing to commit, and `git commit` would fail. Reporting it
@@ -405,7 +425,11 @@ class GitPages:
                 )
 
             run_git(["add", "--", self.page_for(reference)], cwd=clone)
-            if seeded:
+            # Staged whenever it changed, not only when it was created. A
+            # prompt appended to an existing file was written to the working
+            # tree and never committed, so the second review round silently
+            # lost every prompt it added.
+            if seeded or prompted:
                 run_git(
                     ["add", "--", file_for(f"{self.safe_name(reference)}.md")], cwd=clone
                 )

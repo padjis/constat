@@ -141,8 +141,17 @@ class Target(Protocol):
         """Where this target writes, for the confirmation line and the record."""
         ...
 
-    def publish(self, reference: str, body: str) -> PublishedRef:
+    def publish(
+        self, reference: str, body: str, awaiting: tuple[str, ...] = ()
+    ) -> PublishedRef:
         """Write the document for `reference`, returning where it went.
+
+        `awaiting` names the proposals on this page that nobody has decided
+        yet. A target may use it to prompt the reviewer — one line per
+        proposal in the decisions file, so the ids they must write do not have
+        to be copied from another page (CON-115). A prompt is only ever
+        **appended**: a line already in the file is never read, moved or
+        altered.
 
         Must raise `PublishFailed` rather than returning a `PublishedRef` for a
         write that did not land. Overwriting an existing page is the expected

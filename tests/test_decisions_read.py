@@ -34,7 +34,7 @@ from pathlib import Path
 import pytest
 
 from constat.errors import DecisionsNotReadable
-from constat.publish.decisions import TEMPLATE, file_for, parse
+from constat.publish.decisions import TEMPLATE, file_for, mentioned, parse
 from constat.publish.targets.git_pages import GitPages
 
 
@@ -186,6 +186,56 @@ class TestTheFormat:
 
         assert [d.reference for d in read.approved] == ["1", "3"]
         assert [d.reference for d in read.rejected] == ["2"]
+
+
+class TestAnUnansweredPrompt:
+    """`17:` with nothing after it is a prompt, not a typo (CON-115).
+
+    Constat appends one line per undecided proposal so a reviewer does not
+    have to copy ids off the review page. Those lines sit unanswered until
+    somebody writes a verdict, and reporting each one as unreadable would
+    bury the lines that matter under the ones nobody has reached yet.
+    """
+
+    def test_it_is_neither_a_decision_nor_a_refusal(self):
+        found, unreadable = parse("## Decisions\n17: \n")
+
+        assert found == ()
+        assert unreadable == ()
+
+    def test_a_typo_is_still_reported(self):
+        """The distinction is an *empty* verdict, not a missing one."""
+        _, unreadable = parse("## Decisions\n17: aproved\n")
+
+        assert unreadable == ((2, "17: aproved"),)
+
+    def test_an_answered_prompt_reads_normally(self):
+        found, _ = parse("## Decisions\n17: \n18: approved\n")
+
+        assert [(d.reference, d.verdict) for d in found] == [("18", "approved")]
+
+
+class TestWhatTheFileAlreadyMentions:
+    """What stops a proposal being prompted for twice (CON-115)."""
+
+    def test_an_answered_proposal_counts(self):
+        assert "18" in mentioned("## Decisions\n18: approved\n")
+
+    def test_an_unanswered_prompt_counts(self):
+        """Or every publish would append the same prompt again."""
+        assert "17" in mentioned("## Decisions\n17: \n")
+
+    def test_the_templates_own_examples_do_not(self):
+        """They are indented and use `1:` and `2:` — the first two proposal
+        ids of any workspace. Counting them suppressed the prompt for the
+        first two proposals anyone ever reviews, which is how this was
+        found."""
+        assert mentioned(TEMPLATE.format(reference="402")) == frozenset()
+
+    def test_a_verdict_written_above_the_marker_counts(self):
+        """A reviewer who wrote above the heading has still written about
+        that proposal, and prompting them again would be noise."""
+        assert "9" in mentioned("9: approved\n\n## Decisions\n")
 
 
 # -- the git half --------------------------------------------------------------

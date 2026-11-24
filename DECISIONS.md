@@ -8,6 +8,71 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-119 · 2026-11-22 · The decisions file is prompted, one line per undecided proposal
+
+**Closes CON-115. Amends D-105** in one clause.
+
+**Decision.** When a ticket page is published, Constat **appends** a line to
+its decisions file for every proposal awaiting a verdict that the file does
+not already name:
+
+```
+## Decisions
+
+17:
+18:
+```
+
+The reviewer writes `approved` or `rejected — why` after an id. A line already
+in the file — theirs or an earlier prompt — is never read for meaning, moved,
+rewritten or removed.
+
+**Context: "I would have expected to be able to approve every rule changed one
+by one."** The mechanism always allowed exactly that — one proposal, one id,
+one line. What was missing is that nothing put the ids in front of the
+reviewer: they were on the review page, and the file where a verdict goes was
+blank below its heading. Reading ids off one wiki page to retype into another
+is the friction, and it is worst for the audience the page is for.
+
+**Seeding once cannot do it.** D-105 seeds the file when the page is first
+published and never writes it again, so a queue that grows between review
+rounds leaves the file describing the first round forever.
+
+**Appending is not rewriting, and the distinction is the whole safety
+property.** D-105 exists so Constat cannot destroy a verdict. Adding a line
+below the last one destroys nothing. The clause amended is "never writes it
+again", which becomes: **seeded once, and thereafter only ever appended to
+with an id, never altered.**
+
+**An unanswered prompt is silent.** `17:` with nothing after it matches
+`UNANSWERED_LINE` and is neither a decision nor a refusal. Without that every
+proposal nobody had reached yet would come back as unreadable on every read —
+the noise that buries the lines that matter, which is the same reasoning that
+produced the `## Decisions` marker (D-105).
+
+**Two bugs, both found by running it:**
+
+- `mentioned()` counted the template's own worked examples, which are
+  indented and use `1:` and `2:` — the first two proposal ids of any
+  workspace. The first two proposals anyone ever reviews were never prompted
+  for.
+- The decisions file was staged **only when it was created**, so a prompt
+  appended to an existing file was written to the working tree and never
+  committed. Every second-round prompt was silently lost.
+
+**Consequences.**
+
+- `Target.publish` takes `awaiting`. A target may ignore it; the port says
+  what it means and that a prompt is only ever appended.
+- A reviewer may fill a prompt in place or answer below it. Both work, and the
+  leftover empty prompt is silent.
+- Nothing prompts on a generated page: it has no decisions file at all
+  (D-117).
+
+**Status.** accepted
+
+---
+
 ## D-118 · 2026-11-22 · The evidence is not published, only pointed at
 
 **Closes CON-114. Amends D-056 and supersedes the publication half of D-117.**

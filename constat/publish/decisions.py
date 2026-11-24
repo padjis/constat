@@ -49,6 +49,12 @@ DECISION_LINE = re.compile(
     r"(?:[—–-]\s*(?P<reason>.*?))?\s*$"
 )
 
+#: `17:` with nothing after it — a prompt Constat wrote and nobody has
+#: answered yet (CON-115). Distinguished from a typo so that pre-filling the
+#: file with one line per awaiting proposal does not report every unanswered
+#: line back as unreadable on every read.
+UNANSWERED_LINE = re.compile(r"^\s*(?P<ref>[A-Za-z]?-?\d+)\s*:\s*$")
+
 VERDICTS = ("approved", "rejected")
 
 MARKER = "## decisions"
@@ -179,6 +185,30 @@ def file_for(page: str) -> str:
     return f"{DECISIONS_DIRECTORY}/{page}"
 
 
+def mentioned(text: str) -> frozenset[str]:
+    """Every proposal reference the file already names (CON-115).
+
+    Used before appending a prompt, so a proposal already written about — in
+    any state, answered or not — is never prompted for twice. Read from the
+    whole file rather than from below the marker: a reviewer who wrote their
+    verdicts above it has still written about those proposals.
+    """
+    found = set()
+    for raw in text.split("\n"):
+        if raw.startswith(("    ", "\t")):
+            # The template's worked examples are indented and use `1:` and
+            # `2:`. Reading them as "already written about" suppressed the
+            # prompt for proposals 1 and 2 — the first two of any workspace.
+            continue
+        line = raw.strip()
+        for pattern in (DECISION_LINE, UNANSWERED_LINE):
+            match = pattern.match(line)
+            if match:
+                found.add(match.group("ref"))
+                break
+    return frozenset(found)
+
+
 def parse(text: str) -> tuple[tuple[DecisionLine, ...], tuple[tuple[int, str], ...]]:
     """Read decisions out of a file's text. Knows nothing about git.
 
@@ -208,6 +238,12 @@ def parse(text: str) -> tuple[tuple[DecisionLine, ...], tuple[tuple[int, str], .
         if raw.startswith(("    ", "\t")):
             continue
         if line.startswith("<!--") or line.startswith("-->"):
+            continue
+
+        if UNANSWERED_LINE.match(line):
+            # A prompt, not a decision and not a mistake. Silent on purpose:
+            # reporting it would mean every unanswered proposal came back as a
+            # refusal, which is the noise that buries the lines that matter.
             continue
 
         matched = DECISION_LINE.match(line)

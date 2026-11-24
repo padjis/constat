@@ -750,3 +750,76 @@ class TestTheCommandLine:
         assert code == EXIT_OK
         assert "already recorded" in out
         assert "Reading a target twice is safe" in out
+
+
+class TestPromptsInTheDecisionsFile:
+    """One line per undecided proposal, appended and never altered (CON-115).
+
+    The expectation this came from: *I would have expected to be able to
+    approve every rule changed one by one.* The mechanism always allowed it —
+    one id, one line — but nothing put the ids in front of the reviewer, who
+    had to read them off the review page and retype them into another page.
+
+    Seeding once cannot do it: the queue grows between rounds and D-105 says
+    the file is never rewritten. Appending can, and keeps that promise — a
+    line already in the file is never read, moved or altered.
+    """
+
+    def _file(self, tmp_path: Path, wiki: Path, name: str) -> str:
+        clone = tmp_path / name
+        git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
+        return (clone / "decisions" / f"{REFERENCE}.md").read_text()
+
+    def test_an_undecided_proposal_is_prompted_for(self, tmp_path, wiki):
+        target = GitPages(str(wiki))
+
+        target.publish(REFERENCE, "# a page\n", awaiting=("1", "2"))
+
+        body = self._file(tmp_path, wiki, "prompted")
+        assert "\n1: \n" in body
+        assert "\n2: \n" in body
+
+    def test_an_unanswered_prompt_is_not_a_refusal(self, tmp_path, wiki):
+        """Or every proposal nobody had reached yet would come back as one."""
+        target = GitPages(str(wiki))
+        target.publish(REFERENCE, "# a page\n", awaiting=("1", "2"))
+
+        read = target.read_decisions(REFERENCE)
+
+        assert read.decisions == ()
+        assert read.unreadable == ()
+
+    def test_a_reviewers_own_line_is_never_touched(self, tmp_path, wiki):
+        """The promise D-105 made, kept while the file keeps changing."""
+        target = GitPages(str(wiki))
+        target.publish(REFERENCE, "# a page\n", awaiting=("1",))
+        decide_in_target(tmp_path, wiki, "1: approved — mine\n")
+
+        target.publish(REFERENCE, "# a page, again\n", awaiting=("1", "2"))
+
+        body = self._file(tmp_path, wiki, "kept")
+        assert "1: approved — mine" in body
+        assert "\n2: \n" in body
+
+    def test_an_answered_proposal_is_not_prompted_again(self, tmp_path, wiki):
+        target = GitPages(str(wiki))
+        target.publish(REFERENCE, "# a page\n", awaiting=("1",))
+        decide_in_target(tmp_path, wiki, "1: approved\n")
+
+        target.publish(REFERENCE, "# a page\n", awaiting=("1",))
+
+        # A reviewer may fill the prompt in place or append their answer
+        # below it. Either way the *prompt* is written once: what must not
+        # happen is Constat adding another one on every publish.
+        body = self._file(tmp_path, wiki, "once")
+        assert body.count("\n1: \n") == 1
+
+    def test_a_generated_page_is_prompted_for_nothing(self, tmp_path, wiki):
+        """It has no proposals and no decisions file at all (D-117)."""
+        target = GitPages(str(wiki))
+
+        target.publish("index", "# index\n", awaiting=("1",))
+
+        clone = tmp_path / "generated"
+        git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
+        assert not (clone / "decisions" / "index.md").exists()
