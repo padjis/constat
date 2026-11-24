@@ -2107,8 +2107,11 @@ def render_area(area: str, states: tuple[RuleState, ...]) -> str:
         cite = f"`{item.rule.ref}` " if item.rule.ref else ""
         lines.append(f"- {cite}**{item.rule.name}** — {item.rule.statement}")
         if item.references:
+            # From inside `areas/`, so the link needs the directory it is
+            # written from. Without it this resolved to `areas/reviews/...`
+            # and every "read from" on every area page was broken.
             linked = ", ".join(
-                f"[{reference}]({_page_link(reference)})"
+                f"[{reference}]({_page_link(reference, frm=area_page(area))})"
                 for reference in item.references
             )
             lines.append(f"  - read from {linked}")
