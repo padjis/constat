@@ -653,6 +653,32 @@ class Review:
 
     # -- reading -----------------------------------------------------------
 
+    def references_for(self, rule_id: int) -> tuple[str, ...]:
+        """The tickets whose readings became versions of this rule (CON-110).
+
+        A rule is assembled from one or more accepted readings, and each
+        reading was made for a ticket — so this is how a rule on the catalogue
+        page finds the evidence page that produced it. Oldest version first,
+        de-duplicated: a rule revised twice from the same ticket names it once.
+
+        Empty is a real answer rather than a fault. A rule accepted before
+        Constat kept the link, or one whose proposal has no ticket, simply has
+        no page to point at, and the catalogue says nothing rather than
+        guessing at one.
+        """
+        rows = self._workspace.execute(
+            "SELECT DISTINCT t.reference, MIN(v.version_no) AS first_seen "
+            "FROM rule_version v "
+            "JOIN rule_proposal p ON p.id = v.from_rule_proposal_id "
+            "JOIN run r ON r.id = p.run_id "
+            "JOIN document d ON d.id = r.document_id "
+            "JOIN ticket t ON t.id = d.ticket_id "
+            "WHERE v.rule_id = ? "
+            "GROUP BY t.reference ORDER BY first_seen",
+            (rule_id,),
+        ).fetchall()
+        return tuple(row["reference"] for row in rows)
+
     def versions(self, rule_id: int) -> tuple[dict, ...]:
         """Every accepted version of a rule, oldest first, with its substance.
 

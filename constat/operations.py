@@ -42,7 +42,7 @@ from .ai.redaction import scrub_message
 from .ai import resolve as resolve_provider
 from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
-from .publish import STATE_REFERENCE, PublishedRef, Target
+from .publish import INDEX_REFERENCE, STATE_REFERENCE, PublishedRef, Target
 from .publish.decisions import DecisionLine, DecisionsRead
 from .publish.targets.git_pages import GitPages
 from .publish.targets.git_pages import detect as git_pages_detect
@@ -272,7 +272,16 @@ def provenance_legend() -> list[str]:
     ]
     for name, why in UNPRODUCED_PROVENANCE.items():
         lines.append(f"- `{name}` — {why}")
-    lines.append("")
+    lines += [
+        "",
+        # The way back out (CON-110). This page is one ticket's evidence; a
+        # reader who wants what the product does, rather than what this change
+        # touched, had no path to it at all.
+        f"The whole catalogue is on [the product as it stands]"
+        f"({_page_link(STATE_REFERENCE)}), and every page published from this "
+        f"workspace is listed in the [index]({_page_link(INDEX_REFERENCE)}).",
+        "",
+    ]
     return lines
 
 
@@ -1844,13 +1853,19 @@ def publish_document(
     for a publication that failed would claim a disclosure that never
     happened, which is worse than no record at all.
     """
-    if reference == STATE_REFERENCE:
-        # Reserved, because both kinds of page are named from a reference and
-        # a ticket called this would silently overwrite the catalogue (CON-106).
+    if reference in (STATE_REFERENCE, INDEX_REFERENCE):
+        # Reserved, because every page is named from a reference and a ticket
+        # called this would silently overwrite a generated one (CON-106,
+        # CON-110).
+        what = (
+            "the catalogue is published to"
+            if reference == STATE_REFERENCE
+            else "lists every other page"
+        )
         raise InvalidInput(
-            f"{reference!r} is the page the catalogue is published to, so a "
-            "ticket cannot be published over it. Publish the catalogue with "
-            "`constat publish` and no reference."
+            f"{reference!r} is the page that {what}, so a ticket cannot be "
+            "published over it. `constat publish` writes both, with no "
+            "reference."
         )
 
     body = TicketStore(workspace).document(reference).body
@@ -1909,6 +1924,133 @@ def publish_document(
         run_id=run_id,
         scan_findings=scan_findings,
         scan_accepted=accepted,
+    )
+
+
+@dataclass(frozen=True)
+class PublishedPage:
+    """A page this workspace has published, and when it last did (CON-110)."""
+
+    reference: str
+    location: str
+    published_at: str
+
+
+def published_pages(workspace: Workspace) -> tuple[PublishedPage, ...]:
+    """Every ticket page this workspace has published, most recent first.
+
+    **The first thing to read the publication record.** `publish_document` has
+    written an `operation` row since D-058 and nothing has ever read one back,
+    so "where has this document been published" was unanswerable — a gap this
+    file has recorded since CON-57.
+
+    Only ticket pages. The catalogue page records no operation, by the
+    narrowing D-110 stated: it belongs to no ticket and `operation.document_id`
+    is `NOT NULL`. It is added to the index by the renderer instead, because
+    the index is written at the moment it is published and therefore knows.
+    """
+    rows = workspace.execute(
+        "SELECT t.reference AS reference, o.ran_at AS ran_at, o.payload AS payload "
+        "FROM operation o "
+        "JOIN document d ON d.id = o.document_id "
+        "JOIN ticket t ON t.id = d.ticket_id "
+        "WHERE o.kind = 'publish_document' "
+        "ORDER BY o.ran_at DESC"
+    ).fetchall()
+
+    seen: dict[str, PublishedPage] = {}
+    for row in rows:
+        # Most recent first, so the first sighting of a reference is the one
+        # that counts: a page republished ten times is one page.
+        if row["reference"] in seen:
+            continue
+        location = ""
+        if row["payload"]:
+            location = json.loads(row["payload"]).get("location", "")
+        seen[row["reference"]] = PublishedPage(
+            reference=row["reference"],
+            location=location,
+            published_at=row["ran_at"],
+        )
+    return tuple(seen.values())
+
+
+def render_index(pages: tuple[PublishedPage, ...]) -> str:
+    """The page that says what else is here (CON-110).
+
+    Built from the publication record rather than from the ticket list, so it
+    names pages that **have** been published rather than pages that could be.
+    A ticket whose document nobody published is absent, which is the honest
+    answer: there is no page to link to.
+    """
+    lines = [
+        "# What is documented here",
+        "",
+        f"- [The product as it stands]({_page_link(STATE_REFERENCE)}) — every "
+        "rule a person has accepted, by area. Nothing on it can be decided.",
+        "",
+    ]
+
+    if not pages:
+        lines += [
+            "No ticket pages have been published from this workspace yet. "
+            "`constat review <REF>` writes one, carrying that ticket's "
+            "evidence and the proposals awaiting a decision.",
+            "",
+        ]
+        return "\n".join(lines)
+
+    lines += [
+        "## By ticket",
+        "",
+        "One page per piece of work: what it changed, and the readings taken "
+        "from it. A verdict is written in the `decisions/` file beside the "
+        "page it belongs to.",
+        "",
+        "| Ticket | Last published |",
+        "| --- | --- |",
+    ]
+    for page in pages:
+        when = page.published_at[:10]
+        lines.append(
+            f"| [{page.reference}]({_page_link(page.reference)}) | {when} |"
+        )
+    lines += [
+        "",
+        f"{len(pages)} page(s). This index is written from Constat's own "
+        "record of what it published, so a page removed from the target by "
+        "hand is still listed here — and a page it never published is not, "
+        "however much the work exists.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def publish_index(
+    workspace: Workspace,
+    target: Target | None = None,
+    *,
+    repository: str | None = None,
+    accept_scan_findings: bool = False,
+) -> PublishResult:
+    """Publish the index of pages (CON-110).
+
+    Written whenever anything else is, for the same reason the catalogue is:
+    an index that lags is worse than none, because it is read as complete.
+    Records no operation, on D-110's narrowing — it belongs to no ticket.
+    """
+    body = render_index(published_pages(workspace))
+    scan_findings = guard_publication(body, accepted=accept_scan_findings)
+
+    if target is None:
+        target = detect_target(repository, workspace)
+
+    ref = target.publish(INDEX_REFERENCE, body)
+    return PublishResult(
+        ref=ref,
+        run_id=None,
+        scan_findings=scan_findings,
+        scan_accepted=bool(scan_findings) and accept_scan_findings,
     )
 
 
@@ -2442,6 +2584,18 @@ def describe_release_basis(reading: ReleaseReading) -> tuple[str, ...]:
     )
 
 
+def _references_for(workspace: Workspace, catalogue: Catalogue, rule: Rule) -> tuple[str, ...]:
+    """The tickets behind one rule, or nothing if it cannot be resolved.
+
+    `Rule` carries no row id on purpose (CON-81), so the identifier has to be
+    looked up — the same translation `rule history` needs.
+    """
+    rule_id = catalogue.identify(rule.ref or rule.name)
+    if rule_id is None:
+        return ()
+    return Review(workspace).references_for(rule_id)
+
+
 @dataclass(frozen=True)
 class RuleState:
     """An accepted rule, and whether its anchors still exist in mainline."""
@@ -2449,6 +2603,13 @@ class RuleState:
     rule: Rule
     matched: dict[str, tuple[str, ...]] = field(default_factory=dict)
     """Repository alias -> the paths in mainline its anchors match."""
+
+    references: tuple[str, ...] = ()
+    """The tickets whose readings became versions of this rule (CON-110).
+
+    Carried so the catalogue can link a rule to the evidence behind it. Empty
+    for a rule accepted before Constat kept the link, and the renderer says
+    nothing rather than inventing a page that may not exist."""
 
     @property
     def holds(self) -> bool:
@@ -2630,7 +2791,12 @@ def product_state(
     return ProductState(
         repositories=tuple(repositories),
         rules=tuple(
-            RuleState(rule=rule, matched=matches[rule.name]) for rule in in_picture
+            RuleState(
+                rule=rule,
+                matched=matches[rule.name],
+                references=_references_for(workspace, catalogue, rule),
+            )
+            for rule in in_picture
         ),
         agreed=agreed,
         unverifiable=unverifiable,
@@ -2856,6 +3022,19 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
+def _page_link(reference: str) -> str:
+    """The filename a reference is published under, for a link between pages.
+
+    Derived the same way the target derives it, and deliberately duplicated
+    rather than imported: `GitPages.page_for` sanitises a reference so it
+    cannot become a path, and a renderer that guessed differently would emit
+    links that resolve nowhere. Kept in step by a test that asserts the two
+    agree.
+    """
+    safe = re.sub(r"[^A-Za-z0-9._-]", "-", reference).strip("-.") or "document"
+    return f"{safe}.md"
+
+
 def render_state(state: ProductState) -> str:
     """Render the current picture as Markdown.
 
@@ -2949,6 +3128,17 @@ def render_state(state: ProductState) -> str:
                     shown = ", ".join(f"`{path}`" for path in paths[:5])
                     more = "" if len(paths) <= 5 else f" and {len(paths) - 5} more"
                     lines.append(f"  - in {alias}: {shown}{more}")
+                if item.references:
+                    # The path from a rule to the evidence behind it (CON-110).
+                    # Relative, so it resolves on the documentation target
+                    # where both pages sit side by side; in a terminal it
+                    # reads as the reference it names, which is the answer
+                    # anyway.
+                    linked = ", ".join(
+                        f"[{reference}]({_page_link(reference)})"
+                        for reference in item.references
+                    )
+                    lines.append(f"  - read from {linked}")
                 for message in item.rule.messages:
                     cite = f"`{message.ref}` " if message.ref else ""
                     lines.append(f"  - shows {cite}> {message.text}")

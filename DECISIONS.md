@@ -8,6 +8,61 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-113 · 2026-11-22 · Pages name each other, and the publication record is finally read
+
+**Closes CON-110.**
+
+**Decision.** A rule on the catalogue page links to the ticket page whose
+reading produced it; a ticket page links to the catalogue and to an index; and
+`index` is a new generated page listing every ticket page this workspace has
+published. `index` joins `the-product-as-it-stands` as a reserved reference —
+a ticket cannot be published over either.
+
+**Context.** There were **no links at all** between published pages, and
+nothing enumerated them. A reader on the catalogue had no path to the evidence
+behind a rule, a reader on a ticket page had no path to what the product does,
+and ticket pages accumulated in the target with nothing listing them. None of
+that was decided; the renderers never emitted a link.
+
+**The index reads the publication record, which nothing had ever done.**
+`publish_document` has written an `operation` row since D-058, and
+`PROJECT_STATUS.md` has recorded since CON-57 that nothing read one back — so
+"where has this document been published" was unanswerable. The index is built
+from those rows rather than from `ticket list`, and the difference is the
+point: **it lists pages that were published, not pages that could be.** A
+ticket nobody published is absent, because there is no page to link to. Said
+on the page itself, because the inverse is also true — a page deleted from the
+target by hand is still listed, since Constat records what it did rather than
+what is there now.
+
+**The catalogue page carries no row id, so the chain is looked up**:
+`rule -> rule_version -> rule_proposal -> run -> document -> ticket`.
+`Review.references_for` is the new read, and `RuleState` carries the result so
+the renderer never queries. A rule that cannot be resolved — accepted before
+Constat kept the link — renders **nothing** rather than a guessed page.
+
+**`_page_link` duplicates `GitPages.page_for` rather than importing it**, and
+a test asserts the two agree on four references including `../../etc/x`. The
+sanitising exists so a reference from a commit message cannot become a path;
+a renderer that sanitised differently would emit links resolving nowhere. The
+duplication is in the renderer because `operations` must not depend on one
+target implementation — the port is the boundary (D-058).
+
+**Consequences.**
+
+- **The index is written whenever anything is**, by `publish` and by `review`.
+  An index that lags what was published is worse than none, because it is read
+  as complete.
+- **Links are relative**, so they resolve on the target where the pages sit
+  side by side. In a terminal `constat state` now prints
+  `read from [622](622.md)`, which names the reference either way.
+- Like the catalogue page, the index **records no operation** — it belongs to
+  no ticket, and `operation.document_id` is `NOT NULL` (D-110).
+
+**Status.** accepted
+
+---
+
 ## D-112 · 2026-11-21 · Where documentation is published is a workspace setting
 
 **Closes CON-108.**

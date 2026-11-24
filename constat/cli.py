@@ -58,6 +58,7 @@ from .operations import (
     land_ticket,
     product_state,
     publish_document,
+    publish_index,
     publish_state,
     record_read_decisions,
     render_state,
@@ -2527,6 +2528,12 @@ def _run_review(args: argparse.Namespace) -> int:
                     repository=args.repository,
                     accept_scan_findings=args.accept_scan_findings,
                 )
+                publish_index(
+                    workspace,
+                    target,
+                    repository=args.repository,
+                    accept_scan_findings=args.accept_scan_findings,
+                )
             except (PublishError, ProviderError) as exc:
                 print(f"published:  {result.ref.describe()}")
                 print(
@@ -2662,6 +2669,12 @@ def _run_publish(args: argparse.Namespace) -> int:
                 repository=args.repository,
                 accept_scan_findings=args.accept_scan_findings,
             )
+            index = publish_index(
+                workspace,
+                target,
+                repository=args.repository,
+                accept_scan_findings=args.accept_scan_findings,
+            )
     except PublishError as exc:
         print(f"{PROG}: error: {exc}", file=sys.stderr)
         return EXIT_PUBLISH
@@ -2676,6 +2689,7 @@ def _run_publish(args: argparse.Namespace) -> int:
         return EXIT_WORKSPACE
 
     print(f"published:  {result.ref.describe()}")
+    print(f"index:      {index.ref.describe()}")
     if result.scan_accepted:
         print(
             f"\n{len(result.scan_findings)} disclosure finding(s) were "

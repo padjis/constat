@@ -39,6 +39,15 @@ catalogue — a collision nobody would notice until the page was already wrong.
 """
 
 
+INDEX_REFERENCE = "index"
+"""The page that lists every other page (CON-110).
+
+Reserved on the same reasoning as `STATE_REFERENCE`: both page kinds are named
+from a reference, so without reserving it a ticket called `index` would
+silently overwrite the index and nobody would notice until it was wrong.
+"""
+
+
 @dataclass(frozen=True)
 class PublishedRef:
     """Where a document went, concretely enough to go and look.

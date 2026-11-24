@@ -178,7 +178,9 @@ class TestPublishingATicket:
 
         assert code == 0
         pages = sorted(p.name for p in _pages(tmp_path, wiki).glob("*.md"))
-        assert pages == ["622.md", f"{STATE_REFERENCE}.md"]
+        # The index joined them in CON-110: an index that lags behind what was
+        # published is worse than none, because it is read as complete.
+        assert pages == ["622.md", "index.md", f"{STATE_REFERENCE}.md"]
 
     def test_the_ticket_page_is_still_the_stored_document(
         self, subject, wiki, tmp_path
