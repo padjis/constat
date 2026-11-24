@@ -56,6 +56,7 @@ from .evidence import DEFAULT_LIMITS, EvidenceBundle, ExcerptLimits, collect_evi
 import re
 
 from .git.adapter import (
+    is_merge,
     MainlineRef,
     Repository,
     Revision,
@@ -3308,6 +3309,21 @@ def _partition_by_shipping(
             if target is None:
                 continue
             repo, revision = target
+
+            # A merge introduces no change of its own — the work is in its
+            # parents — and under a Git Flow-shaped workflow the same work is
+            # merged twice: once onto the integration branch and once onto
+            # mainline, as two commits with identical parents. The
+            # integration one can never be an ancestor of mainline, so
+            # checking it reported every such rule as unshipped forever while
+            # its work was in mainline (D-121).
+            #
+            # Skipped rather than counted as shipped. If a rule's evidence is
+            # *all* merges nothing is checked, and it falls through to
+            # uncheckable below — which is the honest answer, not a verdict.
+            if is_merge(repo, commit.sha):
+                continue
+
             answer = contains_commit(repo, commit.sha, revision)
             if answer == "no":
                 unshipped.append(commit.sha)

@@ -426,24 +426,37 @@ class TestNothingElsePublishes:
         assert "CON-58" in str(exc.value)
         assert "nobody has decided" in str(exc.value)
 
-    def test_publishing_leaves_no_temporary_clone_behind(self, subject, wiki):
+    def test_publishing_leaves_no_temporary_clone_behind(
+        self, subject, wiki, tmp_path, monkeypatch
+    ):
+        """Scoped to this test's own temporary directory.
+
+        It used to glob the shared system temp dir, which is only correct
+        while one publish runs at a time: another test publishing concurrently
+        appears between `before` and `after` and reads as a leak. Found by
+        running the suite in parallel.
+        """
         import tempfile
 
-        before = set(Path(tempfile.gettempdir()).glob("constat-publish-*"))
+        scratch = tmp_path / "tmp"
+        scratch.mkdir()
+        monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+
         publish_document(subject, "622", GitPages(wiki))
-        after = set(Path(tempfile.gettempdir()).glob("constat-publish-*"))
 
-        assert after == before
+        assert list(scratch.glob("constat-publish-*")) == []
 
-    def test_a_failed_publish_also_cleans_up(self, subject, tmp_path):
+    def test_a_failed_publish_also_cleans_up(self, subject, tmp_path, monkeypatch):
         import tempfile
 
-        before = set(Path(tempfile.gettempdir()).glob("constat-publish-*"))
+        scratch = tmp_path / "tmp"
+        scratch.mkdir()
+        monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+
         with pytest.raises(PublishFailed):
             publish_document(subject, "622", GitPages(f"file://{tmp_path / 'x.git'}"))
-        after = set(Path(tempfile.gettempdir()).glob("constat-publish-*"))
 
-        assert after == before
+        assert list(scratch.glob("constat-publish-*")) == []
 
 
 # --- helpers -----------------------------------------------------------------

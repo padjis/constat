@@ -284,6 +284,27 @@ def search_text(
     return tuple(paths[:limit])
 
 
+def is_merge(repo: Repository, sha: str) -> bool:
+    """Whether `sha` is a merge — more than one parent (CON-117).
+
+    Asked because a merge commit introduces no change of its own: the work is
+    in its parents. Under a Git Flow-shaped workflow the same work is merged
+    twice, once onto the integration branch and once onto mainline, producing
+    two different commit objects with identical parents. The integration one
+    can never be an ancestor of mainline, so a rule read from it reported as
+    unshipped forever while its work sat in mainline.
+
+    A commit git cannot read is **not** a merge as far as this is concerned.
+    Saying otherwise would skip it, and skipping is how a commit stops being
+    checked — a vanished commit must reach `contains_commit` and be reported
+    as unknown (D-087).
+    """
+    result = run_git(["show", "-s", "--format=%P", sha], cwd=repo.root)
+    if result.returncode != 0:
+        return False
+    return len(result.stdout.split()) > 1
+
+
 def contains_commit(repo: Repository, sha: str, revision: str) -> str:
     """Whether `revision` contains `sha`: `yes`, `no`, or `unknown`.
 

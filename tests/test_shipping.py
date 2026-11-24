@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-from constat.git.adapter import contains_commit, discover_repository
+from constat.git.adapter import contains_commit, discover_repository, is_merge
 from constat.models import Anchor, RuleProposal
 from constat.operations import open_run, product_state, render_state
 from constat.store import Registry, Review, RuleProposals, TicketStore, Workspace
@@ -339,3 +339,67 @@ class TestWhatCannotBeChecked:
         assert state.agreed == ()
         assert [r.name for r in state.unverifiable] == ["daily-limit"]
         assert "daily-limit" in [r.rule.name for r in state.rules]
+
+
+class TestAMergeIsNotCheckedForShipping:
+    """A merge introduces no change of its own (CON-117, D-121).
+
+    Found in the live workspace, not in a fixture. Ticket 632's evidence was
+    two commits: the work, and a merge of its branch onto `develop`. Accepting
+    merged the branch onto `main`, which produced a *second* merge commit with
+    **identical parents** — same work, two commit objects, one per branch.
+
+    The develop-side merge can never be an ancestor of `main`, so all five
+    rules reported as "agreed, not yet shipped" forever, while the commit
+    carrying the change sat in mainline. That is the Git Flow limit
+    (`LIMITS.md` 3) producing a confidently wrong claim about the product.
+    """
+
+    def _git_flow(self, tmp_path: Path):
+        """A repository where the same work is merged onto two branches."""
+        clone = _repository(tmp_path, "billing")
+        git(clone, "checkout", "--quiet", "-b", "feat/615-raise-limit")
+        commit_file(clone, "rules.py", "LIMIT = 250\n", "615: raise the limit")
+        work = git(clone, "rev-parse", "HEAD")
+
+        # Onto develop, as the team's integration branch.
+        git(clone, "checkout", "--quiet", "-b", "develop", "main")
+        git(clone, "merge", "--no-ff", "--quiet", "-m", "Merge for 615",
+            "feat/615-raise-limit")
+        git(clone, "push", "--quiet", "origin", "develop")
+
+        # And onto main, which is what Constat reads as mainline.
+        git(clone, "checkout", "--quiet", "main")
+        git(clone, "merge", "--no-ff", "--quiet", "-m", "Merge for 615",
+            "feat/615-raise-limit")
+        git(clone, "push", "--quiet", "origin", "main")
+        return clone, work
+
+    def test_a_merge_commit_is_recognised(self, tmp_path: Path) -> None:
+        clone, work = self._git_flow(tmp_path)
+        repo = discover_repository(str(clone))
+
+        assert is_merge(repo, git(clone, "rev-parse", "origin/develop"))
+        assert not is_merge(repo, work)
+
+    def test_a_missing_commit_is_not_a_merge(self, tmp_path: Path) -> None:
+        """Or it would be skipped, and skipping is how a commit stops being
+        checked at all. A vanished commit must reach `contains_commit` and be
+        reported as unknown (D-087)."""
+        clone, _ = self._git_flow(tmp_path)
+
+        assert not is_merge(discover_repository(str(clone)), "0" * 40)
+
+    def test_the_rule_is_current_behaviour(self, tmp_path: Path) -> None:
+        """The whole point: the work is in mainline, so the rule is."""
+        clone, _ = self._git_flow(tmp_path)
+        git(clone, "checkout", "--quiet", "develop")
+
+        with Workspace.create(tmp_path / "ws") as ws:
+            Registry(ws).add(str(clone), alias="billing", default_branch="main")
+            TicketStore(ws).add(REFERENCE)
+            _gather_and_accept(ws)
+            state = product_state(ws)
+
+        assert state.agreed == ()
+        assert [r.rule.name for r in state.rules] == ["daily-limit"]

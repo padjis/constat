@@ -8,6 +8,46 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-121 · 2026-11-22 · A merge commit is not checked for shipping
+
+**Closes CON-117. Amends D-087.**
+
+**Decision.** The shipping check skips commits with more than one parent. A
+merge introduces no change of its own — the work is in its parents — so
+asking whether a merge is an ancestor of mainline answers a question about
+branch topology rather than about the product.
+
+**Context, found in the live workspace rather than in a fixture.** Ticket
+632's evidence was two commits: the work, and a merge of its branch onto
+`develop`. Accepting the rules merged the same branch onto `main`, producing
+a second merge commit with **identical parents** — one commit object per
+branch, carrying the same change. The develop-side merge can never be an
+ancestor of `main`, so all five rules reported as *"agreed, not yet shipped"*
+while the commit carrying the change was in mainline and had been for hours.
+
+That is `LIMITS.md` § 3's Git Flow limit producing a **confidently wrong
+claim about the present** — the exact failure D-087 was written to prevent,
+arriving through a case D-087 did not consider.
+
+**Skipped, never counted as shipped.** If a rule's evidence is all merges,
+nothing is checked and it falls through to *uncheckable*, which stays in the
+picture and is flagged. A merge is not evidence that work landed; it is
+evidence Constat declines to read.
+
+**A commit git cannot read is not a merge**, deliberately. Saying otherwise
+would skip it, and skipping is how a commit stops being checked at all — a
+vanished commit must still reach `contains_commit` and be reported as
+**unknown** (D-087's third answer).
+
+**What this does not fix.** Constat still assumes one mainline (D-076), and a
+rule read *only* from a develop-side merge now reports as uncheckable rather
+than as shipped. That is the honest answer and not a good one; the limit
+stands until CON-99.
+
+**Status.** accepted
+
+---
+
 ## D-120 · 2026-11-22 · The status page indexes the areas; a rule is rendered once
 
 **Closes CON-116.** Completes CON-111's done-when, which was half-built.

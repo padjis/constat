@@ -27,7 +27,13 @@ dependencies = ["pydantic>=2.7"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "mcp>=2"]
+dev = ["pytest>=8", "pytest-xdist>=3", "mcp>=2"]
+# `pytest-xdist` is development-only and earns its place by measurement: the
+# suite is 1600 small tests that each shell out to git, so it is bound by
+# subprocess startup rather than by any hot spot — the slowest single test is
+# under two seconds. `pytest -n auto` took it from 283s to 55s on 14 cores,
+# and a fast suite is what makes "run the tests before you commit" a habit
+# rather than a cost. It also found a test that was not parallel-safe.
 # The MCP server is opt-in: `pip install constat[mcp]`. A CLI user should not
 # carry a protocol library they never run, and the evidence pipeline must keep
 # working with nothing but pydantic installed (D-003).
