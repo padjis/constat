@@ -59,6 +59,7 @@ from .operations import (
     product_state,
     publish_document,
     publish_index,
+    publish_releases,
     publish_state,
     record_read_decisions,
     render_state,
@@ -2669,6 +2670,13 @@ def _run_publish(args: argparse.Namespace) -> int:
                 repository=args.repository,
                 accept_scan_findings=args.accept_scan_findings,
             )
+            releases = publish_releases(
+                workspace,
+                target,
+                repository=args.repository,
+                accept_scan_findings=args.accept_scan_findings,
+            )
+            # After the releases, so it lists pages that already exist.
             index = publish_index(
                 workspace,
                 target,
@@ -2689,6 +2697,8 @@ def _run_publish(args: argparse.Namespace) -> int:
         return EXIT_WORKSPACE
 
     print(f"published:  {result.ref.describe()}")
+    for release in releases:
+        print(f"release:    {release.ref.describe()}")
     print(f"index:      {index.ref.describe()}")
     if result.scan_accepted:
         print(

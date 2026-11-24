@@ -8,6 +8,53 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-114 · 2026-11-22 · A declared release is published as a page
+
+**Closes CON-112.**
+
+**Decision.** `constat publish` writes a page per declared release, from the
+reading `release show` already produces, and the index lists them. The
+reference is the release name under a reserved `release-` prefix.
+
+**It needs no release lifecycle, and that is the finding.** CON-86 — closing a
+release putting its versions into effect — is still open and undecided, and
+this does not wait on it. The page says **agreed**, which is a fact Constat
+holds, rather than **in effect**, which it does not. D-103 had already drawn
+that line for the terminal; this carries it to a page.
+
+**The three kinds of claim stay apart**, because a page is read by people who
+were not in the conversation and cannot ask:
+
+- `agreed` is a **fact** — somebody accepted each version for this release.
+- `stood` is a **reconstruction** derived from it, and the page says
+  "reconstructed rather than recorded" rather than letting a reader assume a
+  snapshot was taken at the time.
+- **Nothing says the release shipped.** No ship is recorded (CON-86) and a
+  release name is never parsed for ordering (D-102), so "what was in effect at
+  release X" has no answer. The page says so and points at `state`, which
+  verifies the present against mainline (D-087).
+
+**A prefix is reserved rather than a name.** A release name is free text that
+Constat never interprets, so a release page cannot be named by parsing. The
+`release-` prefix is reserved for the reason the two whole names are: every
+page is named from a reference, and a ticket called `release-2026.11` would
+silently overwrite one.
+
+**Consequences.**
+
+- **Every declared release is republished every time**, like the catalogue: a
+  release page that lags is read as current.
+- A workspace with no releases publishes none, and that is not a failure —
+  `release list` already says that no declared release is not a statement that
+  nothing shipped.
+- Records no operation, on D-110's narrowing: a release belongs to no ticket.
+- If CON-86 ever lands, the page gains "in effect" and loses nothing: the
+  fact/reconstruction split survives it.
+
+**Status.** accepted
+
+---
+
 ## D-113 · 2026-11-22 · Pages name each other, and the publication record is finally read
 
 **Closes CON-110.**

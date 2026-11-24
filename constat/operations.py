@@ -1853,6 +1853,13 @@ def publish_document(
     for a publication that failed would claim a disclosure that never
     happened, which is worse than no record at all.
     """
+    if reference.startswith(RELEASE_PREFIX):
+        raise InvalidInput(
+            f"{reference!r} starts with {RELEASE_PREFIX!r}, which is reserved "
+            "for release pages (CON-112). `constat publish` writes those, "
+            "from the releases this workspace has declared."
+        )
+
     if reference in (STATE_REFERENCE, INDEX_REFERENCE):
         # Reserved, because every page is named from a reference and a ticket
         # called this would silently overwrite a generated one (CON-106,
@@ -1975,7 +1982,141 @@ def published_pages(workspace: Workspace) -> tuple[PublishedPage, ...]:
     return tuple(seen.values())
 
 
-def render_index(pages: tuple[PublishedPage, ...]) -> str:
+RELEASE_PREFIX = "release-"
+"""Reserved for release pages (CON-112).
+
+A release name is free text, never interpreted (D-102), so a release page is
+named by prefixing rather than by parsing. The prefix is reserved for the same
+reason the two whole names are: every page is named from a reference, and a
+ticket called `release-2026.11` would silently overwrite one.
+"""
+
+
+def release_page(name: str) -> str:
+    """The reference a release is published under."""
+    return f"{RELEASE_PREFIX}{name}"
+
+
+def render_release(reading: ReleaseReading) -> str:
+    """One release as a page (CON-112).
+
+    The same three kinds of claim `release show` keeps apart (D-103), said on
+    a page rather than at a terminal: `agreed` is a **fact**, `stood` is a
+    **reconstruction** derived from it, and neither says the release shipped.
+    A page is read by people who were not in the conversation, so the basis is
+    printed rather than assumed.
+    """
+    release = reading.release
+    lines = [
+        f"# Release {release.name}",
+        "",
+        f"Declared by {release.declared_by} on {release.created_at[:10]}.",
+        "",
+        "## Agreed for this release",
+        "",
+    ]
+
+    if not reading.agreed:
+        lines += [
+            "Nothing has been agreed for it yet. A rule version is attached to "
+            "a release when it is accepted, with `rule accept <ID> --release "
+            f"{release.name}`, and never afterwards — the version is frozen.",
+            "",
+        ]
+    else:
+        lines += [
+            f"{len(reading.agreed)} rule version(s). This is a **fact**: "
+            "somebody accepted each of these for this release.",
+            "",
+        ]
+        for version in reading.agreed:
+            cite = version.ref or f"rule {version.rule_id}"
+            lines.append(
+                f"- `{cite}` v{version.version_no} **{version.name}** — "
+                f"{version.statement}"
+            )
+        lines.append("")
+
+    if reading.is_reconstructable:
+        lines += [
+            "## The catalogue as it then stood",
+            "",
+            f"{len(reading.stood)} rule version(s), **reconstructed** rather "
+            "than recorded: nothing was snapshotted at the time, so this is "
+            "assembled from what had been accepted by then. Each says which "
+            "release it was agreed for, because a rule untouched since an "
+            "earlier one still stood then and reading it as part of this "
+            "release would be wrong.",
+            "",
+        ]
+        for version in reading.stood:
+            cite = version.ref or f"rule {version.rule_id}"
+            origin = (
+                f"agreed for {version.agreed_for}"
+                if version.agreed_for
+                else "no release recorded"
+            )
+            lines.append(
+                f"- `{cite}` v{version.version_no} **{version.name}** "
+                f"— {origin}"
+            )
+        lines.append("")
+
+    lines += [
+        "## What this page does not say",
+        "",
+        "**It does not say this release shipped.** No ship is recorded "
+        "anywhere in Constat, and a release name is never parsed for ordering "
+        "— so \"what was in effect at release X\" has no answer here. What "
+        "the product does *now* is verified against mainline, on "
+        f"[the product as it stands]({_page_link(STATE_REFERENCE)}).",
+        "",
+        f"Every page is listed in the [index]({_page_link(INDEX_REFERENCE)}).",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def publish_releases(
+    workspace: Workspace,
+    target: Target | None = None,
+    *,
+    repository: str | None = None,
+    accept_scan_findings: bool = False,
+) -> tuple[PublishResult, ...]:
+    """Publish a page for every declared release (CON-112).
+
+    All of them, every time, for the reason the catalogue is refreshed: a
+    release page that lags is read as current. A workspace with no releases
+    publishes nothing and that is not a failure — `release list` says in terms
+    that no declared release is not a statement that nothing shipped.
+    """
+    releases = Releases(workspace).list()
+    if not releases:
+        return ()
+
+    if target is None:
+        target = detect_target(repository, workspace)
+
+    results = []
+    for release in releases:
+        body = render_release(read_release(workspace, release.name))
+        scan_findings = guard_publication(body, accepted=accept_scan_findings)
+        ref = target.publish(release_page(release.name), body)
+        results.append(
+            PublishResult(
+                ref=ref,
+                run_id=None,
+                scan_findings=scan_findings,
+                scan_accepted=bool(scan_findings) and accept_scan_findings,
+            )
+        )
+    return tuple(results)
+
+
+def render_index(
+    pages: tuple[PublishedPage, ...], releases: tuple[Release, ...] = ()
+) -> str:
     """The page that says what else is here (CON-110).
 
     Built from the publication record rather than from the ticket list, so it
@@ -1990,6 +2131,20 @@ def render_index(pages: tuple[PublishedPage, ...]) -> str:
         "rule a person has accepted, by area. Nothing on it can be decided.",
         "",
     ]
+
+    if releases:
+        lines += [
+            "## By release",
+            "",
+            "What was agreed for a named release, and how the catalogue then "
+            "stood. Neither says the release shipped.",
+            "",
+        ]
+        for release in releases:
+            lines.append(
+                f"- [{release.name}]({_page_link(release_page(release.name))})"
+            )
+        lines.append("")
 
     if not pages:
         lines += [
@@ -2039,7 +2194,7 @@ def publish_index(
     an index that lags is worse than none, because it is read as complete.
     Records no operation, on D-110's narrowing — it belongs to no ticket.
     """
-    body = render_index(published_pages(workspace))
+    body = render_index(published_pages(workspace), Releases(workspace).list())
     scan_findings = guard_publication(body, accepted=accept_scan_findings)
 
     if target is None:
