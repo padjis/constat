@@ -42,7 +42,7 @@ from .ai.redaction import scrub_message
 from .ai import resolve as resolve_provider
 from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
-from .publish import AREA_PREFIX, AREAS_DIRECTORY, REVIEWS_DIRECTORY, INDEX_REFERENCE, STATE_REFERENCE, is_generated, PublishedRef, Target
+from .publish import Awaiting, AREA_PREFIX, AREAS_DIRECTORY, REVIEWS_DIRECTORY, INDEX_REFERENCE, STATE_REFERENCE, is_generated, PublishedRef, Target
 from .publish.decisions import DecisionLine, DecisionsRead
 from .publish.targets.git_pages import GitPages
 from .publish.targets.git_pages import detect as git_pages_detect
@@ -1860,7 +1860,22 @@ def render_review(workspace: Workspace, reference: str) -> str:
         ]
         for item in queue:
             lines.append(f"- `#{item.id}` **{item.proposal.name}**")
-            lines.append(f"  {item.proposal.statement}")
+            previous = (
+                getattr(
+                    Catalogue(workspace).by_id(item.revises_rule_id),
+                    "statement",
+                    None,
+                )
+                if item.revises_rule_id is not None
+                else None
+            )
+            if previous is None:
+                lines.append(f"  {item.proposal.statement}")
+            else:
+                # Both statements, because "is this a change and is the change
+                # right" is the reviewer's whole question (CON-120).
+                lines.append(f"  **was** — {previous}")
+                lines.append(f"  **now** — {item.proposal.statement}")
             lines.append(f"  Read by {item.attribution}.")
         lines += [
             "",
@@ -1979,8 +1994,22 @@ def publish_document(
     # The ids the reviewer has to write, so they do not have to be copied off
     # the page (CON-115). Strings, because a decision may also be written
     # against a rule citation and the file takes either.
+    catalogue = Catalogue(workspace)
     awaiting = tuple(
-        str(item.id)
+        Awaiting(
+            id=str(item.id),
+            name=item.proposal.name,
+            statement=item.proposal.statement,
+            # What this would replace, when the proposal claims to revise a
+            # rule. A claim rather than a key (D-050) — if the rule it names
+            # is gone, the reviewer is shown no "before" rather than a
+            # guessed one.
+            previous=(
+                getattr(catalogue.by_id(item.revises_rule_id), "statement", None)
+                if item.revises_rule_id is not None
+                else None
+            ),
+        )
         for item in RuleProposals(workspace).undecided(reference)
     )
     ref = target.publish(reference, body, awaiting)

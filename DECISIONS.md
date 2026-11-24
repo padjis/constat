@@ -8,6 +8,51 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-124 · 2026-11-22 · A prompt says what is being decided, and a revision shows both statements
+
+**Closes CON-120. Extends D-119.**
+
+**Decision.** The prompt Constat appends to a decisions file carries the
+proposal's name and statement, indented above the line to write on. A
+proposal that revises a rule shows **WAS** and **NOW**. The review page shows
+the same pair.
+
+```
+    #26 daily-limit
+    WAS — A transfer above 250 euros is refused.
+    NOW — A transfer above 500 euros is refused.
+26:
+```
+
+**Context.** D-119 put ids in the file so a reviewer need not copy them from
+the review page. It left them bare, so the reviewer still read the statements
+on one page and wrote verdicts on another — and for a revision **neither page
+said what had changed**. The review page rendered the new statement alone,
+which cannot answer the reviewer's actual question: *is this a change, and is
+the change right.*
+
+**The context is indented**, which `parse` already skips — the same mechanism
+that stops the template's worked examples arriving as decisions nobody made
+(D-105). So nothing Constat writes into the reviewer's file can be read back
+as a verdict, which keeps the file's one safety property intact.
+
+**A missing "before" is shown as a new rule, never guessed.**
+`revises_rule_id` is a claim rather than a key (D-050): if the rule it names
+is gone, the reviewer sees no WAS line rather than an invented one.
+
+**Consequences.**
+
+- Prompts already written stay bare. Constat never alters a line it has
+  written into that file, so a file seeded before this keeps its ids without
+  context and only new proposals get the fuller form. The alternative is
+  rewriting the reviewer's file, which is the one thing D-105 forbids.
+- `Target.publish` takes `Awaiting` records rather than id strings. A target
+  that ignores them still works.
+
+**Status.** accepted
+
+---
+
 ## D-123 · 2026-11-22 · The index lists the pages published to *this* target
 
 **Closes CON-119. Narrows D-113.**

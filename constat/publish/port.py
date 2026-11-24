@@ -110,6 +110,28 @@ silently overwrite the index and nobody would notice until it was wrong.
 
 
 @dataclass(frozen=True)
+class Awaiting:
+    """A proposal waiting for a verdict, with what a reviewer needs to give one.
+
+    Carried to the target so the decisions file can say *what* is being
+    decided beside the id (CON-120). Before this it held bare numbers: a
+    reviewer read the statements on one page and wrote verdicts on another,
+    and for a revision neither page said what had changed.
+    """
+
+    id: str
+    name: str
+    statement: str
+
+    previous: str | None = None
+    """The statement this one would replace, when the proposal revises a rule.
+
+    `None` for a new rule. The distinction is the reviewer's whole question —
+    *is this a change, and is the change right* — and it cannot be read off a
+    statement alone."""
+
+
+@dataclass(frozen=True)
 class PublishedRef:
     """Where a document went, concretely enough to go and look.
 
@@ -142,7 +164,7 @@ class Target(Protocol):
         ...
 
     def publish(
-        self, reference: str, body: str, awaiting: tuple[str, ...] = ()
+        self, reference: str, body: str, awaiting: tuple["Awaiting", ...] = ()
     ) -> PublishedRef:
         """Write the document for `reference`, returning where it went.
 

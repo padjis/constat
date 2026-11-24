@@ -42,6 +42,7 @@ from ..decisions import (
 )
 from ..port import (
     AREA_PREFIX,
+    Awaiting,
     AREAS_DIRECTORY,
     EVIDENCE_DIRECTORY,
     REVIEWS_DIRECTORY,
@@ -220,6 +221,28 @@ def _iso(epoch: str) -> str | None:
     )
 
 
+def _prompt(item: Awaiting) -> str:
+    """One proposal's prompt: what is being decided, then the line to write on.
+
+    The context is **indented**, which `parse` already skips — the same
+    mechanism that keeps the template's worked examples from arriving as
+    decisions nobody made. So a reviewer reads and writes in one place, and
+    nothing Constat wrote here is ever read back as a verdict.
+
+    A revision shows both statements. "Is this a change, and is the change
+    right" is the reviewer's whole question, and it cannot be answered from
+    the new statement alone (CON-120).
+    """
+    lines = [f"    #{item.id} {item.name}"]
+    if item.previous is None:
+        lines.append(f"    NEW — {item.statement}")
+    else:
+        lines.append(f"    WAS — {item.previous}")
+        lines.append(f"    NOW — {item.statement}")
+    lines.append(f"{item.id}: ")
+    return "\n".join(lines) + "\n\n"
+
+
 class GitPages:
     """A git repository used as a documentation target."""
 
@@ -351,7 +374,7 @@ class GitPages:
             shutil.rmtree(workdir, ignore_errors=True)
 
     def publish(
-        self, reference: str, body: str, awaiting: tuple[str, ...] = ()
+        self, reference: str, body: str, awaiting: tuple[Awaiting, ...] = ()
     ) -> PublishedRef:
         """Clone, write the page, commit and push. Returns where it landed."""
         workdir = Path(tempfile.mkdtemp(prefix="constat-publish-"))
@@ -404,11 +427,11 @@ class GitPages:
                 # here.
                 text = decisions.read_text()
                 already = mentioned(text)
-                new = [ref for ref in awaiting if ref not in already]
+                new = [item for item in awaiting if item.id not in already]
                 if new:
                     if not text.endswith("\n"):
                         text += "\n"
-                    text += "".join(f"{ref}: \n" for ref in new)
+                    text += "".join(_prompt(item) for item in new)
                     decisions.write_text(text)
                     unchanged = False
                     prompted = True

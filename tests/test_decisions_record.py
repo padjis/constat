@@ -40,6 +40,7 @@ import pytest
 from constat.cli import EXIT_DECISIONS, EXIT_OK, EXIT_USAGE, main
 from constat.operations import open_run, record_read_decisions
 from constat.publish.decisions import file_for
+from constat.publish import Awaiting
 from constat.publish.targets.git_pages import GitPages
 from constat.store import Catalogue, Review, RuleProposals, TicketStore, Workspace
 
@@ -752,6 +753,15 @@ class TestTheCommandLine:
         assert "Reading a target twice is safe" in out
 
 
+def _awaiting(id: str, previous: str | None = None) -> Awaiting:
+    return Awaiting(
+        id=id,
+        name=f"rule-{id}",
+        statement=f"A statement for {id}.",
+        previous=previous,
+    )
+
+
 class TestPromptsInTheDecisionsFile:
     """One line per undecided proposal, appended and never altered (CON-115).
 
@@ -773,7 +783,10 @@ class TestPromptsInTheDecisionsFile:
     def test_an_undecided_proposal_is_prompted_for(self, tmp_path, wiki):
         target = GitPages(str(wiki))
 
-        target.publish(REFERENCE, "# a page\n", awaiting=("1", "2"))
+        target.publish(
+            REFERENCE, "# a page\n",
+            awaiting=(_awaiting("1"), _awaiting("2")),
+        )
 
         body = self._file(tmp_path, wiki, "prompted")
         assert "\n1: \n" in body
@@ -782,7 +795,10 @@ class TestPromptsInTheDecisionsFile:
     def test_an_unanswered_prompt_is_not_a_refusal(self, tmp_path, wiki):
         """Or every proposal nobody had reached yet would come back as one."""
         target = GitPages(str(wiki))
-        target.publish(REFERENCE, "# a page\n", awaiting=("1", "2"))
+        target.publish(
+            REFERENCE, "# a page\n",
+            awaiting=(_awaiting("1"), _awaiting("2")),
+        )
 
         read = target.read_decisions(REFERENCE)
 
@@ -792,10 +808,13 @@ class TestPromptsInTheDecisionsFile:
     def test_a_reviewers_own_line_is_never_touched(self, tmp_path, wiki):
         """The promise D-105 made, kept while the file keeps changing."""
         target = GitPages(str(wiki))
-        target.publish(REFERENCE, "# a page\n", awaiting=("1",))
+        target.publish(REFERENCE, "# a page\n", awaiting=(_awaiting("1"),))
         decide_in_target(tmp_path, wiki, "1: approved — mine\n")
 
-        target.publish(REFERENCE, "# a page, again\n", awaiting=("1", "2"))
+        target.publish(
+            REFERENCE, "# a page, again\n",
+            awaiting=(_awaiting("1"), _awaiting("2")),
+        )
 
         body = self._file(tmp_path, wiki, "kept")
         assert "1: approved — mine" in body
@@ -803,10 +822,10 @@ class TestPromptsInTheDecisionsFile:
 
     def test_an_answered_proposal_is_not_prompted_again(self, tmp_path, wiki):
         target = GitPages(str(wiki))
-        target.publish(REFERENCE, "# a page\n", awaiting=("1",))
+        target.publish(REFERENCE, "# a page\n", awaiting=(_awaiting("1"),))
         decide_in_target(tmp_path, wiki, "1: approved\n")
 
-        target.publish(REFERENCE, "# a page\n", awaiting=("1",))
+        target.publish(REFERENCE, "# a page\n", awaiting=(_awaiting("1"),))
 
         # A reviewer may fill the prompt in place or append their answer
         # below it. Either way the *prompt* is written once: what must not
@@ -818,8 +837,45 @@ class TestPromptsInTheDecisionsFile:
         """It has no proposals and no decisions file at all (D-117)."""
         target = GitPages(str(wiki))
 
-        target.publish("index", "# index\n", awaiting=("1",))
+        target.publish("index", "# index\n", awaiting=(_awaiting("1"),))
 
         clone = tmp_path / "generated"
         git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
         assert not (clone / "decisions" / "index.md").exists()
+
+    def test_the_prompt_says_what_is_being_decided(self, tmp_path, wiki):
+        """The gap this closed: ids with no content. A reviewer read the
+        statements on the review page and wrote verdicts in this one."""
+        GitPages(str(wiki)).publish(
+            REFERENCE, "# a page\n", awaiting=(_awaiting("7"),)
+        )
+
+        body = self._file(tmp_path, wiki, "context")
+        assert "    #7 rule-7" in body
+        assert "    NEW — A statement for 7." in body
+
+    def test_a_revision_shows_both_statements(self, tmp_path, wiki):
+        """"Is this a change, and is the change right" is the reviewer's whole
+        question, and the new statement alone cannot answer it."""
+        GitPages(str(wiki)).publish(
+            REFERENCE, "# a page\n",
+            awaiting=(_awaiting("7", previous="The old statement."),),
+        )
+
+        body = self._file(tmp_path, wiki, "revision")
+        assert "    WAS — The old statement." in body
+        assert "    NOW — A statement for 7." in body
+
+    def test_the_context_is_never_read_as_a_verdict(self, tmp_path, wiki):
+        """It is indented, which `parse` already skips — the mechanism that
+        keeps the template's worked examples from arriving as decisions."""
+        target = GitPages(str(wiki))
+        target.publish(
+            REFERENCE, "# a page\n",
+            awaiting=(_awaiting("7", previous="The old statement."),),
+        )
+
+        read = target.read_decisions(REFERENCE)
+
+        assert read.decisions == ()
+        assert read.unreadable == ()
