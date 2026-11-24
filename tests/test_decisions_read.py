@@ -376,7 +376,7 @@ class TestTheFileConstatDoesNotOwn:
         # Under `evidence/` since CON-113; the decisions file beside it is
         # still keyed on the reference alone, so moving the page did not move
         # a reviewer's verdicts.
-        assert (clone / "evidence" / "402.md").read_text() == "# Replaced\n"
+        assert (clone / "reviews" / "402.md").read_text() == "# Replaced\n"
 
 
 # -- the command line ----------------------------------------------------------

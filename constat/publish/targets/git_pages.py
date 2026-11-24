@@ -43,6 +43,7 @@ from ..port import (
     AREA_PREFIX,
     AREAS_DIRECTORY,
     EVIDENCE_DIRECTORY,
+    REVIEWS_DIRECTORY,
     PublishedRef,
     is_generated,
 )
@@ -256,7 +257,7 @@ class GitPages:
         safe = self.safe_name(reference)
         if is_generated(reference):
             return f"{safe}.md"
-        return f"{EVIDENCE_DIRECTORY}/{safe}.md"
+        return f"{REVIEWS_DIRECTORY}/{safe}.md"
 
     def references_published(self, prefix: str) -> tuple[str, ...]:
         """Every reference already published under `prefix` (CON-111).

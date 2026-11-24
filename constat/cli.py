@@ -59,6 +59,7 @@ from .operations import (
     product_state,
     publish_document,
     publish_areas,
+    render_review,
     publish_index,
     publish_releases,
     publish_state,
@@ -387,6 +388,14 @@ def build_parser() -> argparse.ArgumentParser:
             "catalogue, instead of writing a page. Who decided comes from the "
             "commit, so there is no --by here. Reading the same commit twice "
             "records nothing the second time."
+        ),
+    )
+    review.add_argument(
+        "--show",
+        action="store_true",
+        help=(
+            "print the page instead of writing it. Exactly what would be "
+            "published, so it can be read before anything leaves the machine."
         ),
     )
     review.add_argument(
@@ -2495,6 +2504,10 @@ def _run_review(args: argparse.Namespace) -> int:
                     file=sys.stderr,
                 )
                 return EXIT_USAGE
+
+            if args.show:
+                print(render_review(workspace, args.reference))
+                return EXIT_OK
 
             if args.record_decisions:
                 recorded = _record_decisions(workspace, args, target)

@@ -42,7 +42,7 @@ from .ai.redaction import scrub_message
 from .ai import resolve as resolve_provider
 from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
-from .publish import AREA_PREFIX, AREAS_DIRECTORY, EVIDENCE_DIRECTORY, INDEX_REFERENCE, STATE_REFERENCE, is_generated, PublishedRef, Target
+from .publish import AREA_PREFIX, AREAS_DIRECTORY, REVIEWS_DIRECTORY, INDEX_REFERENCE, STATE_REFERENCE, is_generated, PublishedRef, Target
 from .publish.decisions import DecisionLine, DecisionsRead
 from .publish.targets.git_pages import GitPages
 from .publish.targets.git_pages import detect as git_pages_detect
@@ -1825,6 +1825,86 @@ class PublishResult:
     scan_accepted: bool = False
 
 
+def render_review(workspace: Workspace, reference: str) -> str:
+    """A ticket's page: the proposals awaiting a verdict, and nothing else.
+
+    **Not the stored document, and that is the change** (CON-114). The
+    document is the technical view — files changed, diffs, which repository
+    contributed what — and it stays at the terminal, where `document --show`
+    prints it and `rule show` reaches the evidence a rule rests on.
+
+    Publishing it did two things wrong at once. It put paths in a repository
+    whose other pages carry none (D-117 separated them; this removes the
+    reason to). And it looked like an archive without being one: the page is
+    rewritten on every run, and once the ticket lands it regenerates with no
+    diffs at all, because a landed ticket contributes no evidence (D-031).
+    The durable record is the `run_commit` pointer in the workspace (CON-79).
+
+    What a reviewer needs in order to decide is the statement, the id to write
+    a verdict against, and who read it. That is this page.
+    """
+    proposals = RuleProposals(workspace)
+    queue = proposals.undecided(reference)
+    decided = tuple(
+        item for item in proposals.for_ticket(reference) if item.decision
+    )
+
+    lines = [f"# {reference}", ""]
+
+    if queue:
+        lines += [
+            f"**{len(queue)} rule proposal(s) await a decision.** None carries "
+            "any authority until accepted (D-036, D-037).",
+            "",
+        ]
+        for item in queue:
+            lines.append(f"- `#{item.id}` **{item.proposal.name}**")
+            lines.append(f"  {item.proposal.statement}")
+            lines.append(f"  Read by {item.attribution}.")
+        lines += [
+            "",
+            "To decide, write one line per proposal in the `decisions/` file "
+            "beside this page, using the `#N` above:",
+            "",
+            "    1: approved",
+            "    2: rejected — the limit is per account, not per customer",
+            "",
+            "Who decided is taken from your commit, so do not write your "
+            "name.",
+            "",
+        ]
+    else:
+        lines += [
+            "**Every proposal from this ticket is decided.** This page is a "
+            "record of what was read and what became of it.",
+            "",
+        ]
+
+    if decided:
+        lines += ["## Decided", ""]
+        for item in decided:
+            lines.append(
+                f"- `#{item.id}` **{item.proposal.name}** — {item.decision}"
+            )
+        lines.append("")
+
+    lines += [
+        "---",
+        "",
+        "The evidence this reading rests on is not published. It is a pointer "
+        "to a commit rather than a copy of a diff, held in the workspace where "
+        "`constat rule show` and `constat document` reach it — a page of diffs "
+        "would look like an archive and is not one, because it is rewritten on "
+        "every run.",
+        "",
+        f"What the product does is on [the product as it stands]"
+        f"({_page_link(STATE_REFERENCE, frm=reference)}); every page is in the "
+        f"[index]({_page_link(INDEX_REFERENCE, frm=reference)}).",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def publish_document(
     workspace: Workspace,
     reference: str,
@@ -1884,7 +1964,9 @@ def publish_document(
             "reference."
         )
 
-    body = TicketStore(workspace).document(reference).body
+    # The review rendering, not the stored document (CON-114). The document
+    # is the technical view and stays at the terminal.
+    body = render_review(workspace, reference)
 
     # First, and before any target exists: a refusal has to leave the world
     # untouched (D-047, D-058).
@@ -2330,13 +2412,14 @@ def render_index(
         return "\n".join(lines)
 
     lines += [
-        "## By ticket — the evidence view",
+        "## By ticket",
         "",
-        "**These pages are the technical half** (product rule 8) and live "
-        f"under `{EVIDENCE_DIRECTORY}/`: one page per piece of work, naming "
-        "the files it changed and the readings taken from it. The pages above "
-        "carry none of that. A verdict is written in the `decisions/` file "
-        "beside the page it belongs to.",
+        "One page per piece of work, carrying the readings taken from it and "
+        f"nothing else, under `{REVIEWS_DIRECTORY}/`. **The evidence is not "
+        "published** — it is a pointer to a commit held in the workspace, and "
+        "a page of diffs would look like an archive without being one. A "
+        "verdict is written in the `decisions/` file beside the page it "
+        "belongs to.",
         "",
         "| Ticket | Last published |",
         "| --- | --- |",
@@ -3379,7 +3462,7 @@ def _page_link(reference: str, *, frm: str | None = None) -> str:
     elif is_generated(reference):
         page = f"{_safe(reference)}.md"
     else:
-        page = f"{EVIDENCE_DIRECTORY}/{_safe(reference)}.md"
+        page = f"{REVIEWS_DIRECTORY}/{_safe(reference)}.md"
 
     # A page in a folder reaches the root through `../`. A link that forgot
     # which folder it was written from would resolve nowhere, which is the

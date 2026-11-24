@@ -183,16 +183,24 @@ class TestPublishingATicket:
         assert sorted(p.name for p in clone.glob("*.md")) == [
             "index.md", f"{STATE_REFERENCE}.md"
         ]
-        assert (clone / "evidence" / "622.md").exists()
+        assert (clone / "reviews" / "622.md").exists()
 
-    def test_the_ticket_page_is_still_the_stored_document(
+    def test_the_page_is_what_review_show_prints(
         self, subject, wiki, tmp_path
     ) -> None:
-        """Refreshing the catalogue must not change what a ticket page says."""
+        """D-056's property, restated by CON-114.
+
+        It used to be "what lands is the stored document". The page is no
+        longer the document — the document is the technical view and stays at
+        the terminal — so the property it was protecting moves with it: a
+        reviewer can see exactly what will be published before anything leaves
+        the machine, and the page cannot differ from what they were shown.
+        """
+        from constat.operations import render_review
         from constat.cli import main
 
         _accept_a_rule(subject)
-        stored = TicketStore(subject).document("622").body
+        expected = render_review(subject, "622")
 
         main(
             [
@@ -201,7 +209,25 @@ class TestPublishingATicket:
             ]
         )
 
-        assert (_pages(tmp_path, wiki) / "evidence" / "622.md").read_text() == stored
+        assert (_pages(tmp_path, wiki) / "reviews" / "622.md").read_text() == expected
+
+    def test_the_page_carries_no_evidence(self, subject, wiki, tmp_path) -> None:
+        """The whole point of CON-114: the stored document names files, the
+        published page does not."""
+        from constat.cli import main
+
+        _accept_a_rule(subject)
+        assert "rules.py" in TicketStore(subject).document("622").body
+
+        main(
+            [
+                "--workspace", str(Path(subject.path).parent),
+                "review", "622", "--target", wiki,
+            ]
+        )
+
+        page = (_pages(tmp_path, wiki) / "reviews" / "622.md").read_text()
+        assert "rules.py" not in page
 
 
 # -- the reserved name --------------------------------------------------------

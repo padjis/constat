@@ -103,7 +103,7 @@ class TestARuleNamesTheTicketItCameFrom:
 
         body = render_state(product_state(subject))
 
-        assert "read from [622](evidence/622.md)" in body
+        assert "read from [622](reviews/622.md)" in body
 
     def test_a_rule_with_no_ticket_says_nothing(self, subject) -> None:
         """Rather than inventing a page that may not exist."""
@@ -149,7 +149,7 @@ class TestTheIndex:
 
         body = render_index(published_pages(subject))
 
-        assert "[622](evidence/622.md)" in body
+        assert "[622](reviews/622.md)" in body
 
     def test_it_lists_what_was_published_not_what_exists(
         self, subject, wiki
@@ -163,7 +163,7 @@ class TestTheIndex:
 
         body = render_index(published_pages(subject))
 
-        assert "[622](evidence/622.md)" in body
+        assert "[622](reviews/622.md)" in body
         assert "700" not in body
 
     def test_republishing_lists_a_page_once(self, subject, wiki) -> None:

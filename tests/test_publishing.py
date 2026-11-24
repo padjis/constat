@@ -80,7 +80,7 @@ def subject(workspace, tmp_path: Path):
     return workspace
 
 
-def page_in(wiki_url_: str, tmp_path: Path, name: str = "evidence/622.md") -> Path:
+def page_in(wiki_url_: str, tmp_path: Path, name: str = "reviews/622.md") -> Path:
     """Clone the target and return the published page.
 
     Under `evidence/` since CON-113: a ticket page is the technical half and
@@ -99,14 +99,21 @@ class TestADocumentReachesTheTarget:
         assert page.exists()
         assert result.ref.revision is not None
 
-    def test_what_lands_is_the_stored_document(self, subject, wiki, tmp_path):
-        """Not a re-render. D-056 made the document a function of stored state
-        so a reviewer and a reader cannot be shown different things; publishing
-        a freshly rendered body would reintroduce exactly that gap."""
-        stored = TicketStore(subject).document("622").body
+    def test_what_lands_is_what_review_show_prints(self, subject, wiki, tmp_path):
+        """D-056's property, as CON-114 left it.
+
+        It used to read "what lands is the stored document". The page is no
+        longer the document — the evidence half stays at the terminal — so the
+        property moves rather than goes: a reviewer can print exactly what
+        will be published before anything leaves the machine, and the page
+        cannot differ from what they were shown.
+        """
+        from constat.operations import render_review
+
+        expected = render_review(subject, "622")
         publish_document(subject, "622", GitPages(wiki))
 
-        assert page_in(wiki, tmp_path).read_text() == stored
+        assert page_in(wiki, tmp_path).read_text() == expected
 
     def test_the_commit_message_names_the_ticket(self, subject, wiki, tmp_path):
         publish_document(subject, "622", GitPages(wiki))
@@ -126,7 +133,7 @@ class TestADocumentReachesTheTarget:
 
         check = tmp_path / "once"
         git(tmp_path, "clone", "--quiet", wiki, str(check))
-        pages = sorted(p.name for p in (check / "evidence").glob("*.md"))
+        pages = sorted(p.name for p in (check / "reviews").glob("*.md"))
         assert pages == ["622.md"]
 
     def test_an_unchanged_republish_makes_no_commit(self, subject, wiki, tmp_path):
@@ -148,58 +155,85 @@ class TestADocumentReachesTheTarget:
         """A reference arrives from a commit message, so it is attacker-shaped
         in the same way a filename is."""
         target = GitPages(wiki)
-        assert target.page_for("../../etc/passwd") == "evidence/etc-passwd.md"
+        assert target.page_for("../../etc/passwd") == "reviews/etc-passwd.md"
         # One slash, and it is the evidence directory's (CON-113). The
         # property is that the *reference* contributes none: a page lands
         # where Constat put it and nowhere else.
-        assert target.page_for("feature/622") == "evidence/feature-622.md"
-        assert target.page_for("...") == "evidence/document.md"
+        assert target.page_for("feature/622") == "reviews/feature-622.md"
+        assert target.page_for("...") == "reviews/document.md"
 
 
-class TestACredentialRefusesThePublication:
-    def test_a_credential_in_the_document_refuses(self, subject, wiki):
+class TestACredentialAndThePublishedPage:
+    """CON-114 changed what this gate has to catch, and strengthened it.
+
+    The published page is no longer the stored document: the evidence — the
+    diffs, the changed files, the excerpts — stays at the terminal. So a
+    credential sitting in a diff **cannot reach the target at all**, by
+    construction rather than by a detector noticing it.
+
+    What can still reach it is a rule's own statement, since the proposals are
+    the page. The gate is tested there, which is where it now earns its keep.
+    """
+
+    def test_a_credential_in_the_evidence_never_reaches_the_target(
+        self, subject, wiki, tmp_path
+    ):
+        """Stronger than refusing it: it is not published, so there is nothing
+        to refuse. The scanner is not what stops it — the split is."""
         with workspace_body(subject, '\n    aws_key = "AKIAIOSFODNN7EXAMPLE"'):
-            with pytest.raises(PublicationRefused):
-                publish_document(subject, "622", GitPages(wiki))
+            publish_document(subject, "622", GitPages(wiki))
+
+        assert "AKIAIOSFODNN7EXAMPLE" not in page_in(wiki, tmp_path).read_text()
+
+    def test_a_credential_in_a_statement_refuses(self, subject, wiki):
+        """The case the gate still exists for: a reading can quote one, and a
+        statement is on the page."""
+        _leaky_proposal(subject)
+
+        with pytest.raises(PublicationRefused):
+            publish_document(subject, "622", GitPages(wiki))
 
     def test_the_target_is_untouched_by_a_refusal(self, subject, wiki, tmp_path):
         """The gate runs before anything is cloned, so a refusal cannot leave a
         partial page or a commit behind."""
-        with workspace_body(subject, '\n    aws_key = "AKIAIOSFODNN7EXAMPLE"'):
-            with pytest.raises(PublicationRefused):
-                publish_document(subject, "622", GitPages(wiki))
+        _leaky_proposal(subject)
+
+        with pytest.raises(PublicationRefused):
+            publish_document(subject, "622", GitPages(wiki))
 
         check = tmp_path / "untouched"
         git(tmp_path, "clone", "--quiet", wiki, str(check))
-        assert sorted(p.name for p in check.glob("*.md")) == []
+        assert sorted(p.name for p in check.rglob("*.md")) == []
 
     def test_the_refusal_says_nothing_was_published(self, subject, wiki):
         """A user who cannot tell whether a document left the machine has to
-        assume it did. For a document carrying a credential that is the
-        difference between rotating a key and not."""
-        with workspace_body(subject, '\n    aws_key = "AKIAIOSFODNN7EXAMPLE"'):
-            with pytest.raises(PublicationRefused) as exc:
-                publish_document(subject, "622", GitPages(wiki))
+        assume it did. For one carrying a credential that is the difference
+        between rotating a key and not."""
+        _leaky_proposal(subject)
 
-        assert "Nothing has been published" in str(exc.value)
-        assert "cannot be recalled" in str(exc.value)
+        with pytest.raises(PublicationRefused) as exc:
+            publish_document(subject, "622", GitPages(wiki))
+
+        assert "nothing has been published" in str(exc.value).lower()
 
     def test_the_location_is_reported_and_the_secret_is_not(self, subject, wiki):
-        with workspace_body(subject, '\n    aws_key = "AKIAIOSFODNN7EXAMPLE"'):
-            with pytest.raises(PublicationRefused) as exc:
-                publish_document(subject, "622", GitPages(wiki))
+        _leaky_proposal(subject)
+
+        with pytest.raises(PublicationRefused) as exc:
+            publish_document(subject, "622", GitPages(wiki))
 
         assert "aws_access_key_id" in str(exc.value)
         assert "AKIAIOSFODNN7EXAMPLE" not in str(exc.value)
 
     def test_an_override_publishes_and_is_recorded(self, subject, wiki, tmp_path):
-        with workspace_body(subject, '\n    aws_key = "AKIAIOSFODNN7EXAMPLE"'):
-            result = publish_document(
-                subject, "622", GitPages(wiki), accept_scan_findings=True
-            )
+        _leaky_proposal(subject)
+
+        result = publish_document(
+            subject, "622", GitPages(wiki), accept_scan_findings=True
+        )
 
         assert result.scan_accepted is True
-        assert len(result.scan_findings) == 1
+        assert result.scan_findings
         recorded = operations_of(subject, "publish_document")[0]
         assert json.loads(recorded["payload"])["scan_accepted"] is True
 
@@ -303,7 +337,7 @@ class TestATargetIsNeverGuessed:
         assert result.ref.revision is not None
         check = tmp_path / "from-empty"
         git(tmp_path, "clone", "--quiet", f"file://{bare}", str(check))
-        assert (check / "evidence" / "622.md").exists()
+        assert (check / "reviews" / "622.md").exists()
 
     def test_a_missing_repository_explains_the_wiki_case(self, subject, tmp_path):
         """The failure the previous test was mistaken for. On GitHub and GitLab
@@ -337,9 +371,10 @@ class TestThePublicationIsRecorded:
     def test_a_refused_publication_records_nothing(self, subject, wiki):
         """The ordering that matters. An operation row for a publication that
         did not happen is a false record of disclosure."""
-        with workspace_body(subject, '\n    aws_key = "AKIAIOSFODNN7EXAMPLE"'):
-            with pytest.raises(PublicationRefused):
-                publish_document(subject, "622", GitPages(wiki))
+        _leaky_proposal(subject)
+
+        with pytest.raises(PublicationRefused):
+            publish_document(subject, "622", GitPages(wiki))
 
         assert operations_of(subject, "publish_document") == []
 
@@ -412,6 +447,29 @@ class TestNothingElsePublishes:
 
 
 # --- helpers -----------------------------------------------------------------
+
+
+def _leaky_proposal(workspace: Workspace) -> int:
+    """Record a proposal whose statement quotes a credential.
+
+    Recorded directly rather than submitted, so the parse gates do not refuse
+    it first: this is about the *publication* gate, and a reading that gets
+    past the earlier ones is exactly the case it exists for.
+    """
+    from constat.models import Anchor, RuleProposal
+    from constat.operations import open_run
+    from constat.store import RuleProposals
+
+    run_id = open_run(workspace, "622", "submit_reply")
+    return RuleProposals(workspace).record(
+        run_id,
+        RuleProposal(
+            name="leaky",
+            statement='The key is AKIAIOSFODNN7EXAMPLE and it is refused.',
+            anchors=(Anchor(path_glob="rules.py", repository_alias="billing"),),
+        ),
+        provider="mcp",
+    )
 
 
 class workspace_body:

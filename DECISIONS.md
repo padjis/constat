@@ -8,6 +8,56 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-118 · 2026-11-22 · The evidence is not published, only pointed at
+
+**Closes CON-114. Amends D-056 and supersedes the publication half of D-117.**
+
+**Decision.** A ticket's published page is the **proposals awaiting a
+verdict** — the statement, the id to decide against, who read it — and nothing
+else. It is written by `render_review`, lives under `reviews/`, and
+`constat review <REF> --show` prints exactly what would be published. The
+stored document keeps the evidence and stays at the terminal.
+
+**Context.** D-117 separated the evidence pages into a folder, which answered
+"the business repository has Java in it" without answering whether the
+evidence belonged on a page at all. It does not, for a reason that was
+available the whole time and that nobody had said out loud:
+
+**a published page of diffs looks like an archive and is not one.** It is
+rewritten on every run, and once the ticket lands it regenerates with no diffs
+at all, because a landed ticket contributes no evidence (D-031). The durable
+record is the `run_commit` pointer — a commit SHA and a subject, deliberately
+not a copy (CON-79, D-002) — reached by `rule show` and `constat document`.
+So the page duplicated what the workspace holds, in a form that decays.
+
+**D-056 is amended, not abandoned.** "What lands is exactly what
+`document --show` prints" became false the moment the page stopped being the
+document. The property it protected — a reviewer and a reader cannot be shown
+different things — is kept by `review --show`, which prints the page itself.
+Two tests assert the published bytes equal that rendering.
+
+**The credential gate got stronger, and its tests moved.** A credential in a
+diff can no longer reach the target **by construction**, rather than by a
+detector catching it: the diff is not published. What can still reach it is a
+rule's own statement, since the proposals are the page — so that is where the
+gate is tested now. The old tests planted a credential in the stored document
+and asserted a refusal; they assert it is never published instead, with a
+second set driving the refusal from a statement.
+
+**Consequences.**
+
+- `evidence/` existed for about an hour and is gone from the live target.
+  `reviews/` is the folder, named for what the page is.
+- Publishing is cheaper and smaller: a page of proposals rather than a page
+  of diffs.
+- **A reviewer with no terminal cannot see what was read.** That is the cost,
+  it is accepted, and it is reversible — the rendering is one function. The
+  day such a reviewer exists, this is the decision to revisit.
+
+**Status.** accepted
+
+---
+
 ## D-117 · 2026-11-22 · One target, three folders: the evidence view is separated, not stripped
 
 **Closes CON-113.** Supersedes nothing; it settles where D-058's two page

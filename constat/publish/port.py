@@ -48,6 +48,18 @@ The `area-` prefix survives as the *reference* — how Constat names the page
 internally — because a reference is what every publishing command takes.
 """
 
+REVIEWS_DIRECTORY = "reviews"
+"""Where a ticket's page goes (CON-114).
+
+It was `evidence/` for an afternoon. The page is not evidence: it is the
+proposals awaiting a verdict, which is what a reviewer needs in order to
+decide and all they need. The evidence itself stays in the workspace, where
+the durable record is a pointer to a commit rather than a copy of a diff
+(CON-79) — a published page of diffs looks like an archive and is not one,
+because it is rewritten on every run and regenerates empty once the ticket
+lands.
+"""
+
 EVIDENCE_DIRECTORY = "evidence"
 """Where a ticket's page goes (CON-113).
 
