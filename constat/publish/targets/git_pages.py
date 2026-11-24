@@ -39,7 +39,13 @@ from ..decisions import (
     file_for,
     parse,
 )
-from ..port import PublishedRef
+from ..port import (
+    AREA_PREFIX,
+    AREAS_DIRECTORY,
+    EVIDENCE_DIRECTORY,
+    PublishedRef,
+    is_generated,
+)
 
 NAME = "git-pages"
 
@@ -226,15 +232,31 @@ class GitPages:
             return self.url
         return f"{self.url} (derived from {self.derived_from})"
 
-    def page_for(self, reference: str) -> str:
-        """The page filename for a ticket.
+    @staticmethod
+    def safe_name(reference: str) -> str:
+        """The filename stem for a reference.
 
         Sanitised because a reference reaches here from a commit message and a
         reference like `../../etc/x` must not become a path. Everything outside
         a conservative set becomes `-`.
         """
-        safe = re.sub(r"[^A-Za-z0-9._-]", "-", reference).strip("-.") or "document"
-        return f"{safe}.md"
+        return re.sub(r"[^A-Za-z0-9._-]", "-", reference).strip("-.") or "document"
+
+    def page_for(self, reference: str) -> str:
+        """Where a page goes: the root for the business pages, `evidence/` for
+        a ticket (CON-113).
+
+        The directory is the separation. Both audiences share one target, so a
+        reader can tell from the path which of the two they are reading, and
+        the business pages carry no path of their own (D-115).
+        """
+        if reference.startswith(AREA_PREFIX):
+            safe = self.safe_name(reference[len(AREA_PREFIX):])
+            return f"{AREAS_DIRECTORY}/{safe}.md"
+        safe = self.safe_name(reference)
+        if is_generated(reference):
+            return f"{safe}.md"
+        return f"{EVIDENCE_DIRECTORY}/{safe}.md"
 
     def references_published(self, prefix: str) -> tuple[str, ...]:
         """Every reference already published under `prefix` (CON-111).
@@ -259,10 +281,20 @@ class GitPages:
                 # here, and both mean the same thing to the caller: there is
                 # no page to tombstone. A real failure surfaces on the write.
                 return ()
-            found = sorted(
-                path.name[: -len(".md")]
-                for path in clone.glob(f"{prefix}*.md")
-            )
+            # An area page lives in `areas/` and is named without its
+            # prefix, so the reference is rebuilt from the stem. It
+            # round-trips to the same file even though the area's exact
+            # name cannot be recovered — sanitising is one-way.
+            if prefix == AREA_PREFIX:
+                found = sorted(
+                    f"{AREA_PREFIX}{path.name[: -len('.md')]}"
+                    for path in (clone / AREAS_DIRECTORY).glob("*.md")
+                ) if (clone / AREAS_DIRECTORY).is_dir() else []
+            else:
+                found = sorted(
+                    path.name[: -len(".md")]
+                    for path in clone.glob(f"{prefix}*.md")
+                )
             return tuple(found)
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
@@ -294,7 +326,7 @@ class GitPages:
                     "read as 'nobody has decided'."
                 )
 
-            path = file_for(self.page_for(reference))
+            path = file_for(f"{self.safe_name(reference)}.md")
             location = f"{self.url} :: {path}"
             file = clone / path
             if not file.exists():
@@ -334,6 +366,9 @@ class GitPages:
                 )
 
             page = clone / self.page_for(reference)
+            # A ticket page lives under `evidence/` (CON-113), which a fresh
+            # clone does not have until something is written there.
+            page.parent.mkdir(parents=True, exist_ok=True)
             unchanged = page.exists() and page.read_text() == body
             page.write_text(body)
 
@@ -341,12 +376,21 @@ class GitPages:
             # reviewer needs somewhere to write that Constat does not own —
             # the page above is a living view rewritten on every run, so a
             # decision put there would be destroyed on the next publish.
-            decisions = clone / file_for(self.page_for(reference))
-            seeded = not decisions.exists()
-            if seeded:
-                decisions.parent.mkdir(parents=True, exist_ok=True)
-                decisions.write_text(TEMPLATE.format(reference=reference))
-                unchanged = False
+            #
+            # **Only for a ticket page.** A generated page carries no rule
+            # proposal and says so in terms, and `--record-decisions` reads a
+            # ticket's file and no other — so seeding one beside the
+            # catalogue or an area invited a verdict that nothing would ever
+            # read. A decision somebody believes was recorded is the failure
+            # D-041 exists to prevent.
+            seeded = False
+            if not is_generated(reference):
+                decisions = clone / file_for(f"{self.safe_name(reference)}.md")
+                seeded = not decisions.exists()
+                if seeded:
+                    decisions.parent.mkdir(parents=True, exist_ok=True)
+                    decisions.write_text(TEMPLATE.format(reference=reference))
+                    unchanged = False
 
             if unchanged:
                 # Nothing to commit, and `git commit` would fail. Reporting it
@@ -362,7 +406,7 @@ class GitPages:
             run_git(["add", "--", self.page_for(reference)], cwd=clone)
             if seeded:
                 run_git(
-                    ["add", "--", file_for(self.page_for(reference))], cwd=clone
+                    ["add", "--", file_for(f"{self.safe_name(reference)}.md")], cwd=clone
                 )
             committed = run_git(
                 ["commit", "--quiet", "-m", COMMIT_SUBJECT.format(reference=reference)],

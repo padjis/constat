@@ -39,6 +39,42 @@ catalogue — a collision nobody would notice until the page was already wrong.
 """
 
 
+AREAS_DIRECTORY = "areas"
+"""Where an area page goes.
+
+A folder rather than a prefix, so the target reads as what it is: `areas/`
+beside `evidence/` and `decisions/`, with the whole-product pages at the root.
+The `area-` prefix survives as the *reference* — how Constat names the page
+internally — because a reference is what every publishing command takes.
+"""
+
+EVIDENCE_DIRECTORY = "evidence"
+"""Where a ticket's page goes (CON-113).
+
+A ticket page is the **technical evidence view** product rule 8 asks for: it
+is made of paths, changed files and diffs, by design. The business pages — the
+catalogue, the areas, the releases, the index — carry none of that (D-115).
+
+Both audiences share one target, so the separation is a directory rather than
+a second repository: one credential, one setting, and a reader who lands in
+`evidence/` can see from the path alone which of the two they are reading.
+"""
+
+
+def is_generated(reference: str) -> bool:
+    """Whether a reference names a page Constat generates for the business.
+
+    The generated pages live at the root; a ticket page lives under
+    `evidence/`. Asked here rather than at the target so every implementation
+    of the port answers it the same way.
+    """
+    return (
+        reference in (STATE_REFERENCE, INDEX_REFERENCE)
+        or reference.startswith(AREA_PREFIX)
+        or reference.startswith(RELEASE_PREFIX)
+    )
+
+
 AREA_PREFIX = "area-"
 """Reserved for area pages (CON-111).
 
@@ -47,6 +83,10 @@ identity (D-079, CON-88) — so an area page is named by prefixing its name
 rather than by any identifier. Reserved like `release-`: every page is named
 from a reference, and a ticket called `area-payments` would overwrite one.
 """
+
+RELEASE_PREFIX = "release-"
+"""Reserved for release pages (CON-112). Defined here with the other page
+names so `is_generated` can answer without importing from operations."""
 
 INDEX_REFERENCE = "index"
 """The page that lists every other page (CON-110).

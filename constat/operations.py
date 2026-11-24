@@ -42,7 +42,7 @@ from .ai.redaction import scrub_message
 from .ai import resolve as resolve_provider
 from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
-from .publish import AREA_PREFIX, INDEX_REFERENCE, STATE_REFERENCE, PublishedRef, Target
+from .publish import AREA_PREFIX, AREAS_DIRECTORY, EVIDENCE_DIRECTORY, INDEX_REFERENCE, STATE_REFERENCE, is_generated, PublishedRef, Target
 from .publish.decisions import DecisionLine, DecisionsRead
 from .publish.targets.git_pages import GitPages
 from .publish.targets.git_pages import detect as git_pages_detect
@@ -247,7 +247,7 @@ entitled to know that no path produces it — PRODUCT_SPEC § 7.1 now says so to
 """
 
 
-def provenance_legend() -> list[str]:
+def provenance_legend(reference: str | None = None) -> list[str]:
     """How to read the provenance labels, generated from the taxonomy.
 
     Built from the dictionaries above rather than written out, so a type that
@@ -255,6 +255,7 @@ def provenance_legend() -> list[str]:
     the old shape. A test asserts the legend covers every member of
     `ProvenanceType` — which is what stops the two halves drifting apart.
     """
+    linking_from = reference
     lines = [
         "## How to read this",
         "",
@@ -278,8 +279,9 @@ def provenance_legend() -> list[str]:
         # reader who wants what the product does, rather than what this change
         # touched, had no path to it at all.
         f"The whole catalogue is on [the product as it stands]"
-        f"({_page_link(STATE_REFERENCE)}), and every page published from this "
-        f"workspace is listed in the [index]({_page_link(INDEX_REFERENCE)}).",
+        f"({_page_link(STATE_REFERENCE, frm=linking_from)}), and every page "
+        f"published from this workspace is listed in the "
+        f"[index]({_page_link(INDEX_REFERENCE, frm=linking_from)}).",
         "",
     ]
     return lines
@@ -897,7 +899,7 @@ def render(
     # because a document whose labels are explained only sometimes teaches a
     # reader to ignore them (CON-10).
     lines.append("")
-    lines += provenance_legend()
+    lines += provenance_legend(reference)
     return "\n".join(lines)
 
 
@@ -2036,8 +2038,8 @@ def render_area(area: str, states: tuple[RuleState, ...]) -> str:
         "---",
         "",
         f"Every area is on [the product as it stands]"
-        f"({_page_link(STATE_REFERENCE)}); every page is in the "
-        f"[index]({_page_link(INDEX_REFERENCE)}).",
+        f"({_page_link(STATE_REFERENCE, frm=area_page(area))}); every page is "
+        f"in the [index]({_page_link(INDEX_REFERENCE, frm=area_page(area))}).",
         "",
     ]
     return "\n".join(lines)
@@ -2061,13 +2063,15 @@ def render_emptied_area(area: str) -> str:
         "",
         "Rules that were here have been re-filed elsewhere or retired. Nothing "
         "has been lost: every rule the catalogue has ever held is still in it, "
-        f"on [the product as it stands]({_page_link(STATE_REFERENCE)}).",
+        f"on [the product as it stands]"
+        f"({_page_link(STATE_REFERENCE, frm=area_page(area))}).",
         "",
         "This page is kept so a link to it still resolves. It is not current, "
         "and it is not a record of what the area used to contain — that is "
         "what `rule history` is for.",
         "",
-        f"Every page is listed in the [index]({_page_link(INDEX_REFERENCE)}).",
+        f"Every page is listed in the "
+        f"[index]({_page_link(INDEX_REFERENCE, frm=area_page(area))}).",
         "",
     ])
 
@@ -2208,8 +2212,12 @@ def publish_areas(
             )
         )
 
-    for stem in target.references_published(AREA_PREFIX):
-        if f"{stem}.md" in current:
+    for stale in target.references_published(AREA_PREFIX):
+        # Compared as resolved paths. The reference Constat wrote and the one
+        # rebuilt from a filename differ whenever an area name needed
+        # sanitising — `area-app install` against `area-app-install` — and
+        # they resolve to the same page.
+        if _page_link(stale) in current:
             continue
         # An area this target has a page for and the catalogue no longer
         # holds. Rewritten rather than deleted: the link keeps resolving and
@@ -2217,12 +2225,12 @@ def publish_areas(
         # The stem, not the area's name: sanitising is one-way, so the exact
         # name cannot be recovered from the filename and the page must not
         # pretend otherwise.
-        body = render_emptied_area(stem[len(AREA_PREFIX):])
+        body = render_emptied_area(stale[len(AREA_PREFIX):])
         # Scanned like every other egress, though it carries no evidence:
         # one gate on every exit is the property, not one gate where it
         # seemed likely to matter (D-047).
         scan_findings = guard_publication(body, accepted=accept_scan_findings)
-        ref = target.publish(stem, body)
+        ref = target.publish(stale, body)
         results.append(
             PublishResult(ref=ref, run_id=None, scan_findings=scan_findings)
         )
@@ -2322,11 +2330,13 @@ def render_index(
         return "\n".join(lines)
 
     lines += [
-        "## By ticket",
+        "## By ticket — the evidence view",
         "",
-        "One page per piece of work: what it changed, and the readings taken "
-        "from it. A verdict is written in the `decisions/` file beside the "
-        "page it belongs to.",
+        "**These pages are the technical half** (product rule 8) and live "
+        f"under `{EVIDENCE_DIRECTORY}/`: one page per piece of work, naming "
+        "the files it changed and the readings taken from it. The pages above "
+        "carry none of that. A verdict is written in the `decisions/` file "
+        "beside the page it belongs to.",
         "",
         "| Ticket | Last published |",
         "| --- | --- |",
@@ -3347,17 +3357,37 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
-def _page_link(reference: str) -> str:
-    """The filename a reference is published under, for a link between pages.
+def _page_link(reference: str, *, frm: str | None = None) -> str:
+    """The path a reference is published at, relative to the page linking to it.
 
     Derived the same way the target derives it, and deliberately duplicated
     rather than imported: `GitPages.page_for` sanitises a reference so it
     cannot become a path, and a renderer that guessed differently would emit
     links that resolve nowhere. Kept in step by a test that asserts the two
     agree.
+
+    `frm` is the reference of the page doing the linking. It matters because a
+    ticket page lives in `evidence/` (CON-113): a link from there to the root
+    needs `../`, and one that forgot would resolve nowhere — the whole reason
+    the two derivations are tested against each other.
     """
-    safe = re.sub(r"[^A-Za-z0-9._-]", "-", reference).strip("-.") or "document"
-    return f"{safe}.md"
+    def _safe(text: str) -> str:
+        return re.sub(r"[^A-Za-z0-9._-]", "-", text).strip("-.") or "document"
+
+    if reference.startswith(AREA_PREFIX):
+        page = f"{AREAS_DIRECTORY}/{_safe(reference[len(AREA_PREFIX):])}.md"
+    elif is_generated(reference):
+        page = f"{_safe(reference)}.md"
+    else:
+        page = f"{EVIDENCE_DIRECTORY}/{_safe(reference)}.md"
+
+    # A page in a folder reaches the root through `../`. A link that forgot
+    # which folder it was written from would resolve nowhere, which is the
+    # whole reason the renderer and the target are tested against each other.
+    nested = frm is not None and (
+        frm.startswith(AREA_PREFIX) or not is_generated(frm)
+    )
+    return f"../{page}" if nested else page
 
 
 def render_state(state: ProductState) -> str:

@@ -80,9 +80,13 @@ def subject(workspace, tmp_path: Path):
     return workspace
 
 
-def page_in(wiki_url_: str, tmp_path: Path, name: str = "622.md") -> Path:
-    """Clone the target and return the published page."""
-    check = tmp_path / f"check-{name}"
+def page_in(wiki_url_: str, tmp_path: Path, name: str = "evidence/622.md") -> Path:
+    """Clone the target and return the published page.
+
+    Under `evidence/` since CON-113: a ticket page is the technical half and
+    is separated from the business pages by directory.
+    """
+    check = tmp_path / f"check-{name.replace('/', '-')}"
     git(tmp_path, "clone", "--quiet", wiki_url_, str(check))
     return check / name
 
@@ -122,7 +126,7 @@ class TestADocumentReachesTheTarget:
 
         check = tmp_path / "once"
         git(tmp_path, "clone", "--quiet", wiki, str(check))
-        pages = sorted(p.name for p in check.glob("*.md"))
+        pages = sorted(p.name for p in (check / "evidence").glob("*.md"))
         assert pages == ["622.md"]
 
     def test_an_unchanged_republish_makes_no_commit(self, subject, wiki, tmp_path):
@@ -144,9 +148,12 @@ class TestADocumentReachesTheTarget:
         """A reference arrives from a commit message, so it is attacker-shaped
         in the same way a filename is."""
         target = GitPages(wiki)
-        assert target.page_for("../../etc/passwd") == "etc-passwd.md"
-        assert "/" not in target.page_for("feature/622")
-        assert target.page_for("...") == "document.md"
+        assert target.page_for("../../etc/passwd") == "evidence/etc-passwd.md"
+        # One slash, and it is the evidence directory's (CON-113). The
+        # property is that the *reference* contributes none: a page lands
+        # where Constat put it and nowhere else.
+        assert target.page_for("feature/622") == "evidence/feature-622.md"
+        assert target.page_for("...") == "evidence/document.md"
 
 
 class TestACredentialRefusesThePublication:
@@ -296,7 +303,7 @@ class TestATargetIsNeverGuessed:
         assert result.ref.revision is not None
         check = tmp_path / "from-empty"
         git(tmp_path, "clone", "--quiet", f"file://{bare}", str(check))
-        assert (check / "622.md").exists()
+        assert (check / "evidence" / "622.md").exists()
 
     def test_a_missing_repository_explains_the_wiki_case(self, subject, tmp_path):
         """The failure the previous test was mistaken for. On GitHub and GitLab

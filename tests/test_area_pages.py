@@ -85,15 +85,17 @@ def _accept_in(workspace, area: str | None) -> None:
 
 
 def _pages(tmp_path: Path, wiki: str, name: str = "check") -> list[str]:
+    """The area pages on the target. They live in `areas/`, one folder per
+    page kind, so the business pages stay at the root."""
     clone = tmp_path / name
     git(tmp_path, "clone", "--quiet", wiki, str(clone))
-    return sorted(p.name for p in clone.glob("*.md"))
+    return sorted(p.name for p in (clone / "areas").glob("*.md"))
 
 
 def _read(tmp_path: Path, wiki: str, page: str, name: str = "r") -> str:
     clone = tmp_path / name
     git(tmp_path, "clone", "--quiet", wiki, str(clone))
-    return (clone / page).read_text()
+    return (clone / "areas" / page).read_text()
 
 
 # -- one page per area ---------------------------------------------------------
@@ -124,8 +126,9 @@ class TestAnAreaPage:
 
         body = render_area("payments", grouped["payments"])
 
-        assert "(the-product-as-it-stands.md)" in body
-        assert "(index.md)" in body
+        # `../`, because an area page lives under `areas/`.
+        assert "(../the-product-as-it-stands.md)" in body
+        assert "(../index.md)" in body
 
     def test_it_says_nothing_on_it_can_be_decided(self, subject) -> None:
         _accept_in(subject, "payments")
@@ -140,7 +143,7 @@ class TestAnAreaPage:
 
         publish_areas(subject, GitPages(wiki))
 
-        assert "area-payments.md" in _pages(tmp_path, wiki)
+        assert "payments.md" in _pages(tmp_path, wiki)
 
 
 # -- an area that empties ------------------------------------------------------
@@ -158,7 +161,7 @@ class TestAnEmptiedArea:
 
         publish_areas(subject, GitPages(wiki))
 
-        body = _read(tmp_path, wiki, "area-payments.md")
+        body = _read(tmp_path, wiki, "payments.md")
         assert "No rule is filed under this area any more" in body
         assert "daily-limit" not in body
 
@@ -170,13 +173,13 @@ class TestAnEmptiedArea:
 
         publish_areas(subject, GitPages(wiki))
 
-        assert "area-payments.md" in _pages(tmp_path, wiki)
+        assert "payments.md" in _pages(tmp_path, wiki)
 
     def test_the_tombstone_points_at_what_is_current(self) -> None:
         body = render_emptied_area("payments")
 
-        assert "(the-product-as-it-stands.md)" in body
-        assert "(index.md)" in body
+        assert "(../the-product-as-it-stands.md)" in body
+        assert "(../index.md)" in body
 
     def test_it_does_not_claim_to_record_what_was_there(self) -> None:
         """A tombstone that implied it held the old content would be a claim
@@ -205,7 +208,7 @@ class TestNamesAreComparedAsPageNames:
         publish_areas(subject, GitPages(wiki))
         publish_areas(subject, GitPages(wiki))
 
-        body = _read(tmp_path, wiki, "area-app-install.md")
+        body = _read(tmp_path, wiki, "app-install.md")
         assert "No rule is filed" not in body
         assert "daily-limit" in body
 

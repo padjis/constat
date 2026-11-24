@@ -8,6 +8,69 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-117 · 2026-11-22 · One target, three folders: the evidence view is separated, not stripped
+
+**Closes CON-113.** Supersedes nothing; it settles where D-058's two page
+kinds live now that there are five of them.
+
+**Decision.** The documentation target has a shape:
+
+| | |
+| --- | --- |
+| the root | the business pages — catalogue, index, releases |
+| `areas/` | one page per area |
+| `evidence/` | one page per ticket: the technical view, made of paths |
+| `decisions/` | a reviewer's verdicts, one file per **ticket** |
+
+**Context: the business repository had Java in it.** D-115 removed file paths
+from the catalogue page, and an hour later a ticket page was published to the
+same repository — 6 KB of `backend/src/main/java/...`, linked prominently from
+the index under "By ticket". The ticket was satisfied and its intent was not:
+CON-109 was scoped to a *renderer* when the thing that mattered was the
+*target*.
+
+**The evidence view is separated rather than stripped.** Removing paths from
+the ticket page was considered and rejected by the author: it is the technical
+half product rule 8 asks for, and a reviewer judging a reading needs to see
+what was read. A second repository was also rejected — two settings, two
+credentials, two explanations. A folder gives the separation with one of
+each, and a reader can tell from the path which half they are in.
+
+**Three things this broke, each found by running it:**
+
+- **A page in a folder reaches the root through `../`.** `_page_link` now
+  takes the page doing the linking, because a link that forgot its own
+  directory resolves nowhere.
+- **A fresh clone has no `evidence/`.** The publisher never created the
+  directory it was writing into.
+- **The tombstone comparison broke again.** An area's reference and the
+  reference rebuilt from its filename differ whenever the name needed
+  sanitising, so the comparison is on **resolved paths** now — the third
+  spelling of a bug D-113 and D-116 each fixed in one place and left
+  reachable from another.
+
+**A decisions file is seeded for a ticket page and nothing else.** The
+catalogue, the index and an area page carry no rule proposal and say so in
+terms, and `--record-decisions` reads a ticket's file and no other — so
+seeding one beside them invited a verdict nothing would ever read, which is
+the failure D-041 exists to prevent. Six such files existed on the live
+target and were removed by hand.
+
+**A decisions file stays keyed on the reference**, not on the page's path, so
+moving the page did not move a reviewer's verdicts.
+
+**Consequences.**
+
+- `Target.page_for` routes by page kind, and `is_generated` on the port is
+  the single place that distinguishes a generated page from a ticket's.
+- The old flat pages on a live target are not migrated by Constat. They were
+  removed by hand, and a workspace that published before this change will
+  leave its own behind.
+
+**Status.** accepted
+
+---
+
 ## D-116 · 2026-11-22 · A page per area, and a tombstone when one empties
 
 **Closes CON-111.**
