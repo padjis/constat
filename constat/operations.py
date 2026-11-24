@@ -2042,13 +2042,20 @@ class PublishedPage:
     published_at: str
 
 
-def published_pages(workspace: Workspace) -> tuple[PublishedPage, ...]:
+def published_pages(
+    workspace: Workspace, target: str | None = None
+) -> tuple[PublishedPage, ...]:
     """Every ticket page this workspace has published, most recent first.
 
     **The first thing to read the publication record.** `publish_document` has
     written an `operation` row since D-058 and nothing has ever read one back,
     so "where has this document been published" was unanswerable — a gap this
     file has recorded since CON-57.
+
+    `target` filters to one documentation target. Without it the index on one
+    target listed pages published to another — a link into nothing, on a page
+    that claims in its own last line to list only what was published (CON-119).
+    The record has always held the target in its location; nothing read it.
 
     Only ticket pages. The catalogue page records no operation, by the
     narrowing D-110 stated: it belongs to no ticket and `operation.document_id`
@@ -2073,6 +2080,8 @@ def published_pages(workspace: Workspace) -> tuple[PublishedPage, ...]:
         location = ""
         if row["payload"]:
             location = json.loads(row["payload"]).get("location", "")
+        if target is not None and not location.startswith(f"{target} ::"):
+            continue
         seen[row["reference"]] = PublishedPage(
             reference=row["reference"],
             location=location,
@@ -2569,15 +2578,18 @@ def publish_index(
     an index that lags is worse than none, because it is read as complete.
     Records no operation, on D-110's narrowing — it belongs to no ticket.
     """
+    # Resolved before the body is rendered, because the index lists the pages
+    # published *to this target* and cannot know which that is otherwise
+    # (CON-119).
+    if target is None:
+        target = detect_target(repository, workspace)
+
     body = render_index(
-        published_pages(workspace),
+        published_pages(workspace, getattr(target, "url", None)),
         Releases(workspace).list(),
         tuple(product_state(workspace).by_area()),
     )
     scan_findings = guard_publication(body, accepted=accept_scan_findings)
-
-    if target is None:
-        target = detect_target(repository, workspace)
 
     ref = target.publish(INDEX_REFERENCE, body)
     return PublishResult(

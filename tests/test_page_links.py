@@ -172,6 +172,29 @@ class TestTheIndex:
         assert "[622](reviews/622.md)" in body
         assert "700" not in body
 
+    def test_it_lists_only_pages_published_to_this_target(
+        self, subject, wiki, tmp_path
+    ) -> None:
+        """Found on the live wiki: the index listed four review pages and the
+        target held two. A page published to another target was listed here,
+        so two of its four links went nowhere — on a page whose own last line
+        claims it lists what was published (CON-119).
+
+        The record has always held the target in its location. Nothing read
+        it.
+        """
+        other = tmp_path / "other.git"
+        git(tmp_path, "init", "--quiet", "--bare", str(other))
+        publish_document(subject, "622", GitPages(wiki))
+        TicketStore(subject).add("700")
+        gather(subject, "700")
+        publish_document(subject, "700", GitPages(f"file://{other}"))
+
+        here = [p.reference for p in published_pages(subject, wiki)]
+
+        assert here == ["622"]
+        assert "700" in [p.reference for p in published_pages(subject)]
+
     def test_republishing_lists_a_page_once(self, subject, wiki) -> None:
         publish_document(subject, "622", GitPages(wiki))
         publish_document(subject, "622", GitPages(wiki))

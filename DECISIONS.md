@@ -8,6 +8,35 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-123 · 2026-11-22 · The index lists the pages published to *this* target
+
+**Closes CON-119. Narrows D-113.**
+
+**Decision.** `published_pages` takes a target and the index is rendered
+after the target is resolved, so it lists only what was published **there**.
+
+**Context: two of four links went nowhere.** On the live wiki the index
+listed four review pages and the target held two — one had gone to the
+project repository and one to a throwaway bare repo days earlier. The page
+whose own last line says *"a page it never published is not [listed],
+however much the work exists"* was linking into nothing.
+
+**The record always held the target**; nothing read it. `publish_document`
+has stored `location` — `<url> :: reviews/632.md` — since D-058, and D-113
+read every row regardless of where it went. The fix is a filter and an
+ordering: resolve the target first, then render, because an index cannot
+know which target it is for after the fact.
+
+**What stays true.** The index still lists what Constat *published* rather
+than what is on the target now: a page deleted by hand is still listed, and
+the page says so. Reading the target to find out would make the index a
+report on the filesystem rather than on Constat's own record, and the two
+answer different questions.
+
+**Status.** accepted
+
+---
+
 ## D-122 · 2026-11-22 · A rule is shown under a per-area label, which is not its citation
 
 **Closes CON-118.** Does **not** supersede D-081.
