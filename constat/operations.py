@@ -42,7 +42,7 @@ from .ai.redaction import scrub_message
 from .ai import resolve as resolve_provider
 from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
-from .publish import INDEX_REFERENCE, STATE_REFERENCE, PublishedRef, Target
+from .publish import AREA_PREFIX, INDEX_REFERENCE, STATE_REFERENCE, PublishedRef, Target
 from .publish.decisions import DecisionLine, DecisionsRead
 from .publish.targets.git_pages import GitPages
 from .publish.targets.git_pages import detect as git_pages_detect
@@ -1853,6 +1853,13 @@ def publish_document(
     for a publication that failed would claim a disclosure that never
     happened, which is worse than no record at all.
     """
+    if reference.startswith(AREA_PREFIX):
+        raise InvalidInput(
+            f"{reference!r} starts with {AREA_PREFIX!r}, which is reserved "
+            "for area pages (CON-111). `constat publish` writes those, one "
+            "per area the catalogue holds."
+        )
+
     if reference.startswith(RELEASE_PREFIX):
         raise InvalidInput(
             f"{reference!r} starts with {RELEASE_PREFIX!r}, which is reserved "
@@ -1982,6 +1989,89 @@ def published_pages(workspace: Workspace) -> tuple[PublishedPage, ...]:
     return tuple(seen.values())
 
 
+def area_page(name: str) -> str:
+    """The reference an area is published under (CON-111)."""
+    return f"{AREA_PREFIX}{name}"
+
+
+def render_area(area: str, states: tuple[RuleState, ...]) -> str:
+    """One area as a page (CON-111).
+
+    The business explanation, narrowed to one part of the product, so a team
+    can be sent a link to their own rules rather than to the whole catalogue.
+    Carries no file, class or method, for the reason D-115 gave: this is the
+    business half, and the evidence half is the ticket page each rule links
+    to.
+    """
+    lines = [f"# {area}", ""]
+    if not states:
+        return "\n".join(lines + ["No rule is filed under this area.", ""])
+
+    lines += [
+        f"{len(states)} rule(s) a person has accepted. **Nothing on this page "
+        "can be decided** — a rule awaiting a verdict is on its ticket's page.",
+        "",
+    ]
+    for item in states:
+        cite = f"`{item.rule.ref}` " if item.rule.ref else ""
+        lines.append(f"- {cite}**{item.rule.name}** — {item.rule.statement}")
+        if item.references:
+            linked = ", ".join(
+                f"[{reference}]({_page_link(reference)})"
+                for reference in item.references
+            )
+            lines.append(f"  - read from {linked}")
+        for message in item.rule.messages:
+            cite = f"`{message.ref}` " if message.ref else ""
+            lines.append(f"  - shows {cite}> {message.text}")
+        if item.rule.examples:
+            lines.append("")
+            lines += [
+                f"  {line}" if line else ""
+                for line in example_table(item.rule.examples)
+            ]
+        lines.append("")
+
+    lines += [
+        "---",
+        "",
+        f"Every area is on [the product as it stands]"
+        f"({_page_link(STATE_REFERENCE)}); every page is in the "
+        f"[index]({_page_link(INDEX_REFERENCE)}).",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def render_emptied_area(area: str) -> str:
+    """A page for an area that no longer holds a rule (CON-111).
+
+    **Rewritten, never deleted or left as it was.** An area empties when the
+    last rule filed under it is re-accepted elsewhere — there is no rename, so
+    this is the only way it happens. Leaving the old page would serve rules
+    that are no longer filed here to anyone holding the link, with nothing on
+    the page saying so; deleting it would break the link instead. Saying what
+    happened keeps the URL resolving and stops the page claiming to be
+    current.
+    """
+    return "\n".join([
+        f"# {area}",
+        "",
+        "**No rule is filed under this area any more.**",
+        "",
+        "Rules that were here have been re-filed elsewhere or retired. Nothing "
+        "has been lost: every rule the catalogue has ever held is still in it, "
+        f"on [the product as it stands]({_page_link(STATE_REFERENCE)}).",
+        "",
+        "This page is kept so a link to it still resolves. It is not current, "
+        "and it is not a record of what the area used to contain — that is "
+        "what `rule history` is for.",
+        "",
+        f"Every page is listed in the [index]({_page_link(INDEX_REFERENCE)}).",
+        "",
+    ])
+
+
 RELEASE_PREFIX = "release-"
 """Reserved for release pages (CON-112).
 
@@ -2077,6 +2167,69 @@ def render_release(reading: ReleaseReading) -> str:
     return "\n".join(lines)
 
 
+def publish_areas(
+    workspace: Workspace,
+    target: Target | None = None,
+    *,
+    repository: str | None = None,
+    accept_scan_findings: bool = False,
+) -> tuple[PublishResult, ...]:
+    """Publish a page per area, and tombstone the ones that emptied (CON-111).
+
+    The target is asked what it already holds, because nothing in the
+    workspace remembers an area that no longer exists: an area is free text
+    frozen on an accepted version, so when the last rule moves away the area
+    simply stops being in `Catalogue.areas()`.
+    """
+    state = product_state(workspace)
+    grouped = state.by_area()
+
+    if target is None:
+        target = detect_target(repository, workspace)
+
+    results = []
+    current = set()
+    for area, states in grouped.items():
+        reference = area_page(area)
+        # Compared as *page names*, never as references. An area is free text,
+        # so "app install" is the reference `area-app install` and the file
+        # `area-app-install.md` — comparing the two forms tombstoned every
+        # area with a space in it the instant after writing it.
+        current.add(_page_link(reference))
+        body = render_area(area, states)
+        scan_findings = guard_publication(body, accepted=accept_scan_findings)
+        ref = target.publish(reference, body)
+        results.append(
+            PublishResult(
+                ref=ref,
+                run_id=None,
+                scan_findings=scan_findings,
+                scan_accepted=bool(scan_findings) and accept_scan_findings,
+            )
+        )
+
+    for stem in target.references_published(AREA_PREFIX):
+        if f"{stem}.md" in current:
+            continue
+        # An area this target has a page for and the catalogue no longer
+        # holds. Rewritten rather than deleted: the link keeps resolving and
+        # the page stops claiming to be current.
+        # The stem, not the area's name: sanitising is one-way, so the exact
+        # name cannot be recovered from the filename and the page must not
+        # pretend otherwise.
+        body = render_emptied_area(stem[len(AREA_PREFIX):])
+        # Scanned like every other egress, though it carries no evidence:
+        # one gate on every exit is the property, not one gate where it
+        # seemed likely to matter (D-047).
+        scan_findings = guard_publication(body, accepted=accept_scan_findings)
+        ref = target.publish(stem, body)
+        results.append(
+            PublishResult(ref=ref, run_id=None, scan_findings=scan_findings)
+        )
+
+    return tuple(results)
+
+
 def publish_releases(
     workspace: Workspace,
     target: Target | None = None,
@@ -2115,7 +2268,9 @@ def publish_releases(
 
 
 def render_index(
-    pages: tuple[PublishedPage, ...], releases: tuple[Release, ...] = ()
+    pages: tuple[PublishedPage, ...],
+    releases: tuple[Release, ...] = (),
+    areas: tuple[str, ...] = (),
 ) -> str:
     """The page that says what else is here (CON-110).
 
@@ -2131,6 +2286,17 @@ def render_index(
         "rule a person has accepted, by area. Nothing on it can be decided.",
         "",
     ]
+
+    if areas:
+        lines += [
+            "## By area",
+            "",
+            "The same rules, split by the part of the product they describe.",
+            "",
+        ]
+        for area in areas:
+            lines.append(f"- [{area}]({_page_link(area_page(area))})")
+        lines.append("")
 
     if releases:
         lines += [
@@ -2194,7 +2360,11 @@ def publish_index(
     an index that lags is worse than none, because it is read as complete.
     Records no operation, on D-110's narrowing — it belongs to no ticket.
     """
-    body = render_index(published_pages(workspace), Releases(workspace).list())
+    body = render_index(
+        published_pages(workspace),
+        Releases(workspace).list(),
+        tuple(product_state(workspace).by_area()),
+    )
     scan_findings = guard_publication(body, accepted=accept_scan_findings)
 
     if target is None:

@@ -58,6 +58,7 @@ from .operations import (
     land_ticket,
     product_state,
     publish_document,
+    publish_areas,
     publish_index,
     publish_releases,
     publish_state,
@@ -2670,6 +2671,12 @@ def _run_publish(args: argparse.Namespace) -> int:
                 repository=args.repository,
                 accept_scan_findings=args.accept_scan_findings,
             )
+            areas = publish_areas(
+                workspace,
+                target,
+                repository=args.repository,
+                accept_scan_findings=args.accept_scan_findings,
+            )
             releases = publish_releases(
                 workspace,
                 target,
@@ -2697,6 +2704,8 @@ def _run_publish(args: argparse.Namespace) -> int:
         return EXIT_WORKSPACE
 
     print(f"published:  {result.ref.describe()}")
+    for area in areas:
+        print(f"area:       {area.ref.describe()}")
     for release in releases:
         print(f"release:    {release.ref.describe()}")
     print(f"index:      {index.ref.describe()}")

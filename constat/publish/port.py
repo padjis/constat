@@ -39,6 +39,15 @@ catalogue — a collision nobody would notice until the page was already wrong.
 """
 
 
+AREA_PREFIX = "area-"
+"""Reserved for area pages (CON-111).
+
+An area is free text frozen on each accepted version — it has no row and no
+identity (D-079, CON-88) — so an area page is named by prefixing its name
+rather than by any identifier. Reserved like `release-`: every page is named
+from a reference, and a ticket called `area-payments` would overwrite one.
+"""
+
 INDEX_REFERENCE = "index"
 """The page that lists every other page (CON-110).
 
@@ -92,6 +101,21 @@ class Target(Protocol):
 
     def read_decisions(self, reference: str) -> tuple[dict, ...]:
         """Decisions recorded in the target. CON-58."""
+        ...
+
+    def references_published(self, prefix: str) -> tuple[str, ...]:
+        """Every reference already published under `prefix` (CON-111).
+
+        Needed because an area can empty: when the last rule filed under it is
+        re-accepted elsewhere, the area stops existing and nothing in the
+        workspace remembers that a page was ever written for it. Constat's own
+        publication record does not help — it covers ticket pages only, since
+        an `operation` requires a document (D-110).
+
+        So the target is asked. A page Constat wrote and no longer has content
+        for is rewritten as a tombstone rather than deleted or left stale: the
+        URL keeps resolving and the page stops claiming to be current.
+        """
         ...
 
 

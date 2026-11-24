@@ -8,6 +8,62 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-116 · 2026-11-22 · A page per area, and a tombstone when one empties
+
+**Closes CON-111.**
+
+**Decision.** `constat publish` writes a page per area the catalogue holds,
+under a reserved `area-` prefix, and the index lists them. An area page is the
+business half only — no file, class or method, by D-115 — and links out to the
+catalogue and the index.
+
+**An area that no longer holds a rule is rewritten as a tombstone**, not
+deleted and not left as it was.
+
+**Context: the hard part was never the page.** An area is free text frozen on
+each accepted version (D-079, CON-88) — there is no area identity, no row to
+point at, and **no rename operation**. An area therefore stops existing when
+the last rule filed under it is re-accepted elsewhere, and nothing in the
+workspace remembers a page was ever written for it: Constat's own publication
+record covers ticket pages only, because an `operation` requires a document
+(D-110).
+
+So **the target is asked what it holds.** `Target.references_published(prefix)`
+is new on the port, implemented by cloning and globbing. The three options for
+a page with no content behind it were weighed:
+
+- *Delete it* — breaks a link somebody may hold.
+- *Leave it* — serves rules no longer filed there, with nothing on the page
+  saying so. The failure this project refuses everywhere else.
+- *Rewrite it* — the URL keeps resolving and the page stops claiming to be
+  current. Chosen.
+
+**The tombstone does not claim to record what was there.** It is a rewrite,
+not an archive, and it says so and points at `rule history` — which is where
+that question is actually answered.
+
+**A bug found by running it, and worth recording.** The first implementation
+compared **references** against **filenames**: `app install` is the reference
+`area-app install` and the file `area-app-install.md`, so every area with a
+space was tombstoned the instant after being written, and the catalogue page
+and the area page disagreed. Comparison is now on page names throughout. The
+same class of defect D-113 guarded against with a test asserting `_page_link`
+and `page_for` agree — guarded in one place and reintroduced three functions
+away.
+
+**Consequences.**
+
+- The sanitising is **one-way**, so a tombstone is titled from the filename
+  stem rather than from a reconstructed area name. It does not pretend to know
+  the exact name.
+- A page somebody added by hand starting with `area-` is tombstoned too.
+  Constat cannot tell it from one of its own and must not assume it can.
+- Records no operation, on D-110's narrowing.
+
+**Status.** accepted
+
+---
+
 ## D-115 · 2026-11-22 · The business page names no file
 
 **Closes CON-109, in its scoped half.**

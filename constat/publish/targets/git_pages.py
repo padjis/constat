@@ -236,6 +236,37 @@ class GitPages:
         safe = re.sub(r"[^A-Za-z0-9._-]", "-", reference).strip("-.") or "document"
         return f"{safe}.md"
 
+    def references_published(self, prefix: str) -> tuple[str, ...]:
+        """Every reference already published under `prefix` (CON-111).
+
+        Read from a fresh clone rather than remembered: the target is the only
+        thing that knows what is on it, and a workspace that published from
+        another machine would otherwise rewrite nothing.
+
+        The inverse of `page_for`, so it only reports pages this naming scheme
+        could have produced — a file somebody added by hand that happens to
+        start with the prefix is reported too, and that is the honest answer:
+        Constat cannot tell them apart and must not assume it can.
+        """
+        workdir = Path(tempfile.mkdtemp(prefix="constat-list-"))
+        try:
+            clone = workdir / "pages"
+            result = run_git(
+                ["clone", "--quiet", "--depth", "1", self.url, str(clone)]
+            )
+            if result.returncode != 0:
+                # Nothing published yet is indistinguishable from unreachable
+                # here, and both mean the same thing to the caller: there is
+                # no page to tombstone. A real failure surfaces on the write.
+                return ()
+            found = sorted(
+                path.name[: -len(".md")]
+                for path in clone.glob(f"{prefix}*.md")
+            )
+            return tuple(found)
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+
     def read_decisions(self, reference: str) -> DecisionsRead:
         """Read the decisions a reviewer wrote in the target (CON-58).
 

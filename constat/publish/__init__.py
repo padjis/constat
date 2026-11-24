@@ -17,9 +17,10 @@ Three things hold it in place, and all three are tested:
   states explicitly.
 """
 
-from .port import INDEX_REFERENCE, STATE_REFERENCE, NotYetReadable, PublishedRef, Target
+from .port import AREA_PREFIX, INDEX_REFERENCE, STATE_REFERENCE, NotYetReadable, PublishedRef, Target
 from .targets import GitPages, detect
 
-__all__ = ["GitPages", "NotYetReadable", "PublishedRef", "INDEX_REFERENCE",
+__all__ = ["GitPages", "NotYetReadable", "PublishedRef", "AREA_PREFIX",
+    "INDEX_REFERENCE",
     "STATE_REFERENCE",
     "Target", "detect"]
