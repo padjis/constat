@@ -143,8 +143,9 @@ class TestGrouping:
 
         body = render_state(product_state(workspace))
 
-        assert body.index("### payments") < body.index("### (unplaced)")
-        assert "daily-limit" in body and "no-ads" in body
+        # The state page indexes the areas since CON-116; the rules are on
+        # the area pages. Order still carries the meaning: unplaced last.
+        assert body.index("[payments]") < body.index("[(unplaced)]")
 
     def test_a_rule_spanning_two_repositories_appears_once(self, product) -> None:
         """Product-level, not per-repository (D-070). A rule anchored in two
@@ -168,9 +169,13 @@ class TestGrouping:
         # different claims rather than duplicates.
         # Split on "\n## " rather than "## ", or the "### <area>" subheadings
         # split too and the section comes back empty.
-        sections = render_state(state).split("\n## ")[1:]
-        rules_section = next(s for s in sections if s.startswith("Business rules"))
-        assert rules_section.count("**shared**") == 1
+        # Counted on the area page, which is where a rule is listed since
+        # CON-116. The invariant is unchanged: one rule, one entry, however
+        # many repositories its anchors span.
+        from constat.operations import render_area
+
+        area, states = next(iter(state.by_area().items()))
+        assert render_area(area, states).count("**shared**") == 1
 
     def test_no_path_is_named(self, product) -> None:
         """Reversed by CON-109, and the reversal is the point.

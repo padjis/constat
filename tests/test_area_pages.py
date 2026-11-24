@@ -127,7 +127,7 @@ class TestAnAreaPage:
         body = render_area("payments", grouped["payments"])
 
         # `../`, because an area page lives under `areas/`.
-        assert "(../the-product-as-it-stands.md)" in body
+        assert "(../status.md)" in body
         assert "(../index.md)" in body
 
     def test_the_read_from_link_climbs_out_of_the_folder(self, subject) -> None:
@@ -192,7 +192,7 @@ class TestAnEmptiedArea:
     def test_the_tombstone_points_at_what_is_current(self) -> None:
         body = render_emptied_area("payments")
 
-        assert "(../the-product-as-it-stands.md)" in body
+        assert "(../status.md)" in body
         assert "(../index.md)" in body
 
     def test_it_does_not_claim_to_record_what_was_there(self) -> None:

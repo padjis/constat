@@ -353,10 +353,15 @@ class TestVersionsAndRendering:
 
         assert [m.ref for m in version["messages"]] == ["M-1"]
 
-    def test_the_product_state_shows_the_message(self, workspace) -> None:
-        _accept(workspace, (REFUSAL,))
+    def test_the_area_page_shows_the_message(self, workspace) -> None:
+        """On the area page since CON-116 — the state page indexes areas and
+        no longer lists rules, so a message appears where its rule does."""
+        from constat.operations import render_area
 
-        rendered = render_state(product_state(workspace))
+        _accept(workspace, (REFUSAL,))
+        area, states = next(iter(product_state(workspace).by_area().items()))
+
+        rendered = render_area(area, states)
 
         assert "`M-1`" in rendered
         assert REFUSAL in rendered

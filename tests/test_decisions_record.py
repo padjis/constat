@@ -685,7 +685,7 @@ class TestTheCommandLine:
         assert "catalogue:" in capsys.readouterr().out
         clone = tmp_path / "after-recording"
         git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
-        assert (clone / "the-product-as-it-stands.md").exists()
+        assert (clone / "status.md").exists()
 
     def test_a_refusal_exits_non_zero_so_a_script_cannot_miss_it(
         self, tmp_path, wiki, published, home, capsys

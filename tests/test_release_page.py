@@ -125,7 +125,7 @@ class TestTheReleasePage:
 
         body = render_release(read_release(subject, "2026.11"))
 
-        assert "(the-product-as-it-stands.md)" in body
+        assert "(status.md)" in body
         assert "(index.md)" in body
 
 

@@ -26,7 +26,7 @@ from typing import Protocol, runtime_checkable
 from ..errors import DecisionsNotReadable
 
 
-STATE_REFERENCE = "the-product-as-it-stands"
+STATE_REFERENCE = "status"
 """The page the catalogue itself is published to (CON-106).
 
 Not a ticket, and deliberately shaped like one so no target needs a second

@@ -8,6 +8,46 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-120 · 2026-11-22 · The status page indexes the areas; a rule is rendered once
+
+**Closes CON-116.** Completes CON-111's done-when, which was half-built.
+
+**Decision.** Three changes to the published business pages:
+
+1. **`render_rule` is the single place a rule becomes prose.** `render_state`
+   and `render_area` each emitted the citation, statement, read-from line and
+   examples table.
+2. **The status page indexes the areas rather than listing the rules.** Each
+   area is one line with a link and a count; the rules live on their own page.
+3. **`the-product-as-it-stands` is renamed `status`.**
+
+**Context: the duplication was found by asking whether it existed.** The two
+pages carried the same bytes for every rule — and only one renderer had been
+taught which directory it wrote from, so **every "read from" link on every
+area page resolved nowhere** while the status page's copy of the identical
+line was correct. That is the third value this afternoon derived in two
+places and drifted (D-113 and D-116 are the others), and the first where the
+output was visibly wrong for a reader rather than for a test.
+
+CON-111's done-when already said *"the catalogue page lists the areas rather
+than every rule"*. The pages were built and that half was not, which is how
+one catalogue came to be rendered twice.
+
+**The status page keeps what only it can say**: which revision of each
+repository was read, what is agreed but not yet shipped, what could not be
+checked against mainline, and how little of the product any of this
+describes. Those are claims about the catalogue as a whole, and no area page
+can make them.
+
+**On the rename.** `the-product-as-it-stands` described the page well and
+read as a sentence rather than a name; `status` is what a reader looks for.
+The old page is **not migrated** — a workspace that published before this
+leaves it behind, as it did for the flat layout (D-117).
+
+**Status.** accepted
+
+---
+
 ## D-119 · 2026-11-22 · The decisions file is prompted, one line per undecided proposal
 
 **Closes CON-115. Amends D-105** in one clause.

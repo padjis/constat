@@ -38,6 +38,7 @@ from constat.operations import (
     publish_document,
     publish_index,
     render_index,
+    render_area,
     render_state,
     _page_link,
 )
@@ -98,12 +99,17 @@ class TestARuleNamesTheTicketItCameFrom:
         kept the link has no page to point at."""
         assert Review(subject).references_for(9999) == ()
 
-    def test_the_catalogue_links_to_the_ticket_page(self, subject) -> None:
+    def test_an_area_page_links_to_the_ticket_page(self, subject) -> None:
+        """Moved from the state page by CON-116: a rule is listed on its area
+        page, and the state page indexes the areas. The link is the same one,
+        emitted once now rather than twice."""
         _accept_a_rule(subject)
+        grouped = product_state(subject).by_area()
+        area, states = next(iter(grouped.items()))
 
-        body = render_state(product_state(subject))
+        body = render_area(area, states)
 
-        assert "read from [622](reviews/622.md)" in body
+        assert "read from [622](../reviews/622.md)" in body
 
     def test_a_rule_with_no_ticket_says_nothing(self, subject) -> None:
         """Rather than inventing a page that may not exist."""
@@ -125,7 +131,7 @@ class TestATicketPageNamesTheRest:
         that forgot the directory would resolve nowhere."""
         body = TicketStore(subject).document("622").body
 
-        assert "(../the-product-as-it-stands.md)" in body
+        assert "(../status.md)" in body
 
     def test_it_links_up_to_the_index(self, subject) -> None:
         body = TicketStore(subject).document("622").body

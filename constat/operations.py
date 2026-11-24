@@ -2085,6 +2085,49 @@ def area_page(name: str) -> str:
     return f"{AREA_PREFIX}{name}"
 
 
+def render_rule(item: RuleState, *, frm: str | None = None) -> list[str]:
+    """One accepted rule, as the business half reads it (CON-116).
+
+    The single place a rule becomes prose. It was two — `render_state` and
+    `render_area` emitted the same citation, statement, read-from line and
+    examples table — and only one of them was taught which directory it was
+    writing from, so every "read from" on every area page resolved nowhere.
+    That is the third value this afternoon derived in two places and drifted.
+
+    Carries no file, class or method: this is the business explanation, and
+    the evidence view is the review page it links to (D-115, D-118).
+    """
+    lines: list[str] = []
+    cite = f"`{item.rule.ref}` " if item.rule.ref else ""
+    lines.append(f"- {cite}**{item.rule.name}** — {item.rule.statement}")
+
+    if item.references:
+        linked = ", ".join(
+            f"[{reference}]({_page_link(reference, frm=frm)})"
+            for reference in item.references
+        )
+        lines.append(f"  - read from {linked}")
+
+    for message in item.rule.messages:
+        cite = f"`{message.ref}` " if message.ref else ""
+        lines.append(f"  - shows {cite}> {message.text}")
+
+    if item.rule.examples:
+        lines.append("")
+        lines += [
+            f"  {line}" if line else ""
+            for line in example_table(item.rule.examples)
+        ]
+    else:
+        # Said rather than left blank. A rule nobody can check is a gap in the
+        # documentation, and a reader scanning for verifiable rules should see
+        # which ones are not.
+        lines.append(
+            "  - no examples, so nothing here can be checked case by case"
+        )
+    return lines
+
+
 def render_area(area: str, states: tuple[RuleState, ...]) -> str:
     """One area as a page (CON-111).
 
@@ -2104,26 +2147,7 @@ def render_area(area: str, states: tuple[RuleState, ...]) -> str:
         "",
     ]
     for item in states:
-        cite = f"`{item.rule.ref}` " if item.rule.ref else ""
-        lines.append(f"- {cite}**{item.rule.name}** — {item.rule.statement}")
-        if item.references:
-            # From inside `areas/`, so the link needs the directory it is
-            # written from. Without it this resolved to `areas/reviews/...`
-            # and every "read from" on every area page was broken.
-            linked = ", ".join(
-                f"[{reference}]({_page_link(reference, frm=area_page(area))})"
-                for reference in item.references
-            )
-            lines.append(f"  - read from {linked}")
-        for message in item.rule.messages:
-            cite = f"`{message.ref}` " if message.ref else ""
-            lines.append(f"  - shows {cite}> {message.text}")
-        if item.rule.examples:
-            lines.append("")
-            lines += [
-                f"  {line}" if line else ""
-                for line in example_table(item.rule.examples)
-            ]
+        lines += render_rule(item, frm=area_page(area))
         lines.append("")
 
     lines += [
@@ -3564,48 +3588,23 @@ def render_state(state: ProductState) -> str:
 
     grouped = state.by_area()
     if grouped:
-        lines += ["## Business rules", ""]
+        # An index of areas, not a listing of rules (CON-116). Every rule used
+        # to appear here *and* on its area page, identically — one catalogue
+        # rendered twice, which is how an area page came to carry a link that
+        # resolved nowhere while the copy here was correct.
+        lines += [
+            "## Business rules, by area",
+            "",
+            f"{sum(len(v) for v in grouped.values())} rule(s) across "
+            f"{len(grouped)} area(s). Each area has its own page.",
+            "",
+        ]
         for area, states in grouped.items():
-            lines += [f"### {area}", ""]
-            for item in states:
-                cite = f"`{item.rule.ref}` " if item.rule.ref else ""
-                lines.append(
-                    f"- {cite}**{item.rule.name}** — {item.rule.statement}"
-                )
-                # No file, class or method here (CON-109). This is the
-                # business explanation; the evidence view is the ticket page
-                # linked below, and `rule show` at a terminal. Product rule 8
-                # asks for both and forbids conflating them, and this page was
-                # the one conflating them.
-                if item.references:
-                    # The path from a rule to the evidence behind it (CON-110).
-                    # Relative, so it resolves on the documentation target
-                    # where both pages sit side by side; in a terminal it
-                    # reads as the reference it names, which is the answer
-                    # anyway.
-                    linked = ", ".join(
-                        f"[{reference}]({_page_link(reference)})"
-                        for reference in item.references
-                    )
-                    lines.append(f"  - read from {linked}")
-                for message in item.rule.messages:
-                    cite = f"`{message.ref}` " if message.ref else ""
-                    lines.append(f"  - shows {cite}> {message.text}")
-                if item.rule.examples:
-                    lines.append("")
-                    lines += [
-                        f"  {line}" if line else ""
-                        for line in example_table(item.rule.examples)
-                    ]
-                else:
-                    # Said rather than left blank. A rule nobody can check is a
-                    # gap in the documentation, and a reader scanning for
-                    # verifiable rules should see which ones are not.
-                    lines.append(
-                        "  - no examples, so nothing here can be checked "
-                        "case by case"
-                    )
-            lines.append("")
+            lines.append(
+                f"- [{area}]({_page_link(area_page(area))}) — "
+                f"{len(states)} rule(s)"
+            )
+        lines.append("")
 
     if state.agreed:
         lines += [
