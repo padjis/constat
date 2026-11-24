@@ -3279,10 +3279,11 @@ def render_state(state: ProductState) -> str:
                 lines.append(
                     f"- {cite}**{item.rule.name}** — {item.rule.statement}"
                 )
-                for alias, paths in sorted(item.matched.items()):
-                    shown = ", ".join(f"`{path}`" for path in paths[:5])
-                    more = "" if len(paths) <= 5 else f" and {len(paths) - 5} more"
-                    lines.append(f"  - in {alias}: {shown}{more}")
+                # No file, class or method here (CON-109). This is the
+                # business explanation; the evidence view is the ticket page
+                # linked below, and `rule show` at a terminal. Product rule 8
+                # asks for both and forbids conflating them, and this page was
+                # the one conflating them.
                 if item.references:
                     # The path from a rule to the evidence behind it (CON-110).
                     # Relative, so it resolves on the documentation target

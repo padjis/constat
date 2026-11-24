@@ -8,6 +8,52 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-115 · 2026-11-22 · The business page names no file
+
+**Closes CON-109, in its scoped half.**
+
+**Decision.** The catalogue page — `constat state` and the page published from
+it — no longer prints the paths a rule's anchors match. A rule is its
+statement, its messages, its examples, and a link to the ticket page it was
+read from. Anchors stay stored, stay in `rule show`, and stay on the ticket's
+evidence page.
+
+**Context: product rule 8, applied to the page that was breaking it.** Every
+rule on the catalogue was followed by `- in 237feed-ui: src/components/Hero.tsx`
+— the technical evidence view conflated into the business explanation, which
+that rule forbids in terms. A reader who wants to know what the product does
+was handed a TypeScript path; a reader who wants the evidence is better served
+by the ticket page, which carries the diffs and the commits.
+
+**Product rule 2 is not weakened and the test says so.** The test that
+asserted the paths *appeared* is reversed — it had the right instinct and the
+wrong page — and a second test asserts `rule show` still names them, so the
+property it protected is protected somewhere rather than dropped.
+
+**What is deliberately still on the page**, and why none of it is a code
+reference:
+
+- **The link to the ticket page** — a page name, not a path, and the way a
+  reader reaches the evidence at all (D-113).
+- **The messages a rule shows** — user-facing text is business content.
+
+**What is deliberately left undecided**, because it is not a code reference
+and the answer is not mine:
+
+- **The "Read from" block** — repository names, revisions, file counts and
+  coverage percentages. A revision is meaningless to a business reader, but
+  the coverage figure is a claim about how little the catalogue describes
+  (D-038), which that audience arguably needs most. Removing it would be a
+  change to what the page *claims*, not a tidying.
+- **Rule names** are kebab-case identifiers and read like code on a page meant
+  for people.
+
+Both are recorded in CON-109's row rather than settled here.
+
+**Status.** accepted
+
+---
+
 ## D-114 · 2026-11-22 · A declared release is published as a page
 
 **Closes CON-112.**

@@ -172,8 +172,19 @@ class TestGrouping:
         rules_section = next(s for s in sections if s.startswith("Business rules"))
         assert rules_section.count("**shared**") == 1
 
-    def test_the_matched_paths_are_named(self, product) -> None:
-        """Evidence for the claim that the rule still holds."""
+    def test_no_path_is_named(self, product) -> None:
+        """Reversed by CON-109, and the reversal is the point.
+
+        This used to assert the opposite — "evidence for the claim that the
+        rule still holds" — which is a true thing to want and the wrong page
+        to want it on. Product rule 8 asks for a business explanation **and** a
+        technical evidence view, *not conflated*, and this page was the one
+        conflating them: every rule was followed by a Java or TypeScript path.
+
+        The evidence did not go anywhere. It is on the ticket page this rule
+        links to, and in `rule show` — asserted below so the property is
+        protected rather than dropped.
+        """
         workspace, _clones = product
         seed_rule(
             workspace,
@@ -182,7 +193,28 @@ class TestGrouping:
             anchors=(("rules.py", "billing"),),
         )
 
-        assert "`rules.py`" in render_state(product_state(workspace))
+        assert "rules.py" not in render_state(product_state(workspace))
+
+    def test_the_evidence_is_still_reachable(self, product, capsys) -> None:
+        """Product rule 2 is not weakened by CON-109: an anchor stays stored
+        and stays inspectable, in the view built for it."""
+        from constat.cli import main
+
+        workspace, _clones = product
+        seed_rule(
+            workspace,
+            "daily-limit",
+            statement="A transfer above the daily limit is refused.",
+            anchors=(("rules.py", "billing"),),
+        )
+        capsys.readouterr()
+
+        main(
+            ["--workspace", str(Path(workspace.path).parent),
+             "rule", "show", "daily-limit"]
+        )
+
+        assert "rules.py" in capsys.readouterr().out
 
 
 # -- anchors that no longer exist ---------------------------------------------
