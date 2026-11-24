@@ -2086,7 +2086,76 @@ def area_page(name: str) -> str:
     return f"{AREA_PREFIX}{name}"
 
 
-def render_rule(item: RuleState, *, frm: str | None = None) -> list[str]:
+def area_prefixes(areas: tuple[str, ...]) -> dict[str, str]:
+    """A short letter prefix per area, derived and never stored (CON-118).
+
+    Initials for a multi-word area, the first two letters for a single-word
+    one, uppercased, letters only. Collisions are broken by lengthening the
+    loser deterministically, so the mapping depends on the set of areas and
+    on nothing else — two runs over the same catalogue agree.
+
+    **Derived at render on purpose.** D-081 made the citation `R-7` flat
+    because an area is mutable (D-079) and an identifier encoding a mutable
+    fact becomes a false claim the moment that fact changes. That reasoning is
+    unchanged, which is why this is a *label* and not a citation: `R-7` is
+    still what the rule is called, still what `rule show` takes, still what
+    survives the rule being re-filed. The prefix is a reading aid that is
+    recomputed every time and is allowed to change.
+    """
+    def letters(area: str) -> str:
+        words = [w for w in re.split(r"[^A-Za-z]+", area) if w]
+        if not words:
+            return "X"
+        if len(words) == 1:
+            return words[0][:2].upper()
+        return "".join(w[0] for w in words).upper()
+
+    taken: dict[str, str] = {}
+    out: dict[str, str] = {}
+    for area in areas:
+        base = letters(area)
+        candidate = base
+        source = "".join(w for w in re.split(r"[^A-Za-z]+", area) if w).upper()
+        extra = len(base)
+        while candidate in taken and extra < len(source):
+            # Lengthen from the area's own letters rather than appending a
+            # number: a number beside a number reads as part of it.
+            candidate = source[: extra + 1]
+            extra += 1
+        suffix = 2
+        while candidate in taken:
+            candidate = f"{base}{suffix}"
+            suffix += 1
+        taken[candidate] = area
+        out[area] = candidate
+    return out
+
+
+def area_labels(state: ProductState) -> dict[str, str]:
+    """`R-13` -> `AR-2`: the label a rule is shown under on its area page.
+
+    Numbered within the area by citation order, so a rule keeps its number as
+    long as the area's membership below it does not change. A rule with no
+    area gets none — it is not in an area, and inventing a prefix for the
+    absence of one would be the false claim D-081 names.
+    """
+    labels: dict[str, str] = {}
+    prefixes = area_prefixes(tuple(state.by_area()))
+    for area, states in state.by_area().items():
+        if area == UNPLACED:
+            continue
+        for position, item in enumerate(states, start=1):
+            if item.rule.ref:
+                labels[item.rule.ref] = f"{prefixes[area]}-{position}"
+    return labels
+
+
+def render_rule(
+    item: RuleState,
+    *,
+    frm: str | None = None,
+    labels: dict[str, str] | None = None,
+) -> list[str]:
     """One accepted rule, as the business half reads it (CON-116).
 
     The single place a rule becomes prose. It was two — `render_state` and
@@ -2099,7 +2168,14 @@ def render_rule(item: RuleState, *, frm: str | None = None) -> list[str]:
     the evidence view is the review page it links to (D-115, D-118).
     """
     lines: list[str] = []
-    cite = f"`{item.rule.ref}` " if item.rule.ref else ""
+    label = (labels or {}).get(item.rule.ref or "")
+    # The label leads because it is what a reader of this page sees around
+    # them; the citation follows because it is what survives (D-081) and what
+    # every command takes.
+    if label:
+        cite = f"`{label}` (`{item.rule.ref}`) "
+    else:
+        cite = f"`{item.rule.ref}` " if item.rule.ref else ""
     lines.append(f"- {cite}**{item.rule.name}** — {item.rule.statement}")
 
     if item.references:
@@ -2129,7 +2205,11 @@ def render_rule(item: RuleState, *, frm: str | None = None) -> list[str]:
     return lines
 
 
-def render_area(area: str, states: tuple[RuleState, ...]) -> str:
+def render_area(
+    area: str,
+    states: tuple[RuleState, ...],
+    labels: dict[str, str] | None = None,
+) -> str:
     """One area as a page (CON-111).
 
     The business explanation, narrowed to one part of the product, so a team
@@ -2148,7 +2228,7 @@ def render_area(area: str, states: tuple[RuleState, ...]) -> str:
         "",
     ]
     for item in states:
-        lines += render_rule(item, frm=area_page(area))
+        lines += render_rule(item, frm=area_page(area), labels=labels)
         lines.append("")
 
     lines += [
@@ -2304,6 +2384,7 @@ def publish_areas(
     """
     state = product_state(workspace)
     grouped = state.by_area()
+    labels = area_labels(state)
 
     if target is None:
         target = detect_target(repository, workspace)
@@ -2317,7 +2398,7 @@ def publish_areas(
         # `area-app-install.md` — comparing the two forms tombstoned every
         # area with a space in it the instant after writing it.
         current.add(_page_link(reference))
-        body = render_area(area, states)
+        body = render_area(area, states, labels)
         scan_findings = guard_publication(body, accepted=accept_scan_findings)
         ref = target.publish(reference, body)
         results.append(

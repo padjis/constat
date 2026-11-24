@@ -8,6 +8,55 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-122 · 2026-11-22 · A rule is shown under a per-area label, which is not its citation
+
+**Closes CON-118.** Does **not** supersede D-081.
+
+**Decision.** On an area page a rule is shown as ``AR-2`` beside its citation
+— `` `AR-2` (`R-13`) ``. The prefix is initials for a multi-word area, the
+first two letters for a single-word one; the number is the rule's position
+within that area. Both are **derived at render and never stored**.
+
+**Why this is a label and not a citation.** D-081 made `R-7` flat on the
+reasoning that an area is mutable by design (D-079), and that an identifier
+encoding a mutable fact becomes a false claim the moment that fact changes.
+That reasoning is untouched and is the reason the two coexist:
+
+| | `R-13` | `AR-2` |
+| --- | --- | --- |
+| stored | yes | no |
+| survives the rule being re-filed | yes | no |
+| survives a rule above it moving away | yes | no |
+| what a command takes | yes | also, by resolution |
+
+A reader on the *article retention* page sees rules numbered within the thing
+they are reading, which is what was asked for. A reader quoting `AR-2` a year
+later may find it names a different rule — which is exactly what D-081
+predicted and is accepted here, because the citation beside it does not move.
+
+**It resolves.** `rule show AR-2` and `rule history AR-2` work, by
+recomputing the mapping rather than looking it up. A label nobody can type
+back is decoration (CON-81's argument, applied one level down).
+
+**An unplaced rule gets no label.** It is not in an area, and inventing a
+prefix for the absence of one is the false claim D-081 names.
+
+**Collisions are broken deterministically**, by lengthening from the area's
+own letters rather than appending a number — a number beside a number reads
+as part of it. The mapping depends on the set of areas and nothing else, so
+two runs over one catalogue agree.
+
+**Consequences.**
+
+- An area page rendered without the mapping still shows citations and is
+  still correct. The label is an aid, never a dependency.
+- Re-filing one rule renumbers those below it in both areas. That is the cost
+  of a derived number, and it is why nothing stores one.
+
+**Status.** accepted
+
+---
+
 ## D-121 · 2026-11-22 · A merge commit is not checked for shipping
 
 **Closes CON-117. Amends D-087.**

@@ -45,6 +45,7 @@ from .ai import MCP_READER_NOTE, NULL_PROVIDER_NAME, PROVIDER_ENV
 from .ai import as_dict as payload_as_dict
 from .ai import resolve as resolve_provider
 from .operations import (
+    area_labels,
     baseline_area,
     describe_branching,
     describe_release_basis,
@@ -1342,7 +1343,7 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
             if args.rule_action == "retire":
                 decided_by, attribution = _decider(args)
-                _, target_id = _resolve_rule(Catalogue(workspace), args.rule)
+                _, target_id = _resolve_rule(Catalogue(workspace), args.rule, workspace)
                 retired = Review(workspace).retire(
                     target_id,
                     reason=args.reason,
@@ -1362,7 +1363,7 @@ def _run_rule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
             if args.rule_action == "history":
                 review = Review(workspace)
-                target, target_id = _resolve_rule(Catalogue(workspace), args.rule)
+                target, target_id = _resolve_rule(Catalogue(workspace), args.rule, workspace)
                 cite = target.ref or target.name
                 versions = review.versions(target_id)
                 if not versions:
@@ -1680,7 +1681,9 @@ def _refuse_without_a_provider(
     )
 
 
-def _resolve_rule(catalogue: Catalogue, token: str) -> tuple[Rule, int]:
+def _resolve_rule(
+    catalogue: Catalogue, token: str, workspace: Workspace | None = None
+) -> tuple[Rule, int]:
     """A rule from its citation or its name, never from a bare number (CON-103).
 
     **A bare integer is refused rather than guessed at.** Two different objects
@@ -1706,6 +1709,19 @@ def _resolve_rule(catalogue: Catalogue, token: str) -> tuple[Rule, int]:
         )
     rule = catalogue.find(token)
     rule_id = catalogue.identify(token)
+
+    if rule is None:
+        # An area label — `AR-2` — as shown on an area page (CON-118). Derived
+        # rather than stored, so it is resolved by recomputing it rather than
+        # looked up. A reader who quotes what the page showed them must be
+        # able to type it back, or the label is decoration.
+        for ref, label in (
+            area_labels(product_state(workspace)) if workspace else {}
+        ).items():
+            if label.upper() == token.upper():
+                rule = catalogue.find(ref)
+                rule_id = catalogue.identify(ref)
+                break
     if rule is None or rule_id is None:
         raise WorkspaceError(
             f"no rule {token!r}. `constat rule list` shows every citation and "
