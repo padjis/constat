@@ -34,10 +34,12 @@ from ...errors import DecisionsNotReadable, PublishFailed, TargetUnknown
 from ...git.adapter import Repository, remote_url, run_git
 from ..decisions import (
     TEMPLATE,
+    folder_for,
     DecisionLine,
     DecisionsRead,
+    DECISIONS_DIRECTORY,
+    GENERATED_MARKER,
     file_for,
-    mentioned,
     parse,
 )
 from ..port import (
@@ -45,7 +47,7 @@ from ..port import (
     Awaiting,
     AREAS_DIRECTORY,
     EVIDENCE_DIRECTORY,
-    REVIEWS_DIRECTORY,
+    TICKETS_DIRECTORY,
     PublishedRef,
     is_generated,
 )
@@ -221,7 +223,7 @@ def _iso(epoch: str) -> str | None:
     )
 
 
-def _prompt(item: Awaiting) -> str:
+def _context(item: Awaiting) -> str:
     """One proposal's prompt: what is being decided, then the line to write on.
 
     The context is **indented**, which `parse` already skips — the same
@@ -233,14 +235,11 @@ def _prompt(item: Awaiting) -> str:
     right" is the reviewer's whole question, and it cannot be answered from
     the new statement alone (CON-120).
     """
-    lines = [f"    #{item.id} {item.name}"]
     if item.previous is None:
-        lines.append(f"    NEW — {item.statement}")
-    else:
-        lines.append(f"    WAS — {item.previous}")
-        lines.append(f"    NOW — {item.statement}")
-    lines.append(f"{item.id}: ")
-    return "\n".join(lines) + "\n\n"
+        return f"**NEW** — {item.statement}\n"
+    # Both statements, because "is this a change, and is the change right" is
+    # the reviewer's whole question and the new one alone cannot answer it.
+    return f"**WAS** — {item.previous}\n\n**NOW** — {item.statement}\n"
 
 
 class GitPages:
@@ -268,12 +267,16 @@ class GitPages:
         return re.sub(r"[^A-Za-z0-9._-]", "-", reference).strip("-.") or "document"
 
     def page_for(self, reference: str) -> str:
-        """Where a page goes: the root for the business pages, `evidence/` for
-        a ticket (CON-113).
+        """Where a page goes: the root for the whole-product pages, `areas/`
+        for an area, `decisions/` for a ticket (CON-113, CON-123).
 
         The directory is the separation. Both audiences share one target, so a
         reader can tell from the path which of the two they are reading, and
         the business pages carry no path of their own (D-115).
+
+        A ticket page sits at `decisions/630.md`, directly above the
+        `decisions/630/` pages it links to: one folder for the whole act of
+        deciding, nesting the way a wiki already nests it.
         """
         if reference.startswith(AREA_PREFIX):
             safe = self.safe_name(reference[len(AREA_PREFIX):])
@@ -281,7 +284,7 @@ class GitPages:
         safe = self.safe_name(reference)
         if is_generated(reference):
             return f"{safe}.md"
-        return f"{REVIEWS_DIRECTORY}/{safe}.md"
+        return f"{TICKETS_DIRECTORY}/{safe}.md"
 
     def references_published(self, prefix: str) -> tuple[str, ...]:
         """Every reference already published under `prefix` (CON-111).
@@ -351,10 +354,28 @@ class GitPages:
                     "read as 'nobody has decided'."
                 )
 
-            path = file_for(f"{self.safe_name(reference)}.md")
-            location = f"{self.url} :: {path}"
-            file = clone / path
-            if not file.exists():
+            folder = folder_for(self.safe_name(reference))
+            location = f"{self.url} :: {folder}/"
+            # Numerically where the name is a proposal id, so 9 comes before
+            # 10 — a reader of the report sees the queue in the order the
+            # proposals were raised rather than in dictionary order.
+            def _order(path: Path) -> tuple[int, int, str]:
+                stem = path.stem
+                if stem.isdigit():
+                    return (0, int(stem), "")
+                return (1, 0, stem)
+
+            files = sorted((clone / folder).glob("*.md"), key=_order)
+
+            # The file CON-122 replaced is still read if a target has one.
+            # Not rewritten and not deleted: it may already hold verdicts
+            # nobody has recorded yet, and a reader who stopped looking there
+            # would drop a decision somebody believes they made — the
+            # substitution D-041 exists to prevent.
+            legacy = clone / f"{folder}.md"
+            if legacy.exists() and GENERATED_MARKER not in legacy.read_text():
+                files.append(legacy)
+            if not files:
                 # Absent, not empty. The page has never been published, so the
                 # reviewer has had nowhere to write — a different situation
                 # from having written nothing, and a reader must be able to
@@ -363,12 +384,25 @@ class GitPages:
                     reference=reference, location=location, present=False
                 )
 
-            found, unreadable = parse(file.read_text())
+            # One file per proposal (CON-122), so every file is parsed and
+            # attributed on its own: the commit that carries a verdict is the
+            # one that touched that proposal's page, not the ticket's last
+            # edit anywhere.
+            decisions: list = []
+            unreadable: list = []
+            for file in files:
+                found, bad = parse(file.read_text())
+                path = (
+                    f"{folder}.md" if file.parent == clone / DECISIONS_DIRECTORY
+                    else f"{folder}/{file.name}"
+                )
+                decisions.extend(_attribute(clone, path, found))
+                unreadable.extend(bad)
             return DecisionsRead(
                 reference=reference,
                 location=location,
-                decisions=_attribute(clone, path, found),
-                unreadable=unreadable,
+                decisions=tuple(decisions),
+                unreadable=tuple(unreadable),
             )
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
@@ -393,9 +427,33 @@ class GitPages:
                 )
 
             page = clone / self.page_for(reference)
-            # A ticket page lives under `evidence/` (CON-113), which a fresh
-            # clone does not have until something is written there.
+            # A ticket page lives under `decisions/` (CON-113, CON-123), which
+            # a fresh clone does not have until something is written there.
             page.parent.mkdir(parents=True, exist_ok=True)
+
+            # The one path where a page Constat writes can collide with a page
+            # a person wrote. Before CON-123 the ticket page was at
+            # `reviews/630.md` and `decisions/630.md` was the reviewer's own
+            # file; now the ticket page *is* `decisions/630.md`. Writing over
+            # a target published before the move would destroy verdicts
+            # nobody had recorded — so a file at that path that is not
+            # Constat's own refuses, loudly, and nothing is published.
+            if (
+                not is_generated(reference)
+                and page.exists()
+                and GENERATED_MARKER not in page.read_text()
+                and page.read_text().strip()
+            ):
+                raise PublishFailed(
+                    f"{self.page_for(reference)} in {self.url} was written by "
+                    "a person, not by Constat, and publishing would overwrite "
+                    "it. It is the decisions file as it was before one page "
+                    "per rule proposal (D-126), and it may hold verdicts "
+                    "nobody has recorded yet. Record them with `constat "
+                    f"review {reference} --record-decisions`, then delete the "
+                    "file in the target and publish again. Nothing has been "
+                    "published."
+                )
             unchanged = page.exists() and page.read_text() == body
             page.write_text(body)
 
@@ -410,31 +468,35 @@ class GitPages:
             # catalogue or an area invited a verdict that nothing would ever
             # read. A decision somebody believes was recorded is the failure
             # D-041 exists to prevent.
-            seeded = False
-            prompted = False
+            # One file per proposal (CON-122), each seeded when its
+            # proposal first appears and never written again — D-105's
+            # promise, which a ticket-wide file could not keep while the
+            # queue grew. On a wiki the file is also the unit the Edit button
+            # acts on, so a page per proposal is what makes a decision per
+            # rule possible at all.
+            #
+            # Nothing is seeded beside a generated page: it carries no
+            # proposal and says so, and `--record-decisions` would never read
+            # a verdict written there (D-041, D-117).
+            seeded: list[str] = []
             if not is_generated(reference):
-                decisions = clone / file_for(f"{self.safe_name(reference)}.md")
-                seeded = not decisions.exists()
-                if seeded:
+                stem = self.safe_name(reference)
+                for item in awaiting:
+                    path = file_for(stem, item.id)
+                    decisions = clone / path
+                    if decisions.exists():
+                        continue
                     decisions.parent.mkdir(parents=True, exist_ok=True)
-                    decisions.write_text(TEMPLATE.format(reference=reference))
+                    decisions.write_text(
+                        TEMPLATE.format(
+                            proposal=item.id,
+                            name=item.name,
+                            context=_context(item),
+                            reference=reference,
+                        )
+                    )
+                    seeded.append(path)
                     unchanged = False
-
-                # One prompt per undecided proposal, appended and never
-                # otherwise touched (CON-115). Seeding once cannot keep up
-                # with a queue that grows between rounds, and without this a
-                # reviewer reads ids off the review page and retypes them
-                # here.
-                text = decisions.read_text()
-                already = mentioned(text)
-                new = [item for item in awaiting if item.id not in already]
-                if new:
-                    if not text.endswith("\n"):
-                        text += "\n"
-                    text += "".join(_prompt(item) for item in new)
-                    decisions.write_text(text)
-                    unchanged = False
-                    prompted = True
 
             if unchanged:
                 # Nothing to commit, and `git commit` would fail. Reporting it
@@ -448,14 +510,8 @@ class GitPages:
                 )
 
             run_git(["add", "--", self.page_for(reference)], cwd=clone)
-            # Staged whenever it changed, not only when it was created. A
-            # prompt appended to an existing file was written to the working
-            # tree and never committed, so the second review round silently
-            # lost every prompt it added.
-            if seeded or prompted:
-                run_git(
-                    ["add", "--", file_for(f"{self.safe_name(reference)}.md")], cwd=clone
-                )
+            for path in seeded:
+                run_git(["add", "--", path], cwd=clone)
             committed = run_git(
                 ["commit", "--quiet", "-m", COMMIT_SUBJECT.format(reference=reference)],
                 cwd=clone,

@@ -23,6 +23,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
+from .decisions import DECISIONS_DIRECTORY
+
 from ..errors import DecisionsNotReadable
 
 
@@ -48,16 +50,24 @@ The `area-` prefix survives as the *reference* — how Constat names the page
 internally — because a reference is what every publishing command takes.
 """
 
-REVIEWS_DIRECTORY = "reviews"
-"""Where a ticket's page goes (CON-114).
+#: Where a ticket's page goes, re-exported so a renderer need not know that
+#: it comes from the decisions module.
+TICKETS_DIRECTORY = DECISIONS_DIRECTORY
+"""One folder for deciding, with the ticket page above the rules (CON-123).
 
-It was `evidence/` for an afternoon. The page is not evidence: it is the
-proposals awaiting a verdict, which is what a reviewer needs in order to
-decide and all they need. The evidence itself stays in the workspace, where
-the durable record is a pointer to a commit rather than a copy of a diff
-(CON-79) — a published page of diffs looks like an archive and is not one,
-because it is rewritten on every run and regenerates empty once the ticket
-lands.
+It was `evidence/` for an afternoon, then `reviews/` for a day. The page is
+not evidence: it is the proposals awaiting a verdict, which is what a reviewer
+needs in order to decide and all they need. The evidence itself stays in the
+workspace, where the durable record is a pointer to a commit rather than a
+copy of a diff (CON-79) — a published page of diffs looks like an archive and
+is not one, because it is rewritten on every run and regenerates empty once
+the ticket lands.
+
+And it is not a *second* place either. `reviews/630.md` listing three
+proposals while `decisions/630/26.md` held one of them was two folders for one
+act, with each statement printed twice. The ticket page now sits at
+`decisions/630.md`, directly above the pages it links to, which is also how a
+wiki nests them.
 """
 
 EVIDENCE_DIRECTORY = "evidence"
@@ -113,10 +123,11 @@ silently overwrite the index and nobody would notice until it was wrong.
 class Awaiting:
     """A proposal waiting for a verdict, with what a reviewer needs to give one.
 
-    Carried to the target so the decisions file can say *what* is being
-    decided beside the id (CON-120). Before this it held bare numbers: a
-    reviewer read the statements on one page and wrote verdicts on another,
-    and for a revision neither page said what had changed.
+    Carried to the target so the page a verdict is written on can say *what*
+    is being decided (CON-120). Before this it held bare numbers: a reviewer
+    read the statements on one page and wrote verdicts on another, and for a
+    revision neither page said what had changed. Since CON-122 each of these
+    gets a page of its own on the target.
     """
 
     id: str
@@ -169,11 +180,11 @@ class Target(Protocol):
         """Write the document for `reference`, returning where it went.
 
         `awaiting` names the proposals on this page that nobody has decided
-        yet. A target may use it to prompt the reviewer — one line per
-        proposal in the decisions file, so the ids they must write do not have
-        to be copied from another page (CON-115). A prompt is only ever
-        **appended**: a line already in the file is never read, moved or
-        altered.
+        yet. A target may use it to give each one somewhere to be decided —
+        `git_pages` writes a page per proposal, carrying its statement and one
+        line to answer (CON-122). Whatever a target writes there it writes
+        **once**: a reviewer's file is never read back, moved or altered
+        (D-105).
 
         Must raise `PublishFailed` rather than returning a `PublishedRef` for a
         write that did not land. Overwriting an existing page is the expected

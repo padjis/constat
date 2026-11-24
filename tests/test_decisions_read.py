@@ -34,7 +34,14 @@ from pathlib import Path
 import pytest
 
 from constat.errors import DecisionsNotReadable
-from constat.publish.decisions import TEMPLATE, file_for, mentioned, parse
+from constat.publish.port import Awaiting
+from constat.publish.decisions import (
+    GENERATED_MARKER,
+    TEMPLATE,
+    file_for,
+    folder_for,
+    parse,
+)
 from constat.publish.targets.git_pages import GitPages
 
 
@@ -58,10 +65,21 @@ def wiki(tmp_path: Path) -> Path:
     return bare
 
 
+def _awaiting(*ids: str) -> tuple[Awaiting, ...]:
+    return tuple(
+        Awaiting(id=i, name=f"rule-{i}", statement=f"a transfer rule ({i}).")
+        for i in ids
+    )
+
+
 @pytest.fixture
 def published(wiki: Path) -> GitPages:
     target = GitPages(str(wiki))
-    target.publish("402", "# Document for 402\n\nproposal 1: a transfer rule.\n")
+    target.publish(
+        "402",
+        f"# Document for 402\n\nproposal 1: a transfer rule.\n\n{GENERATED_MARKER}\n",
+        awaiting=_awaiting("1", "2", "3", "9", "17", "18", "R-7"),
+    )
     return target
 
 
@@ -88,8 +106,14 @@ def review(tmp_path: Path, wiki: Path, lines: str, *, sign: bool = False) -> Pat
         git(clone, "config", "gpg.format", "ssh")
         git(clone, "config", "user.signingkey", str(key) + ".pub")
 
-    page = clone / file_for("402.md")
-    page.write_text(page.read_text() + lines)
+    # One file per proposal (CON-122), so each line goes to the page for the
+    # proposal it decides — which is what a reviewer does with the Edit
+    # button on that page.
+    for line in lines.strip("\n").split("\n"):
+        proposal = line.split(":", 1)[0].strip()
+        page = clone / file_for("402", proposal)
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text(page.read_text() + line + "\n" if page.exists() else line + "\n")
     git(clone, "add", "-A")
     git(clone, "commit", "--quiet", *(["-S"] if sign else []), "-m", "decide")
     git(clone, "push", "--quiet", "origin", "HEAD")
@@ -130,7 +154,10 @@ class TestTheFormat:
         reported all ten lines of the template's instructions as unreadable,
         which would bury the two lines that mattered under the explanation of
         how to write them."""
-        found, unreadable = parse(TEMPLATE.format(reference="402"))
+        found, unreadable = parse(TEMPLATE.format(
+            proposal="1", name="a-rule", context="**NEW** — a limit.\n",
+            reference="402"
+        ))
 
         assert found == ()
         assert unreadable == ()
@@ -138,9 +165,12 @@ class TestTheFormat:
     def test_the_template_s_own_examples_are_not_read_as_decisions(self):
         """They are indented, which is what keeps `1: approved` in the
         instructions from arriving as a decision nobody made."""
-        assert "    1: approved" in TEMPLATE
+        assert "    {proposal}: rejected" in TEMPLATE
 
-        found, _ = parse(TEMPLATE.format(reference="402"))
+        found, _ = parse(TEMPLATE.format(
+            proposal="1", name="a-rule", context="**NEW** — a limit.\n",
+            reference="402"
+        ))
 
         assert found == ()
 
@@ -213,29 +243,6 @@ class TestAnUnansweredPrompt:
         found, _ = parse("## Decisions\n17: \n18: approved\n")
 
         assert [(d.reference, d.verdict) for d in found] == [("18", "approved")]
-
-
-class TestWhatTheFileAlreadyMentions:
-    """What stops a proposal being prompted for twice (CON-115)."""
-
-    def test_an_answered_proposal_counts(self):
-        assert "18" in mentioned("## Decisions\n18: approved\n")
-
-    def test_an_unanswered_prompt_counts(self):
-        """Or every publish would append the same prompt again."""
-        assert "17" in mentioned("## Decisions\n17: \n")
-
-    def test_the_templates_own_examples_do_not(self):
-        """They are indented and use `1:` and `2:` — the first two proposal
-        ids of any workspace. Counting them suppressed the prompt for the
-        first two proposals anyone ever reviews, which is how this was
-        found."""
-        assert mentioned(TEMPLATE.format(reference="402")) == frozenset()
-
-    def test_a_verdict_written_above_the_marker_counts(self):
-        """A reviewer who wrote above the heading has still written about
-        that proposal, and prompting them again would be noise."""
-        assert "9" in mentioned("9: approved\n\n## Decisions\n")
 
 
 # -- the git half --------------------------------------------------------------
@@ -330,7 +337,7 @@ class TestReadingFromAGitTarget:
         )
         git(second, "config", "user.name", "Another Reviewer")
         git(second, "config", "user.email", "other@example.invalid")
-        page = second / file_for("402.md")
+        page = second / file_for("402", "2")
         page.write_text(page.read_text() + "2: rejected\n")
         git(second, "add", "-A")
         git(second, "commit", "--quiet", "-m", "also decide")
@@ -397,7 +404,7 @@ class TestTheFileConstatDoesNotOwn:
             capture_output=True,
         )
 
-        assert (clone / file_for("402.md")).exists()
+        assert (clone / file_for("402", "1")).exists()
 
     def test_republishing_does_not_overwrite_a_reviewer_s_decisions(
         self, tmp_path, wiki, published
@@ -407,14 +414,16 @@ class TestTheFileConstatDoesNotOwn:
         would be destroyed — CON-39's problem, avoided rather than solved."""
         review(tmp_path, wiki, "1: approved\n")
 
-        published.publish("402", "# Document for 402\n\nquite different now.\n")
+        published.publish(
+            "402", f"# Document for 402\n\nquite different now.\n\n{GENERATED_MARKER}\n"
+        )
 
         read = published.read_decisions("402")
         assert [d.reference for d in read.decisions] == ["1"]
 
     def test_the_page_itself_is_still_replaced(self, tmp_path, wiki, published):
         """The other half of the same property: Constat owns the page."""
-        published.publish("402", "# Replaced\n")
+        published.publish("402", f"# Replaced\n\n{GENERATED_MARKER}\n")
 
         clone = tmp_path / "after"
         subprocess.run(
@@ -423,10 +432,12 @@ class TestTheFileConstatDoesNotOwn:
             capture_output=True,
         )
 
-        # Under `evidence/` since CON-113; the decisions file beside it is
-        # still keyed on the reference alone, so moving the page did not move
-        # a reviewer's verdicts.
-        assert (clone / "reviews" / "402.md").read_text() == "# Replaced\n"
+        # The ticket page sits at `decisions/402.md` since CON-123, directly
+        # above the per-proposal pages, and replacing it leaves those alone.
+        assert (clone / "decisions" / "402.md").read_text() == (
+            f"# Replaced\n\n{GENERATED_MARKER}\n"
+        )
+        assert (clone / file_for("402", "1")).exists()
 
 
 # -- the command line ----------------------------------------------------------
@@ -504,7 +515,7 @@ class TestTheCommandLine:
               "--read-decisions"])
 
         out = capsys.readouterr().out
-        assert "no decision file" in out
+        assert "no decision pages" in out
         assert "nobody has decided" in out
         assert "never been published" in out
 

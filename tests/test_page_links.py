@@ -109,7 +109,7 @@ class TestARuleNamesTheTicketItCameFrom:
 
         body = render_area(area, states)
 
-        assert "read from [622](../reviews/622.md)" in body
+        assert "read from [622](../decisions/622.md)" in body
 
     def test_a_rule_with_no_ticket_says_nothing(self, subject) -> None:
         """Rather than inventing a page that may not exist."""
@@ -155,7 +155,7 @@ class TestTheIndex:
 
         body = render_index(published_pages(subject))
 
-        assert "[622](reviews/622.md)" in body
+        assert "[622](decisions/622.md)" in body
 
     def test_it_lists_what_was_published_not_what_exists(
         self, subject, wiki
@@ -169,7 +169,7 @@ class TestTheIndex:
 
         body = render_index(published_pages(subject))
 
-        assert "[622](reviews/622.md)" in body
+        assert "[622](decisions/622.md)" in body
         assert "700" not in body
 
     def test_it_lists_only_pages_published_to_this_target(
@@ -194,6 +194,60 @@ class TestTheIndex:
 
         assert here == ["622"]
         assert "700" in [p.reference for p in published_pages(subject)]
+
+    def test_a_ticket_with_proposals_waiting_is_listed_as_awaiting(
+        self, subject, wiki
+    ) -> None:
+        """Asked for with the merge (CON-123): *divide reviewed tickets and
+        tickets to review.* The single list answered "what has been
+        published", which nobody asks. What a reviewer opens the index with
+        is "is there anything for me to do"."""
+        record(subject, a_reading())  # stored, not accepted
+        publish_document(subject, "622", GitPages(wiki))
+        pages = published_pages(subject)
+
+        body = render_index(pages, undecided={"622": 1})
+
+        assert "### Awaiting a decision" in body
+        assert "| [622](decisions/622.md) | 1 |" in body
+        assert "### Decided" not in body
+
+    def test_a_ticket_with_nothing_waiting_is_listed_as_decided(
+        self, subject, wiki
+    ) -> None:
+        publish_document(subject, "622", GitPages(wiki))
+        pages = published_pages(subject)
+
+        body = render_index(pages, undecided={})
+
+        assert "### Decided" in body
+        assert "### Awaiting a decision" not in body
+
+    def test_a_decided_ticket_is_not_called_shipped(
+        self, subject, wiki
+    ) -> None:
+        """Constat records no ship (CON-86 is unbuilt), so the section that
+        looks most like a "done" list has to say what it does not mean."""
+        publish_document(subject, "622", GitPages(wiki))
+
+        body = render_index(published_pages(subject), undecided={})
+
+        assert "not** a claim that the work shipped" in body
+
+    def test_the_count_comes_from_the_queue_when_published(
+        self, subject, wiki
+    ) -> None:
+        """The split is computed where the index is published, not guessed by
+        the renderer: `publish_index` reads the undecided queue per page."""
+        record(subject, a_reading())
+        publish_document(subject, "622", GitPages(wiki))
+
+        publish_index(subject, GitPages(wiki))
+
+        clone = Path(wiki.replace("file://", "")).parent / "index-check"
+        git(Path(clone).parent, "clone", "--quiet", wiki, str(clone))
+        body = (Path(clone) / "index.md").read_text()
+        assert "| [622](decisions/622.md) | 1 |" in body
 
     def test_republishing_lists_a_page_once(self, subject, wiki) -> None:
         publish_document(subject, "622", GitPages(wiki))

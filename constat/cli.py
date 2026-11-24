@@ -348,8 +348,9 @@ def build_parser() -> argparse.ArgumentParser:
             "Write the ticket's stored document to a documentation target, so "
             "the people who decide about a rule can read it where they work "
             "(CON-107). The page carries each rule proposal with its id, and "
-            "`decisions/<REF>.md` beside it is where a reviewer writes a "
-            "verdict. What lands is exactly what `document --show` prints — "
+            "`decisions/<REF>/<N>.md` — one page per proposal — is where a "
+            "reviewer writes a verdict. What lands is exactly what "
+            "`review --show` prints — "
             "nothing is re-rendered here, and circulating a document approves "
             "nothing in it. The catalogue page is refreshed at the same time, "
             "so the record never lags behind what has been decided."
@@ -2360,19 +2361,19 @@ def _report_decisions(workspace, args, target) -> int:
     print()
 
     if not read.present:
-        print("There is no decision file in the target.")
+        print("There are no decision pages in the target.")
         print()
         print("That is not 'nobody has decided' — it means this ticket's")
-        print("document has never been published there, so nobody has had")
-        print("anywhere to write. Run `constat publish` first.")
+        print("proposals have never been published there, so nobody has had")
+        print("anywhere to write. Run `constat review <REF>` first.")
         return EXIT_OK
 
     if not read.decisions and not read.unreadable:
-        print("The decision file is there and empty.")
+        print("The decision pages are there and unanswered.")
         print()
-        print("Nobody has written a decision yet. The file was seeded once")
-        print("when the document was published and Constat never writes it")
-        print("again, so this is the reviewer's silence rather than a gap.")
+        print("Nobody has written a decision yet. Each page was seeded once")
+        print("when its proposal appeared and Constat never writes it again,")
+        print("so this is the reviewer's silence rather than a gap.")
         return EXIT_OK
 
     if read.decisions:
@@ -2427,19 +2428,19 @@ def _record_decisions(workspace, args, target) -> int:
     print()
 
     if not read.present:
-        print("There is no decision file in the target.")
+        print("There are no decision pages in the target.")
         print()
         print("That is not 'nobody has decided' — it means this ticket's")
-        print("document has never been published there, so nobody has had")
-        print("anywhere to write. Run `constat publish` first.")
+        print("proposals have never been published there, so nobody has had")
+        print("anywhere to write. Run `constat review <REF>` first.")
         return EXIT_OK
 
     if not read.decisions and not read.unreadable:
-        print("The decision file is there and empty.")
+        print("The decision pages are there and unanswered.")
         print()
         print("Nobody has written a decision yet, so there is nothing to")
-        print("record. The file was seeded once when the document was")
-        print("published and Constat never writes it again.")
+        print("record. Each page was seeded once when its proposal appeared")
+        print("and Constat never writes it again.")
         return EXIT_OK
 
     if result.recorded:
@@ -2619,8 +2620,9 @@ def _run_review(args: argparse.Namespace) -> int:
     if waiting:
         print(
             f"\ncirculated for review — {waiting} proposal(s) on this page "
-            "await a decision. A reviewer writes one line per proposal in the "
-            "`decisions/` file beside it and commits; record what they wrote "
+            "await a decision. Each has its own page under "
+            f"`decisions/{args.reference}/`, where a reviewer writes one line "
+            "and commits; record what they wrote "
             f"with `constat review {args.reference} --record-decisions`. Or "
             "decide here with `constat rule accept <ID>`."
         )

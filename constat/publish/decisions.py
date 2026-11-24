@@ -40,6 +40,17 @@ from dataclasses import dataclass, field
 
 DECISIONS_DIRECTORY = "decisions"
 
+GENERATED_MARKER = "<!-- constat:generated -->"
+"""What distinguishes Constat's ticket page from a reviewer's own file.
+
+`decisions/630.md` means two different things depending on when it was
+written: before CON-123 it was the reviewer's file, and now it is the
+generated ticket page above `decisions/630/`. Overwriting the first kind would
+destroy verdicts nobody had recorded — so the generated page says so in its
+own text, and a file at that path without this line is treated as a person's
+and never written.
+"""
+
 #: `3: approved`, `R-7: rejected — the limit is per account, not per customer`.
 #: Deliberately narrow. The separator may be an em dash or a hyphen because a
 #: browser editor will produce either, and the verb is lower-case only so that
@@ -71,16 +82,13 @@ prose is a decision somebody believes was recorded.
 """
 
 #: Written once, if the file is absent, and never touched again.
-TEMPLATE = """# Decisions for {reference}
+TEMPLATE = """# {proposal} — {name}
 
-Write one decision per line, in exactly this form:
+{context}
+Write your decision on the line below, replacing the blank after the colon
+with `approved` or `rejected`, and commit. A reason is optional:
 
-    1: approved
-    2: rejected — the limit is per account, not per customer
-
-The number is the rule proposal's id, shown on the document page beside each
-rule. The reason is optional. Only `approved` and `rejected` are read; any
-other line is reported back to you unchanged rather than guessed at.
+    {proposal}: rejected — this is not what we agreed
 
 **Do not write your name.** Who decided is taken from the commit that added
 the line, which the repository attests and a typed name does not. Sign the
@@ -93,15 +101,14 @@ Nothing here takes effect on its own. Someone reads these back with
 `constat review {reference} --read-decisions`, which reports what you wrote
 and records nothing, and then records it against the catalogue with
 `constat review {reference} --record-decisions`.
-Reading twice is safe: the same line in the same commit is recorded once.
 
-<!-- Constat wrote this file once and will never change it again. The document
-     page beside it is regenerated on every run; this is yours. -->
+<!-- Constat wrote this file once and will never change it again. The review
+     page is regenerated on every run; this is yours. -->
 
 ## Decisions
 
+{proposal}: 
 """
-
 
 @dataclass(frozen=True)
 class DecisionLine:
@@ -175,38 +182,27 @@ class DecisionsRead:
         return tuple(d for d in self.decisions if d.verdict == "rejected")
 
 
-def file_for(page: str) -> str:
-    """The decision file beside a published page.
+def folder_for(stem: str) -> str:
+    """The folder holding one ticket's decisions, one file per proposal."""
+    return f"{DECISIONS_DIRECTORY}/{stem}"
 
-    Derived from the page filename rather than from the reference, so the two
-    cannot disagree about what counts as a safe path — `page_for` already did
-    that sanitising, and repeating the rule is how two rules drift apart.
+
+def file_for(stem: str, proposal: str) -> str:
+    """The page a single proposal is decided on (CON-122).
+
+    One file per proposal rather than one per ticket, so a reviewer opens a
+    page that holds **one** rule, decides it, and saves. On a wiki that is the
+    difference between a decision per rule and a decision per ticket: the file
+    is the unit the Edit button acts on.
+
+    It also returns the file to what D-105 promised — seeded once and never
+    written again. A ticket-wide file could not keep up with a queue that
+    grows, which is why CON-115 had to append to it; a file per proposal is
+    created when its proposal appears and is never touched afterwards.
     """
-    return f"{DECISIONS_DIRECTORY}/{page}"
+    safe = re.sub(r"[^A-Za-z0-9._-]", "-", proposal).strip("-.") or "proposal"
+    return f"{folder_for(stem)}/{safe}.md"
 
-
-def mentioned(text: str) -> frozenset[str]:
-    """Every proposal reference the file already names (CON-115).
-
-    Used before appending a prompt, so a proposal already written about — in
-    any state, answered or not — is never prompted for twice. Read from the
-    whole file rather than from below the marker: a reviewer who wrote their
-    verdicts above it has still written about those proposals.
-    """
-    found = set()
-    for raw in text.split("\n"):
-        if raw.startswith(("    ", "\t")):
-            # The template's worked examples are indented and use `1:` and
-            # `2:`. Reading them as "already written about" suppressed the
-            # prompt for proposals 1 and 2 — the first two of any workspace.
-            continue
-        line = raw.strip()
-        for pattern in (DECISION_LINE, UNANSWERED_LINE):
-            match = pattern.match(line)
-            if match:
-                found.add(match.group("ref"))
-                break
-    return frozenset(found)
 
 
 def parse(text: str) -> tuple[tuple[DecisionLine, ...], tuple[tuple[int, str], ...]]:

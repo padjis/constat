@@ -183,7 +183,7 @@ class TestPublishingATicket:
         assert sorted(p.name for p in clone.glob("*.md")) == [
             "index.md", f"{STATE_REFERENCE}.md"
         ]
-        assert (clone / "reviews" / "622.md").exists()
+        assert (clone / "decisions" / "622.md").exists()
 
     def test_the_page_is_what_review_show_prints(
         self, subject, wiki, tmp_path
@@ -209,7 +209,7 @@ class TestPublishingATicket:
             ]
         )
 
-        assert (_pages(tmp_path, wiki) / "reviews" / "622.md").read_text() == expected
+        assert (_pages(tmp_path, wiki) / "decisions" / "622.md").read_text() == expected
 
     def test_the_page_carries_no_evidence(self, subject, wiki, tmp_path) -> None:
         """The whole point of CON-114: the stored document names files, the
@@ -226,7 +226,7 @@ class TestPublishingATicket:
             ]
         )
 
-        page = (_pages(tmp_path, wiki) / "reviews" / "622.md").read_text()
+        page = (_pages(tmp_path, wiki) / "decisions" / "622.md").read_text()
         assert "rules.py" not in page
 
 

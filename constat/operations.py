@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
 from .ai import (
@@ -42,8 +43,13 @@ from .ai.redaction import scrub_message
 from .ai import resolve as resolve_provider
 from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
-from .publish import Awaiting, AREA_PREFIX, AREAS_DIRECTORY, REVIEWS_DIRECTORY, INDEX_REFERENCE, STATE_REFERENCE, is_generated, PublishedRef, Target
-from .publish.decisions import DecisionLine, DecisionsRead
+from .publish import Awaiting, AREA_PREFIX, AREAS_DIRECTORY, TICKETS_DIRECTORY, INDEX_REFERENCE, STATE_REFERENCE, is_generated, PublishedRef, Target
+from .publish.decisions import (
+    GENERATED_MARKER,
+    DecisionLine,
+    DecisionsRead,
+    file_for,
+)
 from .publish.targets.git_pages import GitPages
 from .publish.targets.git_pages import detect as git_pages_detect
 from .errors import (
@@ -595,8 +601,9 @@ def _render_catalogue(view: CatalogueView) -> list[str]:
         lines += [
             "",
             "Ticking a box above records nothing yet — a tick says nothing "
-            "about who made it. To decide, write one line per proposal in the "
-            "`decisions/` file beside this page, using the `#N` above:",
+            "about who made it. To decide, open that proposal's page under "
+            "`decisions/` on the target — one page per rule — and write one "
+            "line, using the `#N` above:",
             "",
             "    1: approved",
             "    2: rejected — the limit is per account, not per customer",
@@ -1876,34 +1883,24 @@ def render_review(workspace: Workspace, reference: str) -> str:
             "",
         ]
         for item in queue:
-            lines.append(f"- `#{item.id}` **{item.proposal.name}**")
-            previous = (
-                getattr(
-                    Catalogue(workspace).by_id(item.revises_rule_id),
-                    "statement",
-                    None,
-                )
-                if item.revises_rule_id is not None
-                else None
+            # A name, who read it, and the link. The statement is **not**
+            # repeated here (CON-123): it is on the page the verdict is
+            # written on, and printing it twice was the duplication that made
+            # two folders feel like two places to decide the same thing.
+            name = item.proposal.name
+            if item.revises_rule_id is not None:
+                name += " *(revises a rule)*"
+            lines.append(
+                f"- [`#{item.id}` **{name}**]"
+                f"({_decision_link(reference, item.id)}) — read by "
+                f"{item.attribution}"
             )
-            if previous is None:
-                lines.append(f"  {item.proposal.statement}")
-            else:
-                # Both statements, because "is this a change and is the change
-                # right" is the reviewer's whole question (CON-120).
-                lines.append(f"  **was** — {previous}")
-                lines.append(f"  **now** — {item.proposal.statement}")
-            lines.append(f"  Read by {item.attribution}.")
         lines += [
             "",
-            "To decide, write one line per proposal in the `decisions/` file "
-            "beside this page, using the `#N` above:",
-            "",
-            "    1: approved",
-            "    2: rejected — the limit is per account, not per customer",
-            "",
-            "Who decided is taken from your commit, so do not write your "
-            "name.",
+            "Follow a rule to decide it: its page carries the statement — "
+            "what it says now and what it said before, if it is a change — "
+            "and one line to write `approved` or `rejected` on. Who decided "
+            "is taken from your commit, so do not write your name.",
             "",
         ]
     else:
@@ -1934,8 +1931,25 @@ def render_review(workspace: Workspace, reference: str) -> str:
         f"({_page_link(STATE_REFERENCE, frm=reference)}); every page is in the "
         f"[index]({_page_link(INDEX_REFERENCE, frm=reference)}).",
         "",
+        # Read by the target, not by a person: `decisions/630.md` was the
+        # reviewer's own file before CON-123, and a page without this line is
+        # treated as a person's and never overwritten.
+        GENERATED_MARKER,
+        "",
     ]
     return "\n".join(lines)
+
+
+def _awaiting_text(item: Awaiting) -> str:
+    """Everything about one proposal that will be written to the target.
+
+    What the gate scans beyond the page body: the target renders a page per
+    proposal from these fields (CON-122), and a credential in a statement
+    must not reach a target by a route the scan does not read.
+    """
+    return "\n".join(
+        part for part in (item.name, item.previous, item.statement) if part
+    )
 
 
 def publish_document(
@@ -2001,16 +2015,9 @@ def publish_document(
     # is the technical view and stays at the terminal.
     body = render_review(workspace, reference)
 
-    # First, and before any target exists: a refusal has to leave the world
-    # untouched (D-047, D-058).
-    scan_findings = guard_publication(body, accepted=accept_scan_findings)
-
-    if target is None:
-        target = detect_target(repository, workspace)
-
-    # The ids the reviewer has to write, so they do not have to be copied off
-    # the page (CON-115). Strings, because a decision may also be written
-    # against a rule citation and the file takes either.
+    # Each proposal's own page, which the target writes (CON-122). Strings,
+    # because a decision may also be written against a rule citation and the
+    # page takes either.
     catalogue = Catalogue(workspace)
     awaiting = tuple(
         Awaiting(
@@ -2029,6 +2036,26 @@ def publish_document(
         )
         for item in RuleProposals(workspace).undecided(reference)
     )
+
+    # First, and before any target exists: a refusal has to leave the world
+    # untouched (D-047, D-058).
+    #
+    # **Everything that will be written, not just the page.** CON-123 took the
+    # statements off the ticket page and left them on the per-proposal pages,
+    # which the target renders — so scanning the body alone would have let a
+    # credential in a rule statement reach the target by the one route the
+    # gate could not see. Found by the test for exactly that case failing
+    # open.
+    scan_findings = guard_publication(
+        "\n\n".join(
+            [body, *(_awaiting_text(item) for item in awaiting)]
+        ),
+        accepted=accept_scan_findings,
+    )
+
+    if target is None:
+        target = detect_target(repository, workspace)
+
     ref = target.publish(reference, body, awaiting)
 
     accepted = bool(scan_findings) and accept_scan_findings
@@ -2532,6 +2559,7 @@ def render_index(
     pages: tuple[PublishedPage, ...],
     releases: tuple[Release, ...] = (),
     areas: tuple[str, ...] = (),
+    undecided: Mapping[str, int] | None = None,
 ) -> str:
     """The page that says what else is here (CON-110).
 
@@ -2539,7 +2567,13 @@ def render_index(
     names pages that **have** been published rather than pages that could be.
     A ticket whose document nobody published is absent, which is the honest
     answer: there is no page to link to.
+
+    `undecided` maps a reference to how many of its proposals nobody has
+    decided, and splits the ticket list in two (CON-123). A reference missing
+    from it is listed as decided — the honest default, because a ticket whose
+    proposals are all decided has no entry to make.
     """
+    undecided = undecided or {}
     lines = [
         "# What is documented here",
         "",
@@ -2582,26 +2616,59 @@ def render_index(
         ]
         return "\n".join(lines)
 
+    # Split by whether anything is still waiting on a person (CON-123). The
+    # single list answered "what has been published", which nobody asks. The
+    # question a reviewer opens this page with is "is there anything for me to
+    # do", and a list that mixes the two does not answer it.
+    waiting = [p for p in pages if undecided.get(p.reference)]
+    done = [p for p in pages if not undecided.get(p.reference)]
+
     lines += [
         "## By ticket",
         "",
-        "One page per piece of work, carrying the readings taken from it and "
-        f"nothing else, under `{REVIEWS_DIRECTORY}/`. **The evidence is not "
-        "published** — it is a pointer to a commit held in the workspace, and "
-        "a page of diffs would look like an archive without being one. A "
-        "verdict is written in the `decisions/` file beside the page it "
-        "belongs to.",
+        "One page per piece of work, under `{}/`, carrying the rule proposals "
+        "read from it and a link to the page each is decided on. **The "
+        "evidence is not published** — it is a pointer to a commit held in "
+        "the workspace, and a page of diffs would look like an archive "
+        "without being one.".format(TICKETS_DIRECTORY),
         "",
-        "| Ticket | Last published |",
-        "| --- | --- |",
     ]
-    for page in pages:
-        when = page.published_at[:10]
-        lines.append(
-            f"| [{page.reference}]({_page_link(page.reference)}) | {when} |"
-        )
+
+    if waiting:
+        lines += [
+            "### Awaiting a decision",
+            "",
+            "Nothing on these pages carries any authority yet (D-036, D-037).",
+            "",
+            "| Ticket | Rules awaiting a decision | Last published |",
+            "| --- | --- | --- |",
+        ]
+        for page in waiting:
+            lines.append(
+                f"| [{page.reference}]({_page_link(page.reference)}) "
+                f"| {undecided[page.reference]} | {page.published_at[:10]} |"
+            )
+        lines.append("")
+
+    if done:
+        lines += [
+            "### Decided",
+            "",
+            "Every proposal read from these is decided. The page is a record "
+            "of what was read and what became of it — **not** a claim that "
+            "the work shipped, which Constat does not record.",
+            "",
+            "| Ticket | Last published |",
+            "| --- | --- |",
+        ]
+        for page in done:
+            lines.append(
+                f"| [{page.reference}]({_page_link(page.reference)}) "
+                f"| {page.published_at[:10]} |"
+            )
+        lines.append("")
+
     lines += [
-        "",
         f"{len(pages)} page(s). This index is written from Constat's own "
         "record of what it published, so a page removed from the target by "
         "hand is still listed here — and a page it never published is not, "
@@ -2630,10 +2697,13 @@ def publish_index(
     if target is None:
         target = detect_target(repository, workspace)
 
+    pages = published_pages(workspace, getattr(target, "url", None))
+    proposals = RuleProposals(workspace)
     body = render_index(
-        published_pages(workspace, getattr(target, "url", None)),
+        pages,
         Releases(workspace).list(),
         tuple(product_state(workspace).by_area()),
+        {p.reference: len(proposals.undecided(p.reference)) for p in pages},
     )
     scan_findings = guard_publication(body, accepted=accept_scan_findings)
 
@@ -3629,6 +3699,16 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
+def _decision_link(reference: str, proposal: int | str) -> str:
+    """The page one proposal is decided on, from the ticket page above it.
+
+    A sibling link, not a `../` one: since CON-123 the ticket page sits at
+    `decisions/630.md` and the rules under `decisions/630/`, so the ticket
+    page reaches them by name.
+    """
+    return file_for(reference, str(proposal)).split("/", 1)[1]
+
+
 def _page_link(reference: str, *, frm: str | None = None) -> str:
     """The path a reference is published at, relative to the page linking to it.
 
@@ -3651,7 +3731,7 @@ def _page_link(reference: str, *, frm: str | None = None) -> str:
     elif is_generated(reference):
         page = f"{_safe(reference)}.md"
     else:
-        page = f"{REVIEWS_DIRECTORY}/{_safe(reference)}.md"
+        page = f"{TICKETS_DIRECTORY}/{_safe(reference)}.md"
 
     # A page in a folder reaches the root through `../`. A link that forgot
     # which folder it was written from would resolve nowhere, which is the

@@ -229,12 +229,21 @@ constat review 622 --target <git-url>    # target named explicitly
 constat publish                          # the catalogue alone, as `state` renders it
 ```
 
-Two kinds of page, for the two audiences product rule 8 asks for (D-110):
+What a target holds (D-110, D-117, D-127):
 
 | Page | Holds | Decisions |
 | --- | --- | --- |
-| `<REF>.md` | one ticket's evidence and its review queue — the technical view | this is where a verdict is written. Written by `constat review <REF>` |
-| `the-product-as-it-stands.md` | every accepted rule, by area — the business explanation | none: nothing on it can be decided. Written by `constat publish` |
+| `status.md` | every accepted rule, by area — the business explanation | none: nothing on it can be decided. Written by `constat publish` |
+| `index.md` | every other page, with the tickets split into *awaiting a decision* and *decided* | none. Written whenever anything else is |
+| `areas/<area>.md` | the accepted rules for one part of the product | none |
+| `decisions/<REF>.md` | one ticket's rule proposals, by name, each linking to its own page | none directly — it is regenerated on every run. Written by `constat review <REF>` |
+| `decisions/<REF>/<N>.md` | **one** rule proposal: what it says, what it said before, and a line to answer | **this is where a verdict is written.** Seeded once and never touched again |
+| `release-<name>.md` | what was agreed for a declared release | none |
+
+Deciding is one folder. The ticket page sits directly above the pages its rules are decided on, so
+a wiki nests them — `630` with `26`, `27`, `28` beneath it — and the path tells a reader which of
+the two they are looking at. No page carries a file path or a diff: the evidence stays in the
+workspace, reached by `constat rule show` and `constat document` (D-118).
 
 **Two commands, because they are two moments** (D-111). Before anyone has decided, a ticket page is
 something you *circulate*: `constat review 622` writes it, and the output says how many proposals
@@ -247,8 +256,8 @@ that changed it, reaches a page.
 
 The catalogue page is rewritten in full each time, so nothing written into it survives. The
 decision flags live on `review` and nowhere else: a verdict is written against a rule proposal, and
-the catalogue page carries none. `the-product-as-it-stands` is a **reserved**
-reference — a ticket cannot be published over it.
+the catalogue page carries none. `status`, `index`, `area-*` and `release-*` are **reserved**
+references — a ticket cannot be published over one.
 
 **Set the target once** rather than passing it every time (CON-108):
 
@@ -274,14 +283,23 @@ never publishes, and publishing approves nothing.
 
 ### Deciding on the page instead of at the command line
 
-Publishing also seeds `decisions/622.md` beside the page, once, and never writes it again — the page
-is regenerated on every run, so a decision written *there* would be destroyed. A reviewer who never
-opens a terminal edits that file instead, one line per rule proposal, using the `#N` shown beside
-each rule on the page:
+Publishing also seeds **one page per rule proposal** — `decisions/622/1.md`, `decisions/622/2.md` —
+below the ticket page, once each, and never writes them again. The ticket page is regenerated on
+every run, so a decision written *there* would be destroyed; and a page of its own per proposal is
+what makes a verdict per rule possible on a wiki, where there is one Edit button per page. The
+ticket page lists the rules by name and links to each.
+
+The page carries the proposal's statement — WAS and NOW if it revises a rule — and one line to
+answer:
 
 ```
 1: approved
-2: rejected — the limit is per account, not per customer
+```
+
+or, with a reason:
+
+```
+2: rejected — this is not what we agreed
 ```
 
 They commit and push it, in the browser or otherwise. Then:

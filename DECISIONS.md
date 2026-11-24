@@ -8,6 +8,86 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-127 · 2026-11-25 · One folder for deciding, and the index splits waiting from decided
+
+**Decision.** `reviews/` is gone. A ticket's page is published at `decisions/<REF>.md`, directly
+above the `decisions/<REF>/<N>.md` pages it links to — one folder for the whole act of deciding,
+nesting the way a wiki already nests it. The ticket page lists each proposal by **name and link
+only**: the statement lives on the page the verdict is written on and nowhere else.
+
+The index's ticket list splits in two: *Awaiting a decision*, with a count of rules per ticket, and
+*Decided*. The second says in terms that it is **not** a claim the work shipped, because Constat
+records no ship (CON-86 is unbuilt).
+
+The ticket page moved **onto** the path the reviewer's own file used to occupy. So the generated page
+carries `<!-- constat:generated -->`, and a file at that path without it is treated as a person's:
+publishing **refuses**, naming `--record-decisions`, and nothing is written. Reading does the
+converse — an unmarked file there is still read as a reviewer's (D-126).
+
+**Context.** From *"is there a way to merge reviews and decisions, the layout feels confusing to
+me"*, with *"also divide reviewed tickets and tickets to review"*. The confusion was real and had
+two causes. Two sibling folders for one act, so the path told a reader nothing about which page to
+open; and each statement printed twice, once on the ticket page and once on the page where it is
+decided, which reads as two places to decide the same thing. The only thing that genuinely has to
+stay separate is **what Constat regenerates** from **what a person wrote** — that is one file
+boundary, not two folders.
+
+The index's single list answered "what has been published", which nobody asks. The question a
+reviewer opens that page with is "is there anything for me to do".
+
+**Consequences.** A real defect fell out of it. The credential gate scanned the page body, and this
+change took the statements off the page and left them travelling to the target as `Awaiting`, which
+the target renders itself — so a credential in a rule statement would have reached a target by the
+one route the gate could not see. `guard_publication` now scans the body **and** every awaiting
+proposal's name, statement and previous statement. Found by `test_a_credential_in_a_statement_refuses`
+failing open rather than by review.
+
+A target published before this needs a one-off migration: the old `reviews/` pages and any
+`decisions/<REF>.md` are deleted by hand after their verdicts are recorded. Done on
+`237feed/237feed-ai-gate` and its wiki on 2026-11-25; every file removed was checked for a written
+verdict first and none held one.
+
+**Status.** accepted
+
+---
+
+## D-126 · 2026-11-25 · One decisions page per rule proposal
+
+**Decision.** A rule proposal awaiting a verdict gets its own page on the target:
+`decisions/<REF>/<N>.md`, holding that proposal's name, its statement — WAS and NOW when it revises
+a rule — and one blank line to write a verdict on. The review page links to it per proposal
+(*Decide `#26`*). The page is seeded when the proposal first appears and never written again.
+
+This supersedes the appending half of D-119: there is no ticket-wide decisions file to append to any
+more, so the amendment D-119 made to D-105 is withdrawn and **D-105's original promise stands
+literally** — Constat writes a reviewer's file once and never touches it again.
+
+A target published before this keeps its `decisions/<REF>.md`. Constat neither rewrites nor deletes
+it, **and keeps reading it**: it may already hold verdicts nobody has recorded, and a reader that
+stopped looking there would drop a decision somebody believes they made — the substitution D-041
+exists to prevent. Verdicts are now reported in proposal order (numeric ids first, in order;
+non-numeric names after), because the order of the files is no longer the order somebody typed in.
+
+**Context.** From *"it seems like i still cannot provide a decision per rule"*, looking at
+`decisions/630` on a wiki. Every mechanism for deciding one rule at a time already existed — one id,
+one line, independently recorded (D-106) — and the thing in the reviewer's way was the **page**. A
+wiki has one Edit button per page, so a page carrying three proposals is a form for deciding three
+proposals, whatever the file format allows. D-119 made the ids visible; it did not make them
+separately editable.
+
+A page per proposal also makes the unit of history the unit of decision: the commit that carries a
+verdict touches that rule's page and no other, which is what the attribution read in D-106 claims to
+describe.
+
+**Consequences.** `decisions/` grows a directory per reference. The append machinery CON-115 built —
+`mentioned()`, the prompt writer, the ticket-wide template — is gone, and with it the class of bug
+it carried (a prompt counted as already written, a file staged only when seeded). Two decision files
+can now exist for one reference during the transition, which is why the reader looks in both.
+
+**Status.** accepted
+
+---
+
 ## D-125 · 2026-11-22 · A commit that names another ticket is not this ticket's evidence
 
 **Closes CON-121.** Narrows the branch-name half of D-031.

@@ -132,8 +132,8 @@ class TestAnAreaPage:
 
     def test_the_read_from_link_climbs_out_of_the_folder(self, subject) -> None:
         """Found by comparing an area page with the catalogue: the link was
-        written as `reviews/...`, which from inside `areas/` resolves to
-        `areas/reviews/...` — so every "read from" on every area page was
+        written as `decisions/...`, which from inside `areas/` resolves to
+        `areas/decisions/...` — so every "read from" on every area page was
         broken. The catalogue's copy of the same line was correct, which is
         what two renderers of one thing cost."""
         _accept_in(subject, "payments")
@@ -141,8 +141,8 @@ class TestAnAreaPage:
 
         body = render_area("payments", grouped["payments"])
 
-        assert "(../reviews/" in body
-        assert "](reviews/" not in body
+        assert "(../decisions/" in body
+        assert "](decisions/" not in body
 
     def test_it_says_nothing_on_it_can_be_decided(self, subject) -> None:
         _accept_in(subject, "payments")
