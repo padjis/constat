@@ -45,6 +45,9 @@ from .ai.scanning import DocumentFinding, guard_publication
 from .errors import PublishRecordFailed
 from .publish import Awaiting, AREA_PREFIX, AREAS_DIRECTORY, TICKETS_DIRECTORY, INDEX_REFERENCE, STATE_REFERENCE, is_generated, PublishedRef, Target
 from .publish.decisions import (
+    DECISIONS_DIRECTORY,
+    state_directory,
+    ticket_page_for,
     GENERATED_MARKER,
     DecisionLine,
     DecisionsRead,
@@ -75,7 +78,7 @@ from .git.adapter import (
 from .git.diff import compare_revisions, summarise_state
 from .models import RegisteredRepository, Rule
 from .store import READER_MCP, Settings
-from .store import Catalogue, Registry, Review, RuleProposals, TicketStore, Workspace
+from .store import Catalogue, Registry, Review, RuleProposals, StoredRuleProposal, TicketStore, Workspace
 from .store import CatalogueHistory, Release, Releases, VersionAtPoint
 from .store import Requirements
 from .store.workspace import utc_now
@@ -1887,13 +1890,13 @@ def render_review(workspace: Workspace, reference: str) -> str:
             # repeated here (CON-123): it is on the page the verdict is
             # written on, and printing it twice was the duplication that made
             # two folders feel like two places to decide the same thing.
-            name = item.proposal.name
+            shown = item.proposal.name
             if item.revises_rule_id is not None:
-                name += " *(revises a rule)*"
+                shown += " *(revises a rule)*"
             lines.append(
-                f"- [`#{item.id}` **{name}**]"
-                f"({_decision_link(reference, item.id)}) — read by "
-                f"{item.attribution}"
+                f"- [`#{item.id}` **{shown}**]"
+                f"({_decision_link(reference, item.id, item.proposal.name)})"
+                f" — read by {item.attribution}"
             )
         lines += [
             "",
@@ -2237,6 +2240,7 @@ def render_rule(
     *,
     frm: str | None = None,
     labels: dict[str, str] | None = None,
+    decided: frozenset[str] = frozenset(),
 ) -> list[str]:
     """One accepted rule, as the business half reads it (CON-116).
 
@@ -2261,8 +2265,14 @@ def render_rule(
     lines.append(f"- {cite}**{item.rule.name}** — {item.rule.statement}")
 
     if item.references:
+        # The state is in the path (CON-125), so a link to a ticket has to
+        # know which side of the division it is on. `decided` names the
+        # tickets with nothing awaiting a verdict; anything absent from it is
+        # still to review, which is the safe default — a ticket gains that
+        # state only by being published.
         linked = ", ".join(
-            f"[{reference}]({_page_link(reference, frm=frm)})"
+            f"[{reference}]"
+            f"({_page_link(reference, frm=frm, decided=reference in decided)})"
             for reference in item.references
         )
         lines.append(f"  - read from {linked}")
@@ -2291,6 +2301,7 @@ def render_area(
     area: str,
     states: tuple[RuleState, ...],
     labels: dict[str, str] | None = None,
+    decided: frozenset[str] = frozenset(),
 ) -> str:
     """One area as a page (CON-111).
 
@@ -2310,7 +2321,9 @@ def render_area(
         "",
     ]
     for item in states:
-        lines += render_rule(item, frm=area_page(area), labels=labels)
+        lines += render_rule(
+            item, frm=area_page(area), labels=labels, decided=decided
+        )
         lines.append("")
 
     lines += [
@@ -2480,7 +2493,15 @@ def publish_areas(
         # `area-app-install.md` — comparing the two forms tombstoned every
         # area with a space in it the instant after writing it.
         current.add(_page_link(reference))
-        body = render_area(area, states, labels)
+        body = render_area(
+            area,
+            states,
+            labels,
+            decided_tickets(
+                workspace,
+                tuple({r for item in states for r in item.references}),
+            ),
+        )
         scan_findings = guard_publication(body, accepted=accept_scan_findings)
         ref = target.publish(reference, body)
         results.append(
@@ -2574,13 +2595,49 @@ def render_index(
     proposals are all decided has no entry to make.
     """
     undecided = undecided or {}
+
+    # Split before anything is written, because the count goes in a heading
+    # (CON-124). Nested under "By ticket" the division was there and invisible:
+    # two near-identical tables under a small `###`.
+    waiting = [p for p in pages if undecided.get(p.reference)]
+    done = [p for p in pages if not undecided.get(p.reference)]
+    rules = sum(undecided.get(p.reference, 0) for p in waiting)
+
     lines = [
         "# What is documented here",
         "",
-        f"- [The product as it stands]({_page_link(STATE_REFERENCE)}) — every "
+        f"[The product as it stands]({_page_link(STATE_REFERENCE)}) — every "
         "rule a person has accepted, by area. Nothing on it can be decided.",
         "",
     ]
+
+    if waiting:
+        lines += [
+            f"## Awaiting a decision — {rules} rule(s), "
+            f"{len(waiting)} ticket(s)",
+            "",
+            f"They are under `{state_directory(False)}/` — the folder is the "
+            "division, so the target's own page tree shows what is waiting. "
+            "Nothing on these pages carries any authority yet (D-036, "
+            "D-037).",
+            "",
+            "| Ticket | Rules awaiting a decision | Last published |",
+            "| --- | --- | --- |",
+        ]
+        for page in waiting:
+            lines.append(
+                f"| [{page.reference}]({_page_link(page.reference)}) "
+                f"| {undecided[page.reference]} | {page.published_at[:10]} |"
+            )
+        lines.append("")
+    elif pages:
+        lines += [
+            "## Nothing is awaiting a decision",
+            "",
+            "Every rule proposal published from this workspace has been "
+            "decided.",
+            "",
+        ]
 
     if areas:
         lines += [
@@ -2616,57 +2673,37 @@ def render_index(
         ]
         return "\n".join(lines)
 
-    # Split by whether anything is still waiting on a person (CON-123). The
-    # single list answered "what has been published", which nobody asks. The
-    # question a reviewer opens this page with is "is there anything for me to
-    # do", and a list that mixes the two does not answer it.
-    waiting = [p for p in pages if undecided.get(p.reference)]
-    done = [p for p in pages if not undecided.get(p.reference)]
-
     lines += [
-        "## By ticket",
+        "## Decided, by ticket",
         "",
         "One page per piece of work, under `{}/`, carrying the rule proposals "
-        "read from it and a link to the page each is decided on. **The "
-        "evidence is not published** — it is a pointer to a commit held in "
-        "the workspace, and a page of diffs would look like an archive "
-        "without being one.".format(TICKETS_DIRECTORY),
+        "read from it and a link to the page each was decided on. The page is "
+        "a record of what was read and what became of it — **not** a claim "
+        "that the work shipped, which Constat does not record. **The evidence "
+        "is not published**: it is a pointer to a commit held in the "
+        "workspace, and a page of diffs would look like an archive without "
+        "being one.".format(state_directory(True)),
         "",
     ]
 
-    if waiting:
-        lines += [
-            "### Awaiting a decision",
-            "",
-            "Nothing on these pages carries any authority yet (D-036, D-037).",
-            "",
-            "| Ticket | Rules awaiting a decision | Last published |",
-            "| --- | --- | --- |",
-        ]
-        for page in waiting:
-            lines.append(
-                f"| [{page.reference}]({_page_link(page.reference)}) "
-                f"| {undecided[page.reference]} | {page.published_at[:10]} |"
-            )
-        lines.append("")
-
     if done:
         lines += [
-            "### Decided",
-            "",
-            "Every proposal read from these is decided. The page is a record "
-            "of what was read and what became of it — **not** a claim that "
-            "the work shipped, which Constat does not record.",
-            "",
             "| Ticket | Last published |",
             "| --- | --- |",
         ]
         for page in done:
+            # Decided, so its page is in the other state folder (CON-125).
             lines.append(
-                f"| [{page.reference}]({_page_link(page.reference)}) "
+                f"| [{page.reference}]"
+                f"({_page_link(page.reference, decided=True)}) "
                 f"| {page.published_at[:10]} |"
             )
         lines.append("")
+    else:
+        lines += [
+            "No ticket has every proposal decided yet.",
+            "",
+        ]
 
     lines += [
         f"{len(pages)} page(s). This index is written from Constat's own "
@@ -2676,6 +2713,23 @@ def render_index(
         "",
     ]
     return "\n".join(lines)
+
+
+def decided_tickets(
+    workspace: Workspace, references: tuple[str, ...]
+) -> frozenset[str]:
+    """Which of these references have nothing awaiting a verdict (CON-125).
+
+    The state is in the path, so every page that links to a ticket has to
+    know. Computed rather than stored: the queue is the truth, and a cached
+    flag would be one more thing that can disagree with it.
+    """
+    proposals = RuleProposals(workspace)
+    return frozenset(
+        reference
+        for reference in references
+        if not proposals.undecided(reference)
+    )
 
 
 def publish_index(
@@ -3699,17 +3753,22 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
-def _decision_link(reference: str, proposal: int | str) -> str:
+def _decision_link(
+    reference: str, proposal: int | str, name: str, *, decided: bool = False
+) -> str:
     """The page one proposal is decided on, from the ticket page above it.
 
-    A sibling link, not a `../` one: since CON-123 the ticket page sits at
-    `decisions/630.md` and the rules under `decisions/630/`, so the ticket
-    page reaches them by name.
+    A relative link, not an absolute one: the ticket page sits beside the
+    folder it links into, so it reaches a rule by `630/26-....md` whichever
+    state folder the pair of them is in (CON-123, CON-125).
     """
-    return file_for(reference, str(proposal)).split("/", 1)[1]
+    path = file_for(reference, str(proposal), name, decided=decided)
+    return path.removeprefix(f"{state_directory(decided)}/")
 
 
-def _page_link(reference: str, *, frm: str | None = None) -> str:
+def _page_link(
+    reference: str, *, frm: str | None = None, decided: bool = False
+) -> str:
     """The path a reference is published at, relative to the page linking to it.
 
     Derived the same way the target derives it, and deliberately duplicated
@@ -3719,27 +3778,38 @@ def _page_link(reference: str, *, frm: str | None = None) -> str:
     agree.
 
     `frm` is the reference of the page doing the linking. It matters because a
-    ticket page lives in `evidence/` (CON-113): a link from there to the root
-    needs `../`, and one that forgot would resolve nowhere — the whole reason
-    the two derivations are tested against each other.
+    ticket page lives two folders down (CON-113, CON-125): a link from there
+    to the root needs `../../`, and one that forgot would resolve nowhere —
+    the whole reason the two derivations are tested against each other.
+
+    `decided` picks which state folder a ticket page is in. Every caller that
+    links to a ticket has to know, which is the price of putting the state in
+    the path: a link to the wrong side of the division resolves nowhere.
     """
     def _safe(text: str) -> str:
         return re.sub(r"[^A-Za-z0-9._-]", "-", text).strip("-.") or "document"
 
     if reference.startswith(AREA_PREFIX):
         page = f"{AREAS_DIRECTORY}/{_safe(reference[len(AREA_PREFIX):])}.md"
+        depth = 1
     elif is_generated(reference):
         page = f"{_safe(reference)}.md"
+        depth = 0
     else:
-        page = f"{TICKETS_DIRECTORY}/{_safe(reference)}.md"
+        # Two folders deep since CON-125: `decisions/to-review/630.md`.
+        page = ticket_page_for(_safe(reference), decided=decided)
+        depth = 2
 
-    # A page in a folder reaches the root through `../`. A link that forgot
-    # which folder it was written from would resolve nowhere, which is the
+    # A page in a folder reaches the root through one `../` per level. A link
+    # that forgot how deep it was written would resolve nowhere, which is the
     # whole reason the renderer and the target are tested against each other.
-    nested = frm is not None and (
-        frm.startswith(AREA_PREFIX) or not is_generated(frm)
-    )
-    return f"../{page}" if nested else page
+    climb = 0
+    if frm is not None:
+        if frm.startswith(AREA_PREFIX):
+            climb = 1
+        elif not is_generated(frm):
+            climb = 2
+    return "../" * climb + page
 
 
 def render_state(state: ProductState) -> str:

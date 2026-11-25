@@ -109,7 +109,7 @@ class TestARuleNamesTheTicketItCameFrom:
 
         body = render_area(area, states)
 
-        assert "read from [622](../decisions/622.md)" in body
+        assert "read from [622](../decisions/to-review/622.md)" in body
 
     def test_a_rule_with_no_ticket_says_nothing(self, subject) -> None:
         """Rather than inventing a page that may not exist."""
@@ -131,12 +131,12 @@ class TestATicketPageNamesTheRest:
         that forgot the directory would resolve nowhere."""
         body = TicketStore(subject).document("622").body
 
-        assert "(../status.md)" in body
+        assert "(../../status.md)" in body
 
     def test_it_links_up_to_the_index(self, subject) -> None:
         body = TicketStore(subject).document("622").body
 
-        assert "(../index.md)" in body
+        assert "(../../index.md)" in body
 
 
 # -- the index -----------------------------------------------------------------
@@ -155,7 +155,9 @@ class TestTheIndex:
 
         body = render_index(published_pages(subject))
 
-        assert "[622](decisions/622.md)" in body
+        # Nothing is awaiting a verdict on it, so it is listed — and linked —
+        # as reviewed (CON-125).
+        assert "[622](decisions/reviewed/622.md)" in body
 
     def test_it_lists_what_was_published_not_what_exists(
         self, subject, wiki
@@ -169,7 +171,9 @@ class TestTheIndex:
 
         body = render_index(published_pages(subject))
 
-        assert "[622](decisions/622.md)" in body
+        # Nothing is awaiting a verdict on it, so it is listed — and linked —
+        # as reviewed (CON-125).
+        assert "[622](decisions/reviewed/622.md)" in body
         assert "700" not in body
 
     def test_it_lists_only_pages_published_to_this_target(
@@ -208,9 +212,11 @@ class TestTheIndex:
 
         body = render_index(pages, undecided={"622": 1})
 
-        assert "### Awaiting a decision" in body
-        assert "| [622](decisions/622.md) | 1 |" in body
-        assert "### Decided" not in body
+        # A top-level section with the count in the heading (CON-124): under
+        # a `###`, two near-identical tables did not read as a division.
+        assert "## Awaiting a decision — 1 rule(s), 1 ticket(s)" in body
+        assert "| [622](decisions/to-review/622.md) | 1 |" in body
+        assert "No ticket has every proposal decided yet." in body
 
     def test_a_ticket_with_nothing_waiting_is_listed_as_decided(
         self, subject, wiki
@@ -220,8 +226,9 @@ class TestTheIndex:
 
         body = render_index(pages, undecided={})
 
-        assert "### Decided" in body
-        assert "### Awaiting a decision" not in body
+        assert "## Decided, by ticket" in body
+        assert "Awaiting a decision" not in body
+        assert "## Nothing is awaiting a decision" in body
 
     def test_a_decided_ticket_is_not_called_shipped(
         self, subject, wiki
@@ -247,7 +254,7 @@ class TestTheIndex:
         clone = Path(wiki.replace("file://", "")).parent / "index-check"
         git(Path(clone).parent, "clone", "--quiet", wiki, str(clone))
         body = (Path(clone) / "index.md").read_text()
-        assert "| [622](decisions/622.md) | 1 |" in body
+        assert "| [622](decisions/to-review/622.md) | 1 |" in body
 
     def test_republishing_lists_a_page_once(self, subject, wiki) -> None:
         publish_document(subject, "622", GitPages(wiki))

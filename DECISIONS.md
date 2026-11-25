@@ -8,6 +8,57 @@ Format: `## D-NNN · YYYY-MM-DD · Title` → **Decision**, **Context**, **Conse
 
 ---
 
+## D-128 · 2026-11-25 · The state of a ticket is in its path, and a rule's page is named
+
+**Decision.** `decisions/` has two subfolders. A ticket with rule proposals awaiting a verdict is
+published at `decisions/to-review/<REF>.md`, with its rules in `decisions/to-review/<REF>/`; a
+ticket with nothing awaiting is at `decisions/reviewed/<REF>.md`. Deciding the last rule **moves**
+the page and the folder, by `git mv`, so content and history survive.
+
+A rule's page is named `<id>-<name>.md` — `26-an-article-that-reaches-nobody-is-counted.md`. A rule
+proposal's name is immutable once stored, so the filename does not churn. The page is found by its
+**id**, not its filename, so a page seeded under the older scheme is never duplicated and a verdict
+is still read from inside the file.
+
+Both folders are read when looking for a verdict, and so are the paths this moved past.
+
+The page CON-124 added — `awaiting.md`, "what needs a decision" — is **withdrawn**. It existed to
+make the division visible, and the folder does that where a reader actually navigates.
+
+**Context.** *"I was expecting to have two sub folders under decisions instead, one for tickets
+reviewed and one for tickets to review. Also add a title to every decision page in the navigation
+panel, the format expected is number-the-title-here.md"*, after *"there is no visible division
+between reviewed and to review"* — said while the division was already on the index, as two
+near-identical tables under a small `###`.
+
+Both halves are about one surface: the target's own page tree. The index can say whatever it likes
+and a reader browsing the tree never sees it; and a tree of `26.md`, `27.md`, `28.md` says nothing
+about what any of them is.
+
+I argued against putting the state in the path and was overruled, which was the right call: the
+objection was about a cost, not a defect, and the cost buys the only division that shows up where
+people look.
+
+**Consequences.** Stated rather than hidden: **a ticket's URL changes when its last rule is
+decided.** A link pasted into a chat stops resolving, and the pages that move include files a
+reviewer wrote — Constat moves them, having never read or altered them. Everything that links to a
+ticket page now has to know its state: `_page_link` takes `decided`, and `render_rule`,
+`render_area` and `render_index` take the set of references with nothing awaiting, computed from the
+queue rather than stored, because a cached flag is one more thing that can disagree with the truth.
+
+The ticket page is two folders deep, so a link from it to a root page climbs `../../`. That depth is
+derived in two places — the renderer and the target — and stays in step only because a test asserts
+they agree.
+
+The CON-123 collision guard is now moot for the case that motivated it: nothing Constat writes lands
+on `decisions/<REF>.md` any more, so that file is only ever read. The guard stays for a page a
+person writes at the ticket's own path, because the cost of being wrong there is a decision somebody
+believes they made and the cost of the check is a string comparison.
+
+**Status.** accepted
+
+---
+
 ## D-127 · 2026-11-25 · One folder for deciding, and the index splits waiting from decided
 
 **Decision.** `reviews/` is gone. A ticket's page is published at `decisions/<REF>.md`, directly

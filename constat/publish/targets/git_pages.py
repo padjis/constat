@@ -41,6 +41,8 @@ from ..decisions import (
     GENERATED_MARKER,
     file_for,
     parse,
+    proposal_of,
+    ticket_page_for,
 )
 from ..port import (
     AREA_PREFIX,
@@ -266,7 +268,55 @@ class GitPages:
         """
         return re.sub(r"[^A-Za-z0-9._-]", "-", reference).strip("-.") or "document"
 
-    def page_for(self, reference: str) -> str:
+    def _move_to_state(
+        self, clone: Path, reference: str, *, decided: bool
+    ) -> bool:
+        """Move a ticket's page and folder into the state it is now in.
+
+        The cost of putting the state in the path (CON-125). A ticket whose
+        last rule is decided moves from `to-review/` to `reviewed/`, so a URL
+        somebody pasted into a chat stops resolving — and what moves includes
+        the pages a reviewer wrote.
+
+        `git mv`, so content and history survive the move; the alternative,
+        writing the new path and deleting the old, would lose both. A
+        reviewer's verdict is never read, altered or rewritten here — only
+        carried.
+
+        Returns whether anything moved, because a move with no other change
+        still has to be committed.
+        """
+        if is_generated(reference):
+            return False
+
+        stem = self.safe_name(reference)
+        moved = False
+        for was, now in (
+            (
+                ticket_page_for(stem, decided=not decided),
+                ticket_page_for(stem, decided=decided),
+            ),
+            (
+                folder_for(stem, decided=not decided),
+                folder_for(stem, decided=decided),
+            ),
+        ):
+            if not (clone / was).exists():
+                continue
+            (clone / now).parent.mkdir(parents=True, exist_ok=True)
+            result = run_git(["mv", "--", was, now], cwd=clone)
+            if result.returncode != 0:
+                raise PublishFailed(
+                    f"could not move {was} to {now} in {self.url}: "
+                    f"{result.stderr.strip() or 'git mv failed'}. The state "
+                    "of a ticket is in its path, so publishing it where it "
+                    "no longer belongs would say the wrong thing. Nothing "
+                    "has been published."
+                )
+            moved = True
+        return moved
+
+    def page_for(self, reference: str, *, decided: bool = False) -> str:
         """Where a page goes: the root for the whole-product pages, `areas/`
         for an area, `decisions/` for a ticket (CON-113, CON-123).
 
@@ -274,9 +324,10 @@ class GitPages:
         reader can tell from the path which of the two they are reading, and
         the business pages carry no path of their own (D-115).
 
-        A ticket page sits at `decisions/630.md`, directly above the
-        `decisions/630/` pages it links to: one folder for the whole act of
-        deciding, nesting the way a wiki already nests it.
+        A ticket page sits directly above the pages it links to —
+        `decisions/to-review/630.md` over `decisions/to-review/630/` — and
+        `decided` picks which of the two state folders it is in (CON-125). The
+        caller knows: a ticket with nothing awaiting a verdict is reviewed.
         """
         if reference.startswith(AREA_PREFIX):
             safe = self.safe_name(reference[len(AREA_PREFIX):])
@@ -284,7 +335,7 @@ class GitPages:
         safe = self.safe_name(reference)
         if is_generated(reference):
             return f"{safe}.md"
-        return f"{TICKETS_DIRECTORY}/{safe}.md"
+        return ticket_page_for(safe, decided=decided)
 
     def references_published(self, prefix: str) -> tuple[str, ...]:
         """Every reference already published under `prefix` (CON-111).
@@ -354,27 +405,44 @@ class GitPages:
                     "read as 'nobody has decided'."
                 )
 
-            folder = folder_for(self.safe_name(reference))
-            location = f"{self.url} :: {folder}/"
-            # Numerically where the name is a proposal id, so 9 comes before
-            # 10 — a reader of the report sees the queue in the order the
-            # proposals were raised rather than in dictionary order.
+            stem = self.safe_name(reference)
+            # Both state folders, because a ticket moves between them when its
+            # last rule is decided (CON-125) and a reader must not depend on
+            # knowing which side it is on. One of the two is empty in
+            # practice; looking in both costs nothing and cannot miss a
+            # verdict, which is the one thing that must never happen (D-041).
+            folders = [
+                folder_for(stem, decided=False),
+                folder_for(stem, decided=True),
+            ]
+            location = f"{self.url} :: {DECISIONS_DIRECTORY}/*/{stem}/"
+
+            # Numerically by the proposal the filename names, so 9 comes
+            # before 10 — a reader of the report sees the queue in the order
+            # the proposals were raised rather than in dictionary order. The
+            # verdict itself is read from inside the file, so a page renamed
+            # to carry its title still reads correctly.
             def _order(path: Path) -> tuple[int, int, str]:
-                stem = path.stem
-                if stem.isdigit():
-                    return (0, int(stem), "")
-                return (1, 0, stem)
+                proposal = proposal_of(path.name)
+                if proposal.isdigit():
+                    return (0, int(proposal), "")
+                return (1, 0, path.name)
 
-            files = sorted((clone / folder).glob("*.md"), key=_order)
+            files: list[Path] = []
+            for folder in folders:
+                files += sorted((clone / folder).glob("*.md"), key=_order)
 
-            # The file CON-122 replaced is still read if a target has one.
-            # Not rewritten and not deleted: it may already hold verdicts
-            # nobody has recorded yet, and a reader who stopped looking there
-            # would drop a decision somebody believes they made — the
+            # The files CON-123 and CON-125 moved past are still read if a
+            # target has one. Not rewritten and not deleted: either may hold
+            # verdicts nobody has recorded, and a reader that stopped looking
+            # there would drop a decision somebody believes they made — the
             # substitution D-041 exists to prevent.
-            legacy = clone / f"{folder}.md"
-            if legacy.exists() and GENERATED_MARKER not in legacy.read_text():
-                files.append(legacy)
+            for legacy in (
+                clone / DECISIONS_DIRECTORY / f"{stem}.md",
+                *sorted((clone / DECISIONS_DIRECTORY / stem).glob("*.md")),
+            ):
+                if legacy.exists() and GENERATED_MARKER not in legacy.read_text():
+                    files.append(legacy)
             if not files:
                 # Absent, not empty. The page has never been published, so the
                 # reviewer has had nowhere to write — a different situation
@@ -392,10 +460,7 @@ class GitPages:
             unreadable: list = []
             for file in files:
                 found, bad = parse(file.read_text())
-                path = (
-                    f"{folder}.md" if file.parent == clone / DECISIONS_DIRECTORY
-                    else f"{folder}/{file.name}"
-                )
+                path = str(file.relative_to(clone))
                 decisions.extend(_attribute(clone, path, found))
                 unreadable.extend(bad)
             return DecisionsRead(
@@ -426,18 +491,28 @@ class GitPages:
                     "in the browser."
                 )
 
-            page = clone / self.page_for(reference)
+            # A ticket with nothing awaiting a verdict is reviewed, and the
+            # state is in the path (CON-125). The caller does not have to say
+            # so: `awaiting` already carries the queue, and empty means there
+            # is nothing left for a person to do.
+            decided = not is_generated(reference) and not awaiting
+            moved = self._move_to_state(clone, reference, decided=decided)
+
+            page = clone / self.page_for(reference, decided=decided)
             # A ticket page lives under `decisions/` (CON-113, CON-123), which
             # a fresh clone does not have until something is written there.
             page.parent.mkdir(parents=True, exist_ok=True)
 
-            # The one path where a page Constat writes can collide with a page
-            # a person wrote. Before CON-123 the ticket page was at
-            # `reviews/630.md` and `decisions/630.md` was the reviewer's own
-            # file; now the ticket page *is* `decisions/630.md`. Writing over
-            # a target published before the move would destroy verdicts
-            # nobody had recorded — so a file at that path that is not
-            # Constat's own refuses, loudly, and nothing is published.
+            # A page at the ticket's path that Constat did not write is a
+            # page a person wrote, and overwriting it could destroy a verdict
+            # nobody has recorded — the substitution D-041 exists to prevent.
+            # So it refuses, loudly, and nothing is published.
+            #
+            # CON-123 put the ticket page on the old decisions file's name and
+            # needed this; CON-125 moved it into a state folder, where no
+            # reviewer's file has ever lived. The guard stays because the
+            # cost of being wrong here is a decision somebody believes they
+            # made, and the cost of the check is one string comparison.
             if (
                 not is_generated(reference)
                 and page.exists()
@@ -445,16 +520,18 @@ class GitPages:
                 and page.read_text().strip()
             ):
                 raise PublishFailed(
-                    f"{self.page_for(reference)} in {self.url} was written by "
+                    f"{self.page_for(reference, decided=decided)} in "
+                    f"{self.url} was written by "
                     "a person, not by Constat, and publishing would overwrite "
-                    "it. It is the decisions file as it was before one page "
-                    "per rule proposal (D-126), and it may hold verdicts "
-                    "nobody has recorded yet. Record them with `constat "
+                    "it, and it may hold verdicts nobody has recorded yet. "
+                    "Record them with `constat "
                     f"review {reference} --record-decisions`, then delete the "
                     "file in the target and publish again. Nothing has been "
                     "published."
                 )
-            unchanged = page.exists() and page.read_text() == body
+            unchanged = (
+                not moved and page.exists() and page.read_text() == body
+            )
             page.write_text(body)
 
             # Seeded once, if absent, and never written again (CON-58). The
@@ -481,11 +558,19 @@ class GitPages:
             seeded: list[str] = []
             if not is_generated(reference):
                 stem = self.safe_name(reference)
+                folder = clone / folder_for(stem, decided=decided)
+                # By proposal, not by filename: a page seeded before the name
+                # went into the filename (CON-125) is still that proposal's
+                # page, and seeding a second one would split a reviewer's
+                # verdict from the page Constat reads.
+                already = {
+                    proposal_of(existing.name) for existing in folder.glob("*.md")
+                }
                 for item in awaiting:
-                    path = file_for(stem, item.id)
-                    decisions = clone / path
-                    if decisions.exists():
+                    if item.id in already:
                         continue
+                    path = file_for(stem, item.id, item.name, decided=decided)
+                    decisions = clone / path
                     decisions.parent.mkdir(parents=True, exist_ok=True)
                     decisions.write_text(
                         TEMPLATE.format(
@@ -504,12 +589,18 @@ class GitPages:
                 head = run_git(["rev-parse", "HEAD"], cwd=clone)
                 return PublishedRef(
                     target=self.name,
-                    location=f"{self.url} :: {self.page_for(reference)}",
+                    location=(
+                        f"{self.url} :: "
+                        f"{self.page_for(reference, decided=decided)}"
+                    ),
                     reference=reference,
                     revision=head.stdout.strip() or None,
                 )
 
-            run_git(["add", "--", self.page_for(reference)], cwd=clone)
+            run_git(["add", "--all", "--", DECISIONS_DIRECTORY], cwd=clone)
+            run_git(
+                ["add", "--", self.page_for(reference, decided=decided)], cwd=clone
+            )
             for path in seeded:
                 run_git(["add", "--", path], cwd=clone)
             committed = run_git(
@@ -537,7 +628,9 @@ class GitPages:
             head = run_git(["rev-parse", "HEAD"], cwd=clone)
             return PublishedRef(
                 target=self.name,
-                location=f"{self.url} :: {self.page_for(reference)}",
+                location=(
+                    f"{self.url} :: {self.page_for(reference, decided=decided)}"
+                ),
                 reference=reference,
                 revision=head.stdout.strip() or None,
             )

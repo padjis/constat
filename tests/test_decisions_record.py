@@ -39,7 +39,12 @@ import pytest
 
 from constat.cli import EXIT_DECISIONS, EXIT_OK, EXIT_USAGE, main
 from constat.operations import open_run, record_read_decisions
-from constat.publish.decisions import GENERATED_MARKER, file_for, folder_for
+from constat.publish.decisions import (
+    GENERATED_MARKER,
+    file_for,
+    folder_for,
+    ticket_page_for,
+)
 from constat.publish import Awaiting
 from constat.publish.targets.git_pages import GitPages
 from constat.store import Catalogue, Review, RuleProposals, TicketStore, Workspace
@@ -140,7 +145,7 @@ def decide_in_target(
         # One file per proposal (CON-122): the line goes to the page for the
         # proposal it decides, which is the page the Edit button opens.
         proposal = line.split(":", 1)[0].strip()
-        file = clone / file_for(REFERENCE, proposal)
+        file = _decision_file(clone, proposal)
         file.parent.mkdir(parents=True, exist_ok=True)
         text = file.read_text() if file.exists() else ""
         if replace:
@@ -151,6 +156,22 @@ def decide_in_target(
     git(clone, "commit", "--quiet", *(["-S"] if sign else []), "-m", "decide")
     git(clone, "push", "--quiet", "origin", "HEAD")
     return git(clone, "rev-parse", "HEAD")
+
+
+def _decision_file(clone: Path, proposal: str) -> Path:
+    """The page for one proposal, wherever it is and whatever it is called.
+
+    Found by its leading number rather than by an exact path: the filename
+    carries the rule's name since CON-125, and the folder carries the
+    ticket's state — a reviewer opens whichever page the navigation shows
+    them, and so does this.
+    """
+    for decided in (False, True):
+        folder = clone / folder_for(REFERENCE, decided=decided)
+        for existing in sorted(folder.glob("*.md")):
+            if existing.name.split("-", 1)[0].removesuffix(".md") == proposal:
+                return existing
+    return clone / file_for(REFERENCE, proposal)
 
 
 def decisions_of(workspace, proposal_id: int) -> list[dict]:
@@ -799,7 +820,7 @@ class TestAPagePerProposal:
     def _file(self, tmp_path: Path, wiki: Path, name: str, proposal: str) -> str:
         clone = tmp_path / name
         git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
-        return (clone / file_for(REFERENCE, proposal)).read_text()
+        return _decision_file(clone, proposal).read_text()
 
     def test_each_undecided_proposal_gets_its_own_file(self, tmp_path, wiki):
         target = GitPages(str(wiki))
@@ -812,7 +833,12 @@ class TestAPagePerProposal:
         clone = tmp_path / "per-proposal"
         git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
         folder = clone / folder_for(REFERENCE)
-        assert sorted(f.name for f in folder.glob("*.md")) == ["1.md", "2.md"]
+        # The name is in the filename (CON-125), because a wiki's navigation
+        # shows filenames and a tree of bare numbers says nothing about what
+        # is waiting.
+        assert sorted(f.name for f in folder.glob("*.md")) == [
+            "1-rule-1.md", "2-rule-2.md"
+        ]
 
     def test_the_file_asks_for_one_verdict_and_names_the_proposal(
         self, tmp_path, wiki
@@ -873,7 +899,8 @@ class TestAPagePerProposal:
 
         clone = tmp_path / "generated"
         git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
-        assert not (clone / "decisions" / "index").exists()
+        assert not (clone / "decisions" / "to-review" / "index").exists()
+        assert not (clone / "decisions" / "reviewed" / "index").exists()
 
     def test_a_revision_shows_both_statements(self, tmp_path, wiki):
         """"Is this a change, and is the change right" is the reviewer's whole
@@ -938,19 +965,14 @@ class TestAPagePerProposal:
         ]
         assert read.decisions[0].decided_by == "An Earlier Reviewer"
 
-    def test_publishing_refuses_rather_than_overwriting_it(
+    def test_publishing_leaves_the_file_this_replaced_alone(
         self, tmp_path, wiki
     ):
-        """The one path where a page Constat writes collides with a page a
-        person wrote (CON-123). The ticket page moved *onto* the old
-        decisions file's name, so a target published before the move holds a
-        reviewer's verdicts exactly where the generated page now goes.
-        Refusing is the only safe answer: the alternative destroys a decision
-        somebody believes they made (D-041)."""
-        from constat.errors import PublishFailed
-
+        """It holds verdicts that may not have been recorded, and nothing
+        Constat writes lands on its path any more: the ticket page is in a
+        state folder (CON-125). So it is read and never touched."""
         target = GitPages(str(wiki))
-        clone = tmp_path / "legacy-collision"
+        clone = tmp_path / "legacy-left-alone"
         git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
         git(clone, "config", "user.name", "An Earlier Reviewer")
         git(clone, "config", "user.email", "biz@example.invalid")
@@ -959,6 +981,34 @@ class TestAPagePerProposal:
         legacy.write_text("## Decisions\n\n4: approved — mine\n")
         git(clone, "add", "-A")
         git(clone, "commit", "--quiet", "-m", "an older verdict")
+        git(clone, "push", "--quiet", "origin", "HEAD")
+
+        target.publish(REFERENCE, BODY, awaiting=(_awaiting("1"),))
+
+        after = tmp_path / "legacy-after"
+        git(tmp_path, "clone", "--quiet", str(wiki), str(after))
+        assert (after / "decisions" / f"{REFERENCE}.md").read_text() == (
+            "## Decisions\n\n4: approved — mine\n"
+        )
+
+    def test_a_hand_written_page_at_the_tickets_path_refuses(
+        self, tmp_path, wiki
+    ):
+        """Nothing has ever put a reviewer's file there, and the guard stays
+        anyway: the cost of being wrong is a decision somebody believes they
+        made, and the cost of the check is a string comparison."""
+        from constat.errors import PublishFailed
+
+        target = GitPages(str(wiki))
+        clone = tmp_path / "hand-written"
+        git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
+        git(clone, "config", "user.name", "Somebody")
+        git(clone, "config", "user.email", "biz@example.invalid")
+        page = clone / ticket_page_for(REFERENCE)
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text("## Decisions\n\n4: approved — mine\n")
+        git(clone, "add", "-A")
+        git(clone, "commit", "--quiet", "-m", "by hand")
         git(clone, "push", "--quiet", "origin", "HEAD")
 
         with pytest.raises(PublishFailed) as raised:
@@ -966,97 +1016,6 @@ class TestAPagePerProposal:
 
         assert "--record-decisions" in str(raised.value)
         assert "Nothing has been published" in str(raised.value)
-
-    def test_the_refusal_leaves_the_reviewers_file_as_it_was(
-        self, tmp_path, wiki
-    ):
-        from constat.errors import PublishFailed
-
-        target = GitPages(str(wiki))
-        clone = tmp_path / "untouched"
-        git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
-        git(clone, "config", "user.name", "An Earlier Reviewer")
-        git(clone, "config", "user.email", "biz@example.invalid")
-        legacy = clone / "decisions" / f"{REFERENCE}.md"
-        legacy.parent.mkdir(parents=True, exist_ok=True)
-        legacy.write_text("## Decisions\n\n4: approved — mine\n")
-        git(clone, "add", "-A")
-        git(clone, "commit", "--quiet", "-m", "an older verdict")
-        git(clone, "push", "--quiet", "origin", "HEAD")
-
-        with pytest.raises(PublishFailed):
-            target.publish(REFERENCE, BODY, awaiting=(_awaiting("1"),))
-
-        after = tmp_path / "untouched-2"
-        git(tmp_path, "clone", "--quiet", str(wiki), str(after))
-        assert (after / "decisions" / f"{REFERENCE}.md").read_text() == (
-            "## Decisions\n\n4: approved — mine\n"
-        )
-
-    def test_the_ticket_page_sits_above_the_rules_it_links_to(
-        self, tmp_path, wiki, workspace
-    ):
-        """One folder for the whole act of deciding (CON-123). `reviews/630`
-        listing three proposals while `decisions/630/26` held one of them was
-        two folders for one act."""
-        from constat.operations import publish_document, render_review
-
-        a_proposal(workspace, name="first-rule")
-        publish_document(workspace, REFERENCE, GitPages(str(wiki)))
-
-        clone = tmp_path / "nested"
-        git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
-        assert (clone / "decisions" / f"{REFERENCE}.md").exists()
-        assert not (clone / "reviews").exists()
-        body = (clone / "decisions" / f"{REFERENCE}.md").read_text()
-        # A sibling link, not `../`: the folder is directly below the page.
-        assert f"({REFERENCE}/1.md)" in body
-        assert body == render_review(workspace, REFERENCE)
-
-    def test_the_ticket_page_does_not_repeat_the_statement(
-        self, tmp_path, wiki, workspace
-    ):
-        """The duplication that made two folders feel like two places to
-        decide the same thing. The statement belongs on the page the verdict
-        is written on, and nowhere else."""
-        from constat.operations import publish_document
-
-        a_proposal(workspace, name="first-rule")
-        statement = (
-            RuleProposals(workspace).undecided(REFERENCE)[0].proposal.statement
-        )
-        publish_document(workspace, REFERENCE, GitPages(str(wiki)))
-
-        clone = tmp_path / "no-repeat"
-        git(tmp_path, "clone", "--quiet", str(wiki), str(clone))
-        page = (clone / "decisions" / f"{REFERENCE}.md").read_text()
-
-        assert "first-rule" in page  # the name, so a reader knows what it is
-        assert statement not in page
-        assert statement in (clone / file_for(REFERENCE, "1")).read_text()
-
-    def test_a_credential_in_a_statement_cannot_reach_the_per_rule_page(
-        self, tmp_path, wiki, workspace
-    ):
-        """Found by a test failing open. CON-123 took the statements off the
-        ticket page, and the scan read the page body — so the one route left
-        to the target was the one route the gate could not see."""
-        from constat.ai.scanning import PublicationRefused
-        from constat.operations import publish_document
-
-        record(
-            workspace,
-            a_reading(
-                name="leaky-rule",
-                statement=(
-                    "The service authenticates with "
-                    "ghp_01234567890123456789012345678901234567."
-                ),
-            ),
-        )
-
-        with pytest.raises(PublicationRefused):
-            publish_document(workspace, REFERENCE, GitPages(str(wiki)))
 
     def test_two_proposals_are_decided_in_two_commits(self, tmp_path, wiki):
         """What a decision per rule means in history: the commit carrying a

@@ -182,27 +182,74 @@ class DecisionsRead:
         return tuple(d for d in self.decisions if d.verdict == "rejected")
 
 
-def folder_for(stem: str) -> str:
+TO_REVIEW = "to-review"
+REVIEWED = "reviewed"
+"""The two states a ticket's deciding folder can be in (CON-125).
+
+Asked for in those words: *two sub folders under decisions, one for tickets
+reviewed and one for tickets to review.* The state is in the path, so the
+wiki's own page tree shows the division without anything having to read a
+page.
+
+**The cost is stated rather than hidden.** A ticket whose last rule is decided
+*moves*, so a URL somebody pasted into a chat stops resolving — and the pages
+that move include files a reviewer wrote. The move is a `git mv`, so content
+and history survive; the link does not.
+"""
+
+
+def state_directory(decided: bool) -> str:
+    return f"{DECISIONS_DIRECTORY}/{REVIEWED if decided else TO_REVIEW}"
+
+
+def folder_for(stem: str, *, decided: bool = False) -> str:
     """The folder holding one ticket's decisions, one file per proposal."""
-    return f"{DECISIONS_DIRECTORY}/{stem}"
+    return f"{state_directory(decided)}/{stem}"
 
 
-def file_for(stem: str, proposal: str) -> str:
-    """The page a single proposal is decided on (CON-122).
+def ticket_page_for(stem: str, *, decided: bool = False) -> str:
+    """The ticket's own page, directly above the rules it links to."""
+    return f"{state_directory(decided)}/{stem}.md"
+
+
+def slug(text: str) -> str:
+    """A filename fragment: safe characters only, no leading or trailing dash."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", text).strip("-.")
+
+
+def file_for(
+    stem: str, proposal: str, name: str | None = None, *, decided: bool = False
+) -> str:
+    """The page a single proposal is decided on (CON-122, CON-125).
 
     One file per proposal rather than one per ticket, so a reviewer opens a
     page that holds **one** rule, decides it, and saves. On a wiki that is the
     difference between a decision per rule and a decision per ticket: the file
     is the unit the Edit button acts on.
 
+    The name is in the filename — `26-an-article-that-reaches-nobody...md` —
+    because a wiki's navigation shows filenames, and a tree of bare numbers
+    says nothing about what is waiting. A rule proposal's name is immutable
+    once stored, so the filename does not churn.
+
     It also returns the file to what D-105 promised — seeded once and never
     written again. A ticket-wide file could not keep up with a queue that
     grows, which is why CON-115 had to append to it; a file per proposal is
     created when its proposal appears and is never touched afterwards.
     """
-    safe = re.sub(r"[^A-Za-z0-9._-]", "-", proposal).strip("-.") or "proposal"
-    return f"{folder_for(stem)}/{safe}.md"
+    safe = slug(proposal) or "proposal"
+    titled = f"{safe}-{slug(name)}" if name and slug(name) else safe
+    return f"{folder_for(stem, decided=decided)}/{titled}.md"
 
+
+def proposal_of(filename: str) -> str:
+    """The proposal a decision page is for, read off its filename.
+
+    Used for ordering and for "is this proposal already seeded", never for
+    reading a verdict — that comes from the line inside the file, so a
+    renamed file still reads correctly.
+    """
+    return filename.split("-", 1)[0].removesuffix(".md")
 
 
 def parse(text: str) -> tuple[tuple[DecisionLine, ...], tuple[tuple[int, str], ...]]:

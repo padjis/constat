@@ -178,12 +178,12 @@ class TestPublishingATicket:
 
         assert code == 0
         clone = _pages(tmp_path, wiki)
-        # The index joined them in CON-110, and CON-113 moved the ticket page
-        # into `evidence/` — the business pages stay at the root.
+        # The index joined them in CON-110 and CON-113 moved the ticket page
+        # into a folder — the whole-product pages stay at the root.
         assert sorted(p.name for p in clone.glob("*.md")) == [
             "index.md", f"{STATE_REFERENCE}.md"
         ]
-        assert (clone / "decisions" / "622.md").exists()
+        assert (clone / "decisions" / "reviewed" / "622.md").exists()
 
     def test_the_page_is_what_review_show_prints(
         self, subject, wiki, tmp_path
@@ -209,7 +209,7 @@ class TestPublishingATicket:
             ]
         )
 
-        assert (_pages(tmp_path, wiki) / "decisions" / "622.md").read_text() == expected
+        assert (_pages(tmp_path, wiki) / "decisions" / "reviewed" / "622.md").read_text() == expected
 
     def test_the_page_carries_no_evidence(self, subject, wiki, tmp_path) -> None:
         """The whole point of CON-114: the stored document names files, the
@@ -226,7 +226,7 @@ class TestPublishingATicket:
             ]
         )
 
-        page = (_pages(tmp_path, wiki) / "decisions" / "622.md").read_text()
+        page = (_pages(tmp_path, wiki) / "decisions" / "reviewed" / "622.md").read_text()
         assert "rules.py" not in page
 
 

@@ -80,11 +80,12 @@ def subject(workspace, tmp_path: Path):
     return workspace
 
 
-def page_in(wiki_url_: str, tmp_path: Path, name: str = "decisions/622.md") -> Path:
+def page_in(wiki_url_: str, tmp_path: Path, name: str = "decisions/reviewed/622.md") -> Path:
     """Clone the target and return the published page.
 
-    Under `evidence/` since CON-113: a ticket page is the technical half and
-    is separated from the business pages by directory.
+    A ticket page lives under `decisions/<state>/` since CON-113 and CON-125:
+    it is the technical half, separated from the business pages by directory,
+    and its state is in the path.
     """
     check = tmp_path / f"check-{name.replace('/', '-')}"
     git(tmp_path, "clone", "--quiet", wiki_url_, str(check))
@@ -133,8 +134,10 @@ class TestADocumentReachesTheTarget:
 
         check = tmp_path / "once"
         git(tmp_path, "clone", "--quiet", wiki, str(check))
-        pages = sorted(p.name for p in (check / "decisions").glob("*.md"))
-        assert pages == ["622.md"]
+        pages = sorted(
+            str(p.relative_to(check)) for p in (check / "decisions").rglob("*.md")
+        )
+        assert pages == ["decisions/reviewed/622.md"]
 
     def test_an_unchanged_republish_makes_no_commit(self, subject, wiki, tmp_path):
         """`git commit` fails with nothing staged, so this would otherwise be a
@@ -155,12 +158,14 @@ class TestADocumentReachesTheTarget:
         """A reference arrives from a commit message, so it is attacker-shaped
         in the same way a filename is."""
         target = GitPages(wiki)
-        assert target.page_for("../../etc/passwd") == "decisions/etc-passwd.md"
-        # One slash, and it is the evidence directory's (CON-113). The
-        # property is that the *reference* contributes none: a page lands
+        assert target.page_for("../../etc/passwd") == (
+            "decisions/to-review/etc-passwd.md"
+        )
+        # The only slashes are the ones Constat put there (CON-113, CON-125).
+        # The property is that the *reference* contributes none: a page lands
         # where Constat put it and nowhere else.
-        assert target.page_for("feature/622") == "decisions/feature-622.md"
-        assert target.page_for("...") == "decisions/document.md"
+        assert target.page_for("feature/622") == "decisions/to-review/feature-622.md"
+        assert target.page_for("...") == "decisions/to-review/document.md"
 
 
 class TestACredentialAndThePublishedPage:
@@ -337,7 +342,7 @@ class TestATargetIsNeverGuessed:
         assert result.ref.revision is not None
         check = tmp_path / "from-empty"
         git(tmp_path, "clone", "--quiet", f"file://{bare}", str(check))
-        assert (check / "decisions" / "622.md").exists()
+        assert (check / "decisions" / "reviewed" / "622.md").exists()
 
     def test_a_missing_repository_explains_the_wiki_case(self, subject, tmp_path):
         """The failure the previous test was mistaken for. On GitHub and GitLab

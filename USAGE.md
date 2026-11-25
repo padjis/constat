@@ -236,14 +236,20 @@ What a target holds (D-110, D-117, D-127):
 | `status.md` | every accepted rule, by area — the business explanation | none: nothing on it can be decided. Written by `constat publish` |
 | `index.md` | every other page, with the tickets split into *awaiting a decision* and *decided* | none. Written whenever anything else is |
 | `areas/<area>.md` | the accepted rules for one part of the product | none |
-| `decisions/<REF>.md` | one ticket's rule proposals, by name, each linking to its own page | none directly — it is regenerated on every run. Written by `constat review <REF>` |
-| `decisions/<REF>/<N>.md` | **one** rule proposal: what it says, what it said before, and a line to answer | **this is where a verdict is written.** Seeded once and never touched again |
+| `decisions/to-review/<REF>.md` | one ticket's rule proposals, by name, each linking to its own page | none directly — it is regenerated on every run. Written by `constat review <REF>` |
+| `decisions/to-review/<REF>/<N>-<name>.md` | **one** rule proposal: what it says, what it said before, and a line to answer | **this is where a verdict is written.** Seeded once and never touched again |
+| `decisions/reviewed/<REF>.md` and `<REF>/…` | the same pair, once nothing on it is awaiting a verdict | none left to make |
 | `release-<name>.md` | what was agreed for a declared release | none |
 
-Deciding is one folder. The ticket page sits directly above the pages its rules are decided on, so
-a wiki nests them — `630` with `26`, `27`, `28` beneath it — and the path tells a reader which of
-the two they are looking at. No page carries a file path or a diff: the evidence stays in the
-workspace, reached by `constat rule show` and `constat document` (D-118).
+Deciding is one folder, divided by state (D-128). A ticket page sits directly above the pages its
+rules are decided on, so a wiki nests them — `630` with `26-an-article-that-…`, `27-…`, `28-…`
+beneath it — and both the folder and the filename say what they are without anything having to be
+opened. No page carries a file path or a diff: the evidence stays in the workspace, reached by
+`constat rule show` and `constat document` (D-118).
+
+**A ticket moves when its last rule is decided**, from `to-review/` to `reviewed/`. That is a
+`git mv`, so nothing is lost — but a URL you pasted somewhere stops resolving. The index always
+links to the current path.
 
 **Two commands, because they are two moments** (D-111). Before anyone has decided, a ticket page is
 something you *circulate*: `constat review 622` writes it, and the output says how many proposals
@@ -283,8 +289,8 @@ never publishes, and publishing approves nothing.
 
 ### Deciding on the page instead of at the command line
 
-Publishing also seeds **one page per rule proposal** — `decisions/622/1.md`, `decisions/622/2.md` —
-below the ticket page, once each, and never writes them again. The ticket page is regenerated on
+Publishing also seeds **one page per rule proposal** — `decisions/to-review/622/1-daily-limit.md`
+and so on — below the ticket page, once each, and never writes them again. The ticket page is regenerated on
 every run, so a decision written *there* would be destroyed; and a page of its own per proposal is
 what makes a verdict per rule possible on a wiki, where there is one Edit button per page. The
 ticket page lists the rules by name and links to each.

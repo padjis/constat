@@ -111,7 +111,7 @@ def review(tmp_path: Path, wiki: Path, lines: str, *, sign: bool = False) -> Pat
     # button on that page.
     for line in lines.strip("\n").split("\n"):
         proposal = line.split(":", 1)[0].strip()
-        page = clone / file_for("402", proposal)
+        page = clone / file_for("402", proposal, f"rule-{proposal}")
         page.parent.mkdir(parents=True, exist_ok=True)
         page.write_text(page.read_text() + line + "\n" if page.exists() else line + "\n")
     git(clone, "add", "-A")
@@ -337,7 +337,7 @@ class TestReadingFromAGitTarget:
         )
         git(second, "config", "user.name", "Another Reviewer")
         git(second, "config", "user.email", "other@example.invalid")
-        page = second / file_for("402", "2")
+        page = second / file_for("402", "2", "rule-2")
         page.write_text(page.read_text() + "2: rejected\n")
         git(second, "add", "-A")
         git(second, "commit", "--quiet", "-m", "also decide")
@@ -385,14 +385,20 @@ class TestReadingFromAGitTarget:
         with pytest.raises(DecisionsNotReadable, match="nobody has decided"):
             GitPages(str(tmp_path / "absent.git")).read_decisions("402")
 
-    def test_reading_leaves_no_temporary_clone_behind(self, published):
+    def test_reading_leaves_no_temporary_clone_behind(
+        self, published, tmp_path, monkeypatch
+    ):
+        """In a temp directory of its own, not the shared one: under `-n auto`
+        another worker's in-flight clone made this fail at random."""
         import tempfile
 
-        before = set(Path(tempfile.gettempdir()).glob("constat-decisions-*"))
-        published.read_decisions("402")
-        after = set(Path(tempfile.gettempdir()).glob("constat-decisions-*"))
+        scratch = tmp_path / "scratch"
+        scratch.mkdir()
+        monkeypatch.setattr(tempfile, "tempdir", str(scratch))
 
-        assert after == before
+        published.read_decisions("402")
+
+        assert list(scratch.glob("constat-decisions-*")) == []
 
 
 class TestTheFileConstatDoesNotOwn:
@@ -404,7 +410,7 @@ class TestTheFileConstatDoesNotOwn:
             capture_output=True,
         )
 
-        assert (clone / file_for("402", "1")).exists()
+        assert (clone / file_for("402", "1", "rule-1")).exists()
 
     def test_republishing_does_not_overwrite_a_reviewer_s_decisions(
         self, tmp_path, wiki, published
@@ -432,12 +438,15 @@ class TestTheFileConstatDoesNotOwn:
             capture_output=True,
         )
 
-        # The ticket page sits at `decisions/402.md` since CON-123, directly
-        # above the per-proposal pages, and replacing it leaves those alone.
-        assert (clone / "decisions" / "402.md").read_text() == (
+        # Republished with nothing awaiting, so the ticket is reviewed and
+        # its pages are in that folder (CON-125) — the move, seen from the
+        # outside. The reviewer's page moved with it rather than being left
+        # behind or rewritten.
+        assert (clone / "decisions" / "reviewed" / "402.md").read_text() == (
             f"# Replaced\n\n{GENERATED_MARKER}\n"
         )
-        assert (clone / file_for("402", "1")).exists()
+        assert (clone / file_for("402", "1", "rule-1", decided=True)).exists()
+        assert not (clone / "decisions" / "to-review").exists()
 
 
 # -- the command line ----------------------------------------------------------

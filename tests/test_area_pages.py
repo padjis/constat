@@ -141,8 +141,8 @@ class TestAnAreaPage:
 
         body = render_area("payments", grouped["payments"])
 
-        assert "(../decisions/" in body
-        assert "](decisions/" not in body
+        assert "(../decisions/to-review/" in body
+        assert "](decisions/to-review/" not in body
 
     def test_it_says_nothing_on_it_can_be_decided(self, subject) -> None:
         _accept_in(subject, "payments")
